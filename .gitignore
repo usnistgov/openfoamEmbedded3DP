@@ -1,0 +1,4 @@
+/summaries/
+*.pyc
+*.log
+*-checkpoint*
