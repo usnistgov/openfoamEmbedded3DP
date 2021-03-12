@@ -6,6 +6,7 @@ import folderparser as fp
 import subprocess, json
 import re
 import time
+from config import cfg
 
 
 def get_length(filename):
@@ -39,7 +40,7 @@ def saveVid(folder, s:str, p:str):
             
             
             
-serverfolder = r'\\cfs2e.nist.gov\642\NIST_Projects\Additive Manufacturing and Rheology\OpenFOAM\simulations\yieldingsweep\HBHByielded'
+serverfolder = os.path.join(cfg.server, 'yieldingsweep', 'HBHByielded')
 topfolders = [os.path.join(serverfolder,s) for s in ['k', 'n', 'tau0']]
 while True:
     try:

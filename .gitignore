@@ -2,3 +2,5 @@
 *.pyc
 *.log
 *-checkpoint*
+*config.yaml
+/pythonscripts/archive

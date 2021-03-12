@@ -495,19 +495,19 @@ def copyCtoServerFolders(SERVERFOLDER:str, CFOLDER:str, slist:List[str], timex:f
 
 
 
-def consolidateImages(folder:str) -> None:
-    imf = os.path.join(folder, 'images')
-    if not os.path.exists(imf):
-        return
-    for fo in os.listdir(imf):
-        fofull = os.path.join(imf, fo)
-        if os.path.isdir(fofull):
-            for f in os.listdir(fofull):
-                fold = os.path.join(fofull, f)
-                fnew = fold.replace(r'\videos', '')
-                fnew = fnew.replace(r'\frames', '')
-                if os.path.exists(fnew):
-                    os.remove(fold)
-                else:
-                    os.rename(fold, fnew)
-            os.rmdir(fofull)
+# def consolidateImages(folder:str) -> None:
+#     imf = os.path.join(folder, 'images')
+#     if not os.path.exists(imf):
+#         return
+#     for fo in os.listdir(imf):
+#         fofull = os.path.join(imf, fo)
+#         if os.path.isdir(fofull):
+#             for f in os.listdir(fofull):
+#                 fold = os.path.join(fofull, f)
+#                 fnew = fold.replace(r'\videos', '')
+#                 fnew = fnew.replace(r'\frames', '')
+#                 if os.path.exists(fnew):
+#                     os.remove(fold)
+#                 else:
+#                     os.rename(fold, fnew)
+#             os.rmdir(fofull)

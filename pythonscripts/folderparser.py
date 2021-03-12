@@ -73,9 +73,6 @@ def caseFolder(folder:str) -> str:
 # determines if the folder is a simulation folder
 # for true, input folder should be a simulation folder, e.g. 'C:\...\nb30'
 def isSimFolder(folder:str) -> bool:
-    b = os.path.basename(folder)
-    if not b.startswith('nb'):
-        return False
     cf = caseFolder(folder)
     if not os.path.exists(cf):
         return False
