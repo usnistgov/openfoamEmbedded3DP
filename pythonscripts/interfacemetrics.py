@@ -13,7 +13,6 @@ from shapely.geometry import Polygon
 import re
 from folderparser import caseFolder, caseFolders
 from typing import List, Dict, Tuple, Union, Any
-import interfacemetricsplots as intmp
 
 # BATHRIGHT = 4.834
 # NOZZLEBOTTOM = 0.3015
@@ -81,32 +80,7 @@ def importFilemm(file:str, slist:List[str]) -> Union[pd.DataFrame, List[Any]]:
         for s in slist:
             d[s.lower()]*=1000
         return d
-    
-def correctPointsFiles(folder:str):
-    ipfolder = os.path.join(folder, 'interfacePoints')
-    if not os.path.exists(ipfolder):
-        return
-    for file in os.listdir(ipfolder):
-        correctPointsFile(os.path.join(ipfolder, file))
-    
-def correctPointsFile(csvfile:str):
-    blist = []
-    with open(csvfile, 'r') as b:
-        csv_reader = csv.reader(b)
-        line1 = next(csv_reader)
-        line2 = next(csv_reader)
-        if len(line1)==len(line2):
-            return
-        for i in range(len(line2)-len(line1)):
-            line1.append('col'+str(i))
-        blist.append(line1)
-        blist.append(line2)
-        blist = blist+list(csv_reader)
-    with open(csvfile, 'w', newline='', encoding='utf-8') as b:
-        writer = csv.writer(b)
-        for row in blist:
-            #print(row)
-            writer.writerow(row)
+
     
 def importPointsFile(file:str) -> Union[pd.DataFrame, List[Any]]:
     d = plainIm(file, False)
@@ -172,7 +146,7 @@ def exportIm(fn:str, fig:plt.Figure) -> None:
     print('Exported ', fn)
 
 # export an image from a comboplot or gridofplots object
-def exportImage(exportfolder:str, label:str, topfolder:str, mode:int, cp:Union[intmp.comboPlot, intmp.gridOfPlots]) -> None:
+def exportImage(exportfolder:str, label:str, topfolder:str, mode:int, cp) -> None:
     # don't export an empty plot
     if len(cp.xlistreal)==0:
         return
@@ -505,4 +479,57 @@ def sumAndSteady(folder:str, overwrite:bool) -> None:
         steadyMetrics(folder, overwrite)
     return 
     
+    
+    
+##### ARCHIVE
+
+    
+# def correctPointsFiles(folder:str):
+#     ipfolder = os.path.join(folder, 'interfacePoints')
+#     if not os.path.exists(ipfolder):
+#         return
+#     for file in os.listdir(ipfolder):
+#         correctPointsFile(os.path.join(ipfolder, file))
+    
+# def correctPointsFile(csvfile:str):
+#     blist = []
+#     with open(csvfile, 'r') as b:
+#         csv_reader = csv.reader(b)
+#         line1 = next(csv_reader)
+#         line2 = next(csv_reader)
+#         if len(line1)==len(line2):
+#             return
+#         for i in range(len(line2)-len(line1)):
+#             line1.append('col'+str(i))
+#         blist.append(line1)
+#         blist.append(line2)
+#         blist = blist+list(csv_reader)
+#     with open(csvfile, 'w', newline='', encoding='utf-8') as b:
+#         writer = csv.writer(b)
+#         for row in blist:
+#             #print(row)
+#             writer.writerow(row)
+            
+# def deleteBadPointsFile(csvfile:str):
+#     if os.path.exists(csvfile):
+#         if 'temp' in csvfile:
+#             os.remove(csvfile)
+#             return 1
+#         else:
+#             with open(csvfile, 'r') as b:
+#                 csv_reader = csv.reader(b)
+#                 try:
+#                     line1 = next(csv_reader)
+#                     line2 = next(csv_reader)
+#                 except:
+#                     os.remove(csvfile)
+#                     return 1
+#                 if 'col' in line1:
+#                     os.remove(csvfile)
+#                     return 1
+#                 if len(line1)==len(line2):
+#                     return 0
+#             os.remove(csvfile)
+#             return 1
+#     return 0
 

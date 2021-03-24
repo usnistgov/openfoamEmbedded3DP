@@ -28,14 +28,15 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
 # folders
 folders = []
 
-nlist = range(1000, 1100)
+#nlist = range(1000, 1100)
+nlist=range(0, 1000)
 
 #topfolders = [r'C:\Users\lmf1\Documents\OpenFOAM\HBHBsweep']
-# SERVERFOLDER = r'\\cfs2e.nist.gov\642\NIST_Projects\Additive Manufacturing and Rheology\OpenFOAM\simulations'
+SERVERFOLDER = r'\\cfs2e.nist.gov\642\NIST_Projects\Additive Manufacturing and Rheology\OpenFOAM\simulations\viscositysweep'
 # topfolders = [os.path.join(SERVERFOLDER, s) for s in ['newtnewtsweep', 'HBnewtsweep', 'newtHBsweep', 'HBHBsweep']]
-SERVERFOLDER = r'\\cfs2e.nist.gov\642\NIST_Projects\Additive Manufacturing and Rheology\OpenFOAM\simulations\yieldingsweep\HBHByielded'
-topfolders = [os.path.join(SERVERFOLDER, s) for s in ['n', 'k', 'tau0']]
-# topfolders = [os.path.join(SERVERFOLDER, s) for s in ['HBnewtsweep']]
+#SERVERFOLDER = r'\\cfs2e.nist.gov\642\NIST_Projects\Additive Manufacturing and Rheology\OpenFOAM\simulations\yieldingsweep\HBHByielded'
+#topfolders = [os.path.join(SERVERFOLDER, s) for s in ['n', 'k', 'tau0']]
+topfolders = [os.path.join(SERVERFOLDER, s) for s in ['HBnewtsweep', 'HBHBsweep', 'newtnewtsweep', 'newtHBsweep']]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('nb'):
