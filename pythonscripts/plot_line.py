@@ -1,27 +1,35 @@
+#!/usr/bin/env python
+'''Plotting line traces from Paraview'''
+
+import sys
 import os
-import csv
-import numpy as np
-import matplotlib
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import pandas as pd
 import seaborn as sns
-import statistics as st
-from PIL import Image
+from typing import List, Dict, Tuple, Union, Any, TextIO
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+from plot_general import *
 import interfacemetrics as intm
-import scipy as sp
-from shapely.geometry import Polygon
-import re
-import folderparser as fp
-import random
-import math
+
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
-from typing import List, Dict, Tuple, Union, Any, TextIO
-from interfacemetricsplots import *
 
+__author__ = "Leanne Friedrich"
+__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
+__credits__ = ["Leanne Friedrich"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Leanne Friedrich"
+__email__ = "Leanne.Friedrich@nist.gov"
+__status__ = "Production"
+
+#-------------------------------------------
 
 ############ line plots
 
@@ -38,7 +46,7 @@ def linePlots(folders:List[str], func, time:float, imsize:int, mode:int=0) -> pl
     if mode==0:
         ax.set_ylabel('x velocity (mm/s)')
     else:
-        ax.set_ylabel('Viscosity (Pa s)')
+        ax.set_ylabel('Viscosity (Pa.s)')
         ax.set_yscale('log')
     return fig
     
@@ -54,29 +62,34 @@ def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode
 
     if mode==0:
         # velocity mode
-        ystrink = 'u:0'
-        ystrsup = 'u:0'
+#         ystrink = 'u:0'
+#         ystrsup = 'u:0'
+        ystrink = 'vx'
+        ystrsup = 'vx'
     else:
         tp = extractTP(folder)
-        ystrsup = 'nu2'
-        ystrink = 'nu1'
+        ystrsup = 'nu_sup'
+        ystrink = 'nu_ink'
         # viscosity mode
-        if 'nu2' in t1:
-            t1['nu2']=t1['nu2']*10**3
+        if 'nu_sup' in t1:
+            t1['nu_sup']=t1['nu_sup']*10**3 # this is specifically when the density is 10**3 kg/m^3
         else:
-            nu2list = [tp['nusup'] for i in range(len(t1))]
-            t1['nu2'] = nu2list
-        if 'nu1' in t1:
-            t1['nu1']=t1['nu1']*10**3
+            nu_suplist = [tp['nusup'] for i in range(len(t1))]
+            t1['nu_sup'] = nu_suplist
+        if 'nu_ink' in t1:
+            t1['nu_ink']=t1['nu_ink']*10**3
         else:
-            nu1list = [tp['nuink'] for i in range(len(t1))]
-            t1['nu1'] = nu1list
+            nu_inklist = [tp['nuink'] for i in range(len(t1))]
+            t1['nu_ink'] = nu_inklist
 
-    inkPts = t1[t1['alpha.ink']>0.5]
-    minx = min(inkPts['points:2'])
-    maxx = max(inkPts['points:2'])
-    supPtsLeft = t1[t1['points:2']<minx]
-    supPtsRight = t1[t1['points:2']>maxx]
+#     inkPts = t1[t1['alpha.ink']>0.5]
+    inkPts = t1[t1['alpha']>0.5]
+    zname = 'z'
+#     zname = 'points:2'
+    minx = min(inkPts['z'])
+    maxx = max(inkPts['z'])
+    supPtsLeft = t1[t1['z']<minx]
+    supPtsRight = t1[t1['z']>maxx]
     
     val = folderToFunc(folder, colorf)
     cmap = sns.diverging_palette(220, 20, as_cmap=True)
@@ -87,8 +100,8 @@ def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode
         color = cmap(fracval)
 
     for suppts in [supPtsLeft, supPtsRight]:
-        ax.plot(suppts['points:2'], suppts[ystrsup], color=color)
-    ax.plot(inkPts['points:2'], inkPts[ystrink], color=color, linestyle='--')
-    pts = t1[(t1['points:2']==minx) | (t1['points:2']==maxx)]
-    ax.scatter(pts['points:2'], pts[ystrink], color=color, label=decideFormat(val))
-    ax.scatter(pts['points:2'], pts[ystrsup], color=color)
+        ax.plot(suppts['z'], suppts[ystrsup], color=color)
+    ax.plot(inkPts['z'], inkPts[ystrink], color=color, linestyle='--')
+    pts = t1[(t1['z']==minx) | (t1['z']==maxx)]
+    ax.scatter(pts['z'], pts[ystrink], color=color, label=decideFormat(val))
+    ax.scatter(pts['z'], pts[ystrsup], color=color)

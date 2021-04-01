@@ -5,285 +5,34 @@ import re
 from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
-import logging
-logger = logging.getLogger(__name__)
+from paraview_general import *
+from typing import List, Dict, Tuple, Union, Any, TextIO
 
-## csv
-
-forceoverwrite = False
-
-
-# screenshots
-
-tlist = [1.0, 2.5] # seconds * 10
-modes = [0,1] # 0 for frames, 1 for gif frames
-
-volumes = True
-volviewlist = ['y']
-#volviewlist = ['a']
-
-meshes = False
-
-vectors = False
-
-tubes = False
-tubeh = 0.001
-
-
-# folders
-folders = []
-
-topfolder = r'C:\Users\lmf1\Documents\OpenFOAM\HBHBsweep'
-flist = range(347,475)
-for f in flist:
-    folders.append(os.path.join(topfolder, 'nb'+str(f)))
-
-
-
-####################
-### SHARED #####
-##############
-
-
-##-----------------------
-# files/directories
-
-def casefolder(folder):
-    # if there is a folder in this folder named 'case', return that folder
-    casefold = os.path.join(folder, 'case')
-    if os.path.exists(casefold):
-        return casefold
-    # if this folder contains a folder called 'constant', this is the case folder, so return this folder
-    constfold = os.path.join(folder, 'constant')
-    if os.path.exists(constfold):
-        return folder
-    vtkfold = os.path.join(folder, 'VTK')
-    if os.path.exists(vtkfold):
-        return folder
-    intfold = os.path.join(folder, 'interfacePoints')
-    if os.path.exists(intfold):
-        return folder
-    else:
-        #print('no case folder in ', folder)
-        return ''
-
-def mkdirif(path):
-    try:
-        os.mkdir(path)
-    except OSError:
-        return 0
-    else:
-        print ("Created directory %s" % path)
-
-def parseVTKSeries(folder):
-    seriesfile = series(folder)
-    times = []
-    if os.path.exists(seriesfile):
-        with open(seriesfile, 'r') as f:
-            for line in f:
-                if 'name' in line:
-                    times.append(float(re.split('time\" : | }', line)[1]))
-        return times
-    else:
-        return []
-
-def series(folder):
-    cf = casefolder(folder)
-    vtkfolder = os.path.join(cf, 'VTK')
-    if os.path.exists(vtkfolder):
-        for file in os.listdir(vtkfolder):
-            if '.vtm.series' in file:
-                return os.path.join(vtkfolder, file)
-    return ""
-
-##-----------------------
-# paraview
-
-def cleansession():
-    Disconnect()
-    Connect()
-
-def hideAll():
-    ss = GetSources()
-    for s in ss:
-        Hide(ss[s])
-
-def initSeries0(sv):
-    sfile = series(sv.folder)
-    if not os.path.exists:
-        raise NameError('vtm.series file does not exist')
-    casevtmseries = XMLMultiBlockDataReader(FileName=sfile)
-    casevtmseries.CellArrayStatus = ['U', 'alpha.ink', 'p_rgh']
-    casevtmseries.PointArrayStatus = ['U', 'alpha.ink', 'p_rgh']
-
-    
-def setTime(time, sv):
-    if time in sv.times:
-        sv.animationScene1.AnimationTime = time
-        sv.timeKeeper1.Time = time
-    else:
-        print(f'time {time} is not in list {sv.times}')
-
-
-############################
-## CSV ##############
-##################
-
-
-class csv_stateVars():
-    def __init__(self, folder):
-        self.folder = folder        
-        self.casevtmseries = ""
-        self.renderView1 = ""
-        self.animationScene1 = ""
-        self.timeKeeper1 = ""
-        self.timeStamp = ""
-        self.times = ""
-        self.slice = ""
-
-
-#### initialize all of paraview
-def csv_initializeAll(folder):
-    print('CSVs: Initializing paraview for', folder)
-    sv = csv_stateVars(folder)        # make subdirectories
-    sv =  csv_initializeP(sv)        # initialize Paraview
-    sv =  csv_initSeries(sv)        # import the vtk series files  
-    return sv
-
-
-def csv_initializeP(sv):       
-    LoadPalette(paletteName='WhiteBackground')
-        # make background white
-    paraview.simple._DisableFirstRenderCameraReset()
-        # disable automatic camera reset on 'Show'  
-    hideAll()
-        # hide all existing sources
-    sv.animationScene1 = GetAnimationScene()
-        # get animation scene   
-    sv.timeKeeper1 = GetTimeKeeper()
-        # get the time-keeper  
-    sv.animationScene1.UpdateAnimationUsingDataTimeSteps()
-        # update animation scene based on data timesteps
-    sv.renderView1 = GetActiveViewOrCreate('RenderView')
-        # get active view
-    sv.renderView1.ViewSize = [1216, 1216]
-        # set view size
-    sv.renderView1.OrientationAxesVisibility = 0
-        # hide orientation axes
-    sv.renderView1.CameraParallelProjection = 1
-        # turn off perspective
-    return sv
-
-def csv_initSeries(sv):
-    casevtmseries = initSeries0(sv)
-
-    clip1 = Clip(Input=casevtmseries)
-    clip1.Scalars = ['POINTS', 'alpha.ink']
-    clip1.Value = 0.4
-    clip1.ClipType = 'Scalar'
-    clip1.Invert = 0
-    clip2 = Clip(Input=clip1)
-    clip2.Scalars = ['POINTS', 'alpha.ink']
-    clip2.Value = 0.6
-    clip2.ClipType = 'Scalar'
-    clip2.Invert = 1
-    slice1 = Slice(Input=clip2)
-    slice1.SliceType = 'Plane'
-    slice1.SliceOffsetValues = [0.0]
-    slice1.SliceType.Origin = [0.00334, 0, 0]
-    slice1.SliceType.Normal = [1, 0, 0] # look down the y axis
-    Hide(casevtmseries, sv.renderView1)
-    Hide(clip1, sv.renderView1)
-    Hide(clip2, sv.renderView1)
-    sv.casevtmseries = casevtmseries
-    sv.slice = slice1
-    slice1Display = Show(slice1, sv.renderView1, 'GeometryRepresentation')
-    return sv
-
-def csv_exportcsv(folder, file, table):
-    fn = os.path.join(folder, file)
-    with open(fn, mode='w', newline='') as f:
-        w = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for i in table:
-            w.writerow(i)
-    print('Exported file %s' % fn)
-
-
-def csv_addToFile(x, tempfile, w, xdisp, sv):
-    sv.slice.SliceType.Origin = [x, 0, 0]
-    SaveData(tempfile, FieldAssociation="Point Data", ChooseArraysToWrite=1, AddTime=1)
-    with open(tempfile, mode='r') as f2:
-        ftemp = csv.reader(f2)
-        next(ftemp)
-        for row in ftemp:
-            r = row
-            if len(r)>1:
-                r[1] = str(float(r[1])+xdisp)
-                w.writerow(r)
-
-
-def csv_csvfolder(folder):
-    try:
-        if not os.path.exists(folder):
-            return
-        f1 = os.path.join(folder, 'interfacePoints')
-        mkdirif(f1)
-        xmin = -0.004824
-        xmax = -xmin
-        dx = 0.0002
-        xchunk = 0.0015
-        initialized = False
-        tempfile = os.path.join(f1, "temp.csv")
-        times = parseVTKSeries(folder)
-        if len(times)>0:
-            for time in times:
-                ipfile = os.path.join(f1, "interfacePoints_t_"+str(int(round(time*10)))+".csv")
-                    # this is the file that all points for this time will be saved in
-                if not os.path.exists(ipfile) or forceoverwrite: 
-                    # only run this if the file hasn't been created already or we're being forced to
-                    if not initialized: # if paraview hasn't already been initialized, initialize it
-                        sv = csv_initializeAll(folder)
-                        print('-----', times)
-                        sv.times = times
-                        initialized = True
-                    setTime(time, sv) 
-                    # error checking: sometimes we lose the ability to set the time.
-                    # This seems to happen only when I walk away from the computer, 
-                    # because the computer is a naughty child
-                    print('--time', time, ', file:', ipfile)
-                    if not sv.timeKeeper1.Time==time:
-                        raise Exception('Timekeeper broken. Start again.')
-                    with open(ipfile, mode='w', newline='') as f:
-                        w = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                        w.writerow(['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'alpha', 'p', 'rAU'])
-                        for x in (np.arange(xmin, xmax, dx)): 
-                            csv_addToFile(x, tempfile, w, 0, sv)                            
-                    os.remove(tempfile)
-            ResetSession()
-            cleansession()
-            try:
-                del sv
-            except:
-                return
-    except Exception as e:
-        print(e)
-        ResetSession()
-        cleansession()
-        return
+FONT = 24
 
 ##############################################
 ######## SCREENSHOTS
 
+# # this holds objects related to the paraview display
+# class stateVars():
+#     def __init__(self, folder):
+#         mksubdirs(folder)
+#         self.folder = folder        
+#         self.casevtmseries = ""
+#         self.renderView1 = ""
+#         self.animationScene1 = ""
+#         self.timeKeeper1 = ""
+#         self.timeStamp = ""
+#         self.times = ""
+#         self.initialized = False
+
+
 ####### file operations ######
 
-        
-def ss_mksubdirs(folder):
-    mkdirif(os.path.join(folder, 'images'))   
-    mkdirif(os.path.join(folder, 'images', 'frames'))  
-    mkdirif(os.path.join(folder, 'images', 'videos')) 
 
     
-def ss_timestr(t):
+# convert a time to a 3 digit string
+def timestr(t:float) -> str:
     tstr = str(t)
     if t<10:
         tstr = "00" + tstr
@@ -291,112 +40,51 @@ def ss_timestr(t):
         tstr = "0" + tstr
     return tstr
 
-def ss_fullFN(t, view, coloring, folder, subfolder):
-    fn = 't'+ss_timestr(t)+'_'+view+'_'+coloring+'.png'
-    filename = os.path.join(folder, 'images', subfolder, fn)
+# get a full file name for an image
+def fullFN(t:float, view:str, coloring:str, folder:str):
+    fn = 't'+timestr(t)+'_'+view+'_'+coloring+'.png'
+    filename = os.path.join(folder, 'images', fn)
     return filename
 
-def ss_vidFN(view, coloring, folder):
+# get the full file name for the video
+def vidFN(view:str, coloring:str, folder:str):
     fn = view+'_'+coloring+'.mp4'
-    filename = os.path.join(folder, 'images', 'videos', fn)
+    filename = os.path.join(folder, 'images', fn)
     return filename
+
+
 
 ######### show/hide/initializes ############
-
-def ss_initializeAll(folder):
-    print('Initializing paraview for ', folder)
-    ResetSession()
-    sv = ss_stateVars(folder)
-        # make subdirectories
-    sv =  ss_initializeP(sv) 
-        # initialize Paraview
-    try:
-        sv =  ss_initSeries(sv)
-        # import the vtk series files
-    except NameError as err:
-        raise err
-    sv = ss_timeStamp(sv)
-        # add time stamp
-    sv.initialized = True
-    return sv
-
 #### import the vtk series file
-def ss_initSeries(sv):
-    sfile = series(sv.folder)
-    if not os.path.exists:
-        raise NameError('vtm.series file does not exist')
-    casevtmseries = XMLMultiBlockDataReader(FileName=sfile)
-    casevtmseries.CellArrayStatus = ['U', 'alpha.ink', 'p_rgh']
-    casevtmseries.PointArrayStatus = ['U', 'alpha.ink', 'p_rgh']
-    
-    
-    casevtmseriesDisplay = Show(casevtmseries, sv.renderView1, 'GeometryRepresentation')
-    casevtmseriesDisplay.Representation = 'Surface'
-    casevtmseriesDisplay.ColorArrayName = [None, '']
-    casevtmseriesDisplay.OSPRayScaleArray = 'U'
-    casevtmseriesDisplay.OSPRayScaleFunction = 'PiecewiseFunction'
-    casevtmseriesDisplay.SelectOrientationVectors = 'None'
-    casevtmseriesDisplay.ScaleFactor = 0.0006029999814927578
-    casevtmseriesDisplay.SelectScaleArray = 'None'
-    casevtmseriesDisplay.GlyphType = 'Arrow'
-    casevtmseriesDisplay.GlyphTableIndexArray = 'None'
-    casevtmseriesDisplay.GaussianRadius = 3.0149999074637892e-05
-    casevtmseriesDisplay.SetScaleArray = ['POINTS', 'U']
-    casevtmseriesDisplay.ScaleTransferFunction = 'PiecewiseFunction'
-    casevtmseriesDisplay.OpacityArray = ['POINTS', 'U']
-    casevtmseriesDisplay.OpacityTransferFunction = 'PiecewiseFunction'
-    casevtmseriesDisplay.DataAxesGrid = 'GridAxesRepresentation'
-    casevtmseriesDisplay.PolarAxes = 'PolarAxesRepresentation'
-    casevtmseriesDisplay.ScaleTransferFunction.Points = [0.0, 0.0, 0.5, 0.0, 0.009999999776482582, 1.0, 0.5, 0.0]
-    casevtmseriesDisplay.OpacityTransferFunction.Points = [0.0, 0.0, 0.5, 0.0, 0.009999999776482582, 1.0, 0.5, 0.0]
-    sv.renderView1.ResetCamera()
-    sv.renderView1.Update()
-    ColorBy(casevtmseriesDisplay, None)
-    sv.casevtmseries = casevtmseries
-    return sv
 
-def ss_initializeSV(sv):
+# initialize paraview, import series file, and create a time stamp
+def initializeSV(sv:stateVars) -> None:
     # use this if you already have a stateVars object
     print('Screenshots: Initializing paraview for ', sv.folder)
     ResetSession()
-    sv =  ss_initializeP(sv) 
+    sv =  initializeP(sv) 
         # initialize Paraview
-    sv =  ss_initSeries(sv)
+    sv =  initSeries(sv)
         # import the vtk series files
-    sv = ss_timeStamp(sv)
+    sv = timeStamp(sv) 
         # add time stamp
     sv.initialized = True
     return 
 
         
 #### initialize all of paraview
-def ss_initializeP(sv):  
-    ResetSession()     
-    LoadPalette(paletteName='WhiteBackground')
-        # make background white
-    paraview.simple._DisableFirstRenderCameraReset()
-        # disable automatic camera reset on 'Show'  
-    hideAll()
-        # hide all existing sources
-    sv.animationScene1 = GetAnimationScene()
-        # get animation scene   
-    sv.timeKeeper1 = GetTimeKeeper()
-        # get the time-keeper  
-    sv.animationScene1.UpdateAnimationUsingDataTimeSteps()
-        # update animation scene based on data timesteps
-    sv.renderView1 = GetActiveViewOrCreate('RenderView')
-        # get active view
-    sv.renderView1.ViewSize = [1216, 1216]
-        # set view size
-    sv.renderView1.OrientationAxesVisibility = 0
-        # hide orientation axes
-    sv.renderView1.CameraParallelProjection = 1
-        # turn off perspective
-    return sv
  
-    
-    
-def ss_timeStamp(sv):
+
+def initSeries(sv:stateVars) -> stateVars:
+    casevtmseries = initSeries0(sv)  
+    casevtmseriesDisplay = Show(casevtmseries, sv.renderView1, 'GeometryRepresentation')
+    sv.renderView1.ResetCamera()
+    sv.renderView1.Update()
+    sv.casevtmseries = casevtmseries
+    return sv    
+ 
+# create a timestamp to add later
+def timeStamp(sv:stateVars) -> stateVars:
     annotateTimeFilter1 = AnnotateTimeFilter(Input=sv.casevtmseries)
     annotateTimeFilter1.Format = '%2.1f s'
     annotateTimeFilter1Display = Show(annotateTimeFilter1, sv.renderView1, 'TextSourceRepresentation')
@@ -405,13 +93,16 @@ def ss_timeStamp(sv):
     return sv
 
 
-def ss_resetCam(sv, time):
+###############
+# camera operations
+
+# go to a specific view area
+def resetCam(sv:stateVars, time:float) -> None:
     setTime(time, sv)
     sv.renderView1.ResetCamera(-0.005, 0.005, -0.002, 0.002, -0.002, 0.002)
 
-
-    
-def ss_setView(st, sv):
+# go to a specific view point
+def setView(st:str, sv:stateVars) -> None:
     if st=="z":
         sv.renderView1.CameraFocalPoint = [0.001, 0,0]
         sv.renderView1.CameraPosition = [0.001, 0, 10]
@@ -428,17 +119,18 @@ def ss_setView(st, sv):
         sv.renderView1.CameraFocalPoint = [0.001, 0, 0.001]
         sv.renderView1.CameraPosition = [-1,-1,1]
         sv.renderView1.CameraViewUp = [0,0,1]
-        
-def ss_setAndUpdate(st, sv):
-    ss_setView(st, sv)
+
+# go to a specific viewpoint and view area
+def setAndUpdate(st:str, sv:stateVars) -> None:
+    setView(st, sv)
     sv.renderView1.Update()
     sv.renderView1.ResetCamera(-0.005, 0.005, -0.002, 0.002, -0.002, 0.002)
 
 
 #### annotations
-FONT = 12
 
-def ss_positionCB(ColorBar):
+# put the color bar in the bottom
+def positionCB(ColorBar) -> None:
     ColorBar.AutoOrient = 0
     ColorBar.Orientation = 'Horizontal'
     ColorBar.WindowLocation = 'LowerCenter'
@@ -449,7 +141,7 @@ def ss_positionCB(ColorBar):
     ColorBar.ComponentTitle = ''
 
 # velocity magnitude color bar
-def ss_uColorBar(renderView1, display, umax):
+def uColorBar(renderView1, display, umax:float) -> None:
     # set scalar coloring
     ColorBy(display, ('POINTS', 'U', 'Magnitude'))
 
@@ -466,14 +158,16 @@ def ss_uColorBar(renderView1, display, umax):
         du = 0.002
 
     uLUTColorBar = GetScalarBar(uLUT, renderView1)
-    ss_positionCB(uLUTColorBar)
+    positionCB(uLUTColorBar)
     uLUTColorBar.CustomLabels = np.arange(0, umax+du, du)
     uLUTColorBar.Title = '|Velocity| (m/s)'
     uLUTColorBar.RangeLabelFormat = '%-#0.3f'
     
-def ss_alphaColorBar(renderView1, display):
+# volume fraction color bar
+def alphaColorBar(renderView1, display) -> None:
     # set scalar coloring
     ColorBy(display, ('CELLS', 'alpha.ink'))
+    ColorBy(display, ('POINTS', 'alpha.ink'))
 
     # rescale color and/or opacity maps used to include current data range
     display.RescaleTransferFunctionToDataRange(True, False)
@@ -483,27 +177,29 @@ def ss_alphaColorBar(renderView1, display):
     alphainkPWF = GetOpacityTransferFunction('alphaink')
 
     aLUTColorBar = GetScalarBar(alphainkLUT, renderView1)
-    ss_positionCB(aLUTColorBar)
+    positionCB(aLUTColorBar)
     aLUTColorBar.CustomLabels = np.arange(0, 1.25, 0.25)
     aLUTColorBar.Title = 'Volume fraction ink'
     aLUTColorBar.RangeLabelFormat = '%-#0.2f'
 
 
 ################ types of surfaces #########################
-       
-def ss_vol(sv):
-    ss_alphasurface(sv, 'U')
 
-def ss_plainalphasurface(sv):
-    ss_alphasurface(sv, 'None')
+# filament surface with velocity coloring
+def vol(sv:stateVars) -> None:
+    alphasurface(sv, 'U')
 
-def ss_alphasurface(sv, color):
+# filament surface with no coloring
+def plainalphasurface(sv:stateVars) -> None:
+    alphasurface(sv, 'None')
+
+# filament surface
+# color is the variable being colored ('U' or 'None')
+def alphasurface(sv:stateVars, color:str) -> Tuple:
     # sv = stateVars object
     # color = 'U' or 'None'
 
     clip1 = Clip(Input=sv.casevtmseries)
-    clip1.ClipType = 'Plane'
-    clip1.HyperTreeGridClipper = 'Plane'
     clip1.Scalars = ['POINTS', 'alpha.ink']
     clip1.Value = 0.5
     clip1.ClipType = 'Scalar'
@@ -524,7 +220,6 @@ def ss_alphasurface(sv, color):
     clip1Display.GaussianRadius = 9.066090569831431e-06
     
     if color=="U":
-
         clip1Display.SetScaleArray = ['POINTS', 'U']
         clip1Display.ScaleTransferFunction = 'PiecewiseFunction'
         clip1Display.OpacityArray = ['POINTS', 'U']
@@ -535,21 +230,28 @@ def ss_alphasurface(sv, color):
         clip1Display.ExtractedBlockIndex = 1
         clip1Display.ScaleTransferFunction.Points = [0.0, 0.0, 0.5, 0.0, 1.1757813367477812e-38, 1.0, 0.5, 0.0]
         clip1Display.OpacityTransferFunction.Points = [0.0, 0.0, 0.5, 0.0, 1.1757813367477812e-38, 1.0, 0.5, 0.0]
-        ss_uColorBar(sv.renderView1, clip1Display, 0.01)
+        uColorBar(sv.renderView1, clip1Display, 0.01)
     else:
-
         clip1Display.SetScaleArray = 'None'
         ColorBy(clip1Display, None)
         
     Hide(sv.casevtmseries, sv.renderView1)
 
-    ss_resetCam(sv, (sv.times[-1])) 
-    ss_setAndUpdate('y', sv)
+    resetCam(sv, (sv.times[-1])) 
+    setAndUpdate('y', sv)
     sv.renderView1.Update()
     return [clip1, clip1Display]
+
+
+def viscSlice(sv:stateVars) -> Tuple:
+    out = sv.readVisc()
+    if out>0:
+        
     
     
-def ss_mesh(sv):
+
+# cross-section with mesh overlay and volume fraction coloring
+def mesh(sv:stateVars) -> Tuple:
     hideAll()
     slice1 = Slice(Input=sv.casevtmseries)
     slice1.SliceType = 'Plane'
@@ -579,11 +281,12 @@ def ss_mesh(sv):
 
     # show mesh edges
     slice1Display.SetRepresentationType('Surface With Edges')
-    ss_setAndUpdate('y', sv)
-    ss_alphaColorBar(sv.renderView1, slice1Display)    
+    setAndUpdate('y', sv)
+    alphaColorBar(sv.renderView1, slice1Display)    
     return [slice1, slice1Display]
-    
-def ss_plainslice(sv):
+ 
+# plain slice
+def plainslice(sv:stateVars):
     # create a new 'Slice'
     slice2 = Slice(Input=sv.casevtmseries)
     slice2.SliceType = 'Plane'
@@ -623,11 +326,11 @@ def ss_plainslice(sv):
     slice2Display.AmbientColor = [1.0, 1.0, 1.0]
     slice2Display.DiffuseColor = [1.0, 1.0, 1.0]
     
-    ss_setAndUpdate('y', sv)
+    setAndUpdate('y', sv)
     
     return slice2
     
-def ss_yarrows(slice2, sv):
+def yarrows(slice2, sv):
     # create a new 'Glyph'
     glyph1 = Glyph(Input=slice2, GlyphType='Arrow')
     glyph1.OrientationArray = ['POINTS', 'U']
@@ -659,15 +362,15 @@ def ss_yarrows(slice2, sv):
     glyph1Display.PolarAxes = 'PolarAxesRepresentation'
     glyph1Display.ScaleTransferFunction.Points = [0.0, 0.0, 0.5, 0.0, 0.009999999776482582, 1.0, 0.5, 0.0]
     glyph1Display.OpacityTransferFunction.Points = [0.0, 0.0, 0.5, 0.0, 0.009999999776482582, 1.0, 0.5, 0.0]   
-    ss_uColorBar(sv.renderView1, glyph1Display, 0.02)
-    ss_setAndUpdate('y', sv)
+    uColorBar(sv.renderView1, glyph1Display, 0.02)
+    setAndUpdate('y', sv)
     
-def ss_sliceandyarrows(sv):
+def sliceandyarrows(sv):
     hideAll()
-    slice2 =  ss_plainslice(sv)
-    ss_yarrows(slice2, sv)
+    slice2 =  plainslice(sv)
+    yarrows(slice2, sv)
     
-def ss_tube(sv):
+def tube(sv):
     streamTracer1 = StreamTracer(Input=sv.casevtmseries, SeedType='High Resolution Line Source')
     streamTracer1.Vectors = ['POINTS', 'U']
     streamTracer1.MaximumStreamlineLength = 0.006
@@ -741,32 +444,22 @@ def ss_tube(sv):
     Hide(streamTracer1, sv.renderView1)
     sv.renderView1.Update()
 
-    ss_uColorBar(sv.renderView1, tube1Display, 0.01)
+    uColorBar(sv.renderView1, tube1Display, 0.01)
 
     # update the view to ensure updated data information
     sv.renderView1.Update()
     
-def ss_surfandtube(sv):
+def surfandtube(sv):
     hideAll()
-    ss_plainalphasurface(sv)
-    ss_tube(sv)
+    plainalphasurface(sv)
+    tube(sv)
     
     
 ################ scripting #########################
-class ss_stateVars():
-    def __init__(self, folder):
-        ss_mksubdirs(folder)
-        self.folder = folder        
-        self.casevtmseries = ""
-        self.renderView1 = ""
-        self.animationScene1 = ""
-        self.timeKeeper1 = ""
-        self.timeStamp = ""
-        self.times = ""
-        self.initialized = False
+
         
 
-def ss_runthrough(tlist, viewlistin, coloring, subfolder, sv, f, mode):
+def runthrough(tlist, viewlistin, coloring, sv, f, mode):
     # tlist is the list of times to go through
     # viewlist is the list of views to go through
     # coloring is the coloring label
@@ -778,14 +471,9 @@ def ss_runthrough(tlist, viewlistin, coloring, subfolder, sv, f, mode):
     viewlist = []
 
     for view in viewlistin: # for each view point
-        # if mode==1:
-        #     # if we're creating video frames, check if the video already exists, and quit if it does
-        #     vidfn = vidFN(view, coloring, folder)
-        #     if os.path.exists(vidfn):
-        #         return 
         for t in tlist: # tlist is *10
             # go through each time step
-            fn = ss_fullFN(t, view, coloring, folder, subfolder)
+            fn = fullFN(t, view, coloring, sv.folder)
                 # find the full file name for this set of circumstances
             if (not os.path.exists(fn)) and t/10 in sv.times:
                 # if the file does not exist, add this set to the list
@@ -797,37 +485,40 @@ def ss_runthrough(tlist, viewlistin, coloring, subfolder, sv, f, mode):
     if len(tlist2)>0:
         if not sv.initialized:
             try:
-                ss_initializeSV(sv)
-            except:
+                initializeSV(sv)
+            except Exception as e:
+                print(e)
                 raise
-        f(sv)
-        Show(sv.timeStamp, sv.renderView1)     # add time stamp
 
-        # iterate through times and take snapshots of the surfaces
-        for [i,t] in enumerate(tlist2):
-            # if t-round(t)==0:
-            print(f't = {t}, view = {viewlist[i]}, filename = {fnlist[i]}\n' )
-            setTime(t/10, sv)
-            ss_setView(viewlist[i], sv)
-            SaveScreenshot(fnlist[i], sv.renderView1)
+        try:
+            f(sv)
+            Show(sv.timeStamp, sv.renderView1)     # add time stamp
+
+    #         # iterate through times and take snapshots of the surfaces
+            for [i,t] in enumerate(tlist2):
+                # if t-round(t)==0:
+                print(f't = {t}, view = {viewlist[i]}, filename = {fnlist[i]}' )
+                setTime(t/10, sv)
+                setView(viewlist[i], sv)
+                SaveScreenshot(fnlist[i], sv.renderView1)
+        except Exception as e:
+            print(e)
+            raise
     return sv
  
-        
 
 
-def ss_folderscript(folder, modes, volumes, meshes, vectors, tubes, tlist):
+def folderscript(folder, modes, volumes, volviewlist, meshes, vectors, tubes, tlist):
     
     try:
         if not os.path.exists(folder):
             return
-        sv = ss_stateVars(folder)
+        sv = stateVars(folder)
         sv.times = parseVTKSeries(folder)
         for mode in modes:
             if mode==0:
-                subfolder = 'frames'
                 trange = [int(round(10*i)) for i in tlist]
             else:
-                subfolder = 'videos'  
                 trange = [int(round(10*i)) for i in sv.times]
 
             coloringlist = []
@@ -837,31 +528,32 @@ def ss_folderscript(folder, modes, volumes, meshes, vectors, tubes, tlist):
             # ink-support interfaces
             if volumes:
                 coloringlist.append('umag')
-                flist.append(ss_vol)
+                flist.append(vol)
                 vollist.append(volviewlist)
 
             # mesh from the y view
             if meshes:
                 coloringlist.append('mesh')
-                flist.append(ss_mesh)
+                flist.append(mesh)
                 vollist.append(['y'])
 
             # flow vectors from the y view
             if vectors:
                 coloringlist.append('vecs')
-                flist.append(ss_sliceandyarrows)
+                flist.append(sliceandyarrows)
                 vollist.append(['y'])
 
             # streamlines with interface
             if tubes:
                 coloringlist.append('stre')
-                flist.append(ss_surfandtube)
+                flist.append(surfandtube)
                 vollist.append(volviewlist)
 
             for i in range(len(coloringlist)):
                 try:
-                    sv = ss_runthrough(trange, vollist[i], coloringlist[i], subfolder, sv, flist[i], mode)
+                    sv = runthrough(trange, vollist[i], coloringlist[i], sv, flist[i], mode)
                 except Exception as e:
+                    print(e)
                     return
         cleansession()
         return
@@ -869,24 +561,3 @@ def ss_folderscript(folder, modes, volumes, meshes, vectors, tubes, tlist):
         print(e)
         cleansession()
         return
-
-######################################################
-####################### SCRIPT #######################
-def mkdirif(path):
-    try:
-        os.mkdir(path)
-    except OSError:
-        return 0
-    else:
-        print ("Created directory %s" % path)
-
-
-while True:
-    for folder in folders:
-        csv_csvfolder(folder)
-        ss_folderscript(folder, modes, volumes, meshes, vectors, tubes, tlist)
-    now = datetime.now()
-    current_time = now.strftime("%D, %H:%M:%S")
-    print('Waiting 6 hours for more files...')
-    print("------ Current Time =", current_time)
-    time.sleep(60*60*6)

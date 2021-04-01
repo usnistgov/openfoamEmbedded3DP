@@ -1,19 +1,40 @@
+#!/usr/bin/env pvpython
+'''Functions for importing vtk files of simulated filaments.'''
+
 import os
-import numpy as np
+import sys
 import csv
 import re
 from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
 from typing import List, Dict, Tuple, Union, Any, TextIO
-sys.path.insert(1, r'C:\Users\lmf1\OneDriveNIST\NIST\data\openfoam\pythonscripts')
-from folderparser import redoVTKSeriesNoLog, parseVTKSeries, vtkfiles
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+import folderparser as fp
+import logging
+logger = logging.getLogger(__name__)
+
+__author__ = "Leanne Friedrich"
+__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
+__credits__ = ["Leanne Friedrich"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Leanne Friedrich"
+__email__ = "Leanne.Friedrich@nist.gov"
+__status__ = "Production"
+
+
+#################################################################
 
 class stateVars():
+    '''This object holds important information about the folder and paraview objects that are used across functions'''
+    
     def __init__(self, folder):
-        mksubdirs(folder)
+        mksubdirs(folder) # make images and interfacePoints folders
         self.folder = folder        
-        self.casevtmseries = ""
+        self.caseVTMSeries = ""
         self.renderView1 = ""
         self.animationScene1 = ""
         self.timeKeeper1 = ""
@@ -22,9 +43,10 @@ class stateVars():
         self.slice = ""
         self.initialized = False
         
-    # get viscosity settings from legend
+   
     def readVisc(self):
-        le = importIf(self.folder)
+        '''Get viscosity settings from legend. This is necessary for making viscosity maps involving Newtonian fluids.'''
+        le = fp.importIf(self.folder)
         if len(le)==0:
             return 1
         i0 = 0
@@ -61,211 +83,98 @@ class stateVars():
         nusup = le[nusupi][1]
         self.supnu = nusup
         
-        return 0
-
-    
-    
-#         self.leg = importIf(self.folder)
-#         if len(self.leg)>0:
-            
-#             self.inkmodel = self.leg[92][1]
-#             if self.inkmodel=='HerschelBulkley':
-#                 self.inknu = self.leg[94][1]
-#                 self.inkfunc = 'nu1'
-#             else:
-#                 self.inknu = self.leg[93][1]
-#                 self.inkfunc = 'inknu'
-#             print(self.leg[95][0])
-#             if self.leg[95][0]=='sup':
-#                 sup0 = 96
-#             else:
-#                 sup0 = 100
-#             self.supmodel = self.leg[sup0][1]
-#             if self.supmodel=='HerschelBulkley':
-#                 self.supnu = self.leg[sup0+2][1]
-#                 self.supfunc = 'nu2'
-#             else:
-#                 self.supnu = self.leg[sup0+1][1]
-#                 self.supfunc = 'supnu'
-#             return 0
-#         else:
-#             return 1
-    
+        return 0      
         
-
-        
-# importIf imports and existing legend file if it exists 
-# or creates a table if it does not exist
-    # folder is a full path
-def importIf(folder:str) -> List[List[str]]:
-    fn = os.path.join(folder, 'legend.csv')
-    if os.path.exists(fn):
-        with open(fn, 'r') as f:
-            return(list(csv.reader(f)))
-    else:
-        return []
-
-    # make the images folder      
 def mksubdirs(folder:str) -> None:
-    mkdirif(os.path.join(folder, 'images'))   
-    mkdirif(os.path.join(folder, 'interfacePoints'))
+    '''make the images and interfacePoints folders  '''
+    # fp.mkdirif(os.path.join(folder, 'images'))   
+    # fp.mkdirif(os.path.join(folder, 'interfacePoints'))
+    os.makedirs(os.path.join(folder, 'images'), exist_ok = True)
+    os.makedirs(os.path.join(folder, 'interfacePoints'), exist_ok = True)
 
-# find the case folder
-def casefolder(folder:str) -> str:
-    # if there is a folder in this folder named 'case', return that folder
-    casefold = os.path.join(folder, 'case')
-    if os.path.exists(casefold):
-        return casefold
-    # if this folder contains a folder called 'constant', this is the case folder, so return this folder
-    constfold = os.path.join(folder, 'constant')
-    if os.path.exists(constfold):
-        return folder
-    vtkfold = os.path.join(folder, 'VTK')
-    if os.path.exists(vtkfold):
-        return folder
-    intfold = os.path.join(folder, 'interfacePoints')
-    if os.path.exists(intfold):
-        return folder
-    else:
-        #print('no case folder in ', folder)
-        return ''
 
-# make the directory if there is no existing directory
-def mkdirif(path:str) -> None:
-    try:
-        os.mkdir(path)
-    except OSError:
-        return 
-    else:
-        print ("Created directory %s" % path)
 
         
-# find the path of the vtk series file
-def series(folder:str) -> str:
-    cf = casefolder(folder)
-    vtkfolder = os.path.join(cf, 'VTK')
-    if os.path.exists(vtkfolder):
-        for file in os.listdir(vtkfolder):
-            if '.series' in file:
-                return os.path.join(vtkfolder, file)
-        # if there is a vtk folder but no series file, generate one
-        redoVTKSeriesNoLog(folder)
-        return parseVTKSeries(folder)
-        # return generateVTKseries(folder, False)
-    return ""
-        
-        
-# # get the list of times from the vtk series file
-# def parseVTKSeries(folder:str) -> List[float]:
-#     seriesfile = series(folder)
-#     times = []
-#     if os.path.exists(seriesfile):
-#         with open(seriesfile, 'r') as f:
-#             for line in f:
-#                 if 'name' in line:
-#                     times.append(float(re.split('time\" : | }', line)[1]))
-#         return times
-#     else:
-#         return []
-
-
-# generate a new .VTK.series file if there is no series file
-# searchForSeries is true if we should search for the series file
-# def generateVTKseries(folder:str, searchForSeries:bool) -> str:
-#     print('generating new series files')
-#     if searchForSeries:
-#         s = series(folder)
-#         if os.path.exists(s):
-#             return s
-#     # check that there are vtk files
-#     cf = casefolder(folder)
+# # find the path of the vtk series file
+# def series(folder:str) -> str:
+#     cf = fp.caseFolder(folder)
 #     vtkfolder = os.path.join(cf, 'VTK')
-#     if not os.path.exists(vtkfolder):
-#         return ''
-#     # find the log file
-#     log = os.path.join(folder, 'log_foamToVTK')
-#     if not os.path.exists(log):
-#         log = os.path.join(cf, 'log_foamToVTK')
-#         if not os.path.exists(log):
-#             return VTKguessTimeSeries(folder)
-#     fn = os.path.join(vtkfolder, 'case.vtk.series')
-#     times = []
-#     with open(fn,"w") as fout:
-#         out = '{\n  \"file-series-version\" : \"1.0\",\n  \"files\" : [\n'
-#         with open(log, 'r') as f:
-#             for line in f:
-#                 if line.startswith('Time'):
-#                     time = re.split(': |\n', line)[1]
-#                 if 'Internal' in line:
-#                     filename = re.split('VTK/|\"', line)[2]
-#                     if not time in times:
-#                         out = out + '    { \"name\" : \"'+filename+'\", \"time\" : '+time+' },\n'
-#                         times.append(time)
-#         out = out[0:-2]+'\n  ]\n}' # eliminate the last comma
-#         fout.write(out)
-#     print('Exported ' + fn)
-#     return fn
+#     if os.path.exists(vtkfolder):
+#         for file in os.listdir(vtkfolder):
+#             if '.series' in file:
+#                 return os.path.join(vtkfolder, file)
+#         # if there is a vtk folder but no series file, generate one
+#         fp.redoVTKSeriesNoLog(folder)
+#         return fp.parseVTKSeries(folder)
+#     return ""
 
 
-def readTimes(folder) -> List[float]:
-    times = parseVTKSeries(folder)
-    if len(times)==0 or len(times)<vtkfiles(folder):
-        redoVTKSeriesNoLog(folder)
-        times = parseVTKSeries(folder)
-    return times
+# def readTimes(folder) -> List[float]:
+#     times = fp.parseVTKSeries(folder)
+#     if len(times)==0 or len(times)<fp.vtkFiles(folder):
+#         fp.redoVTKSeriesNoLog(folder)
+#         times = fp.parseVTKSeries(folder)
+#     return times
+
+
 
 ##-----------------------
 # paraview
 
-# reset the paraview session
-def cleansession() -> None:
+
+def cleanSession() -> None:
+    '''reset the paraview session'''
     Disconnect()
     Connect()
 
     
-# hide all existing displays
+
 def hideAll() -> None:
+    '''hide all existing displays'''
     ss = GetSources()
     for s in ss:
         Hide(ss[s])
 
-# import the vtk series file
-# this returns the datareader object that refers to the series
+
 def initSeries0(sv:stateVars) -> Any:
-    sfile = series(sv.folder)
+    '''import the vtk series file
+    this returns the datareader object that refers to the series'''
+    sfile = fp.series(sv.folder)
     if not os.path.exists(sfile):
         raise NameError('vtm.series file does not exist')
     if 'vtm' in sfile:
-        casevtmseries = XMLMultiBlockDataReader(FileName=sfile)
-        casevtmseries.CellArrayStatus = ['U', 'alpha.ink', 'p_rgh']
-        casevtmseries.PointArrayStatus = ['U', 'alpha.ink', 'p_rgh']
+        caseVTMSeries = XMLMultiBlockDataReader(FileName=sfile)
+        caseVTMSeries.CellArrayStatus = ['U', 'alpha.ink', 'p_rgh']
+        caseVTMSeries.PointArrayStatus = ['U', 'alpha.ink', 'p_rgh']
     else:
         bn = os.path.basename(sfile)
-        casevtmseries = LegacyVTKReader(registrationName=bn, FileNames=[sfile])
-    return casevtmseries
+        caseVTMSeries = LegacyVTKReader(registrationName=bn, FileNames=[sfile])
+    return caseVTMSeries
     
 
-# go to a time
+
 def setTime(time:float, sv:stateVars) -> None:
+    '''Go to a time. If the requested time is not in the list, but you expect it to be there, try remaking the VTK.series file and look again.'''
     if time in sv.times:
         sv.animationScene1.AnimationTime = time
         sv.timeKeeper1.Time = time
     else:
-        if max(sv.times)>0.1*len(sv.times):
-            redoVTKSeriesNoLog(sv.folder)
-            sv.times = parseVTKSeries(sv.folder)
+        if max(sv.times)>0.1*len(sv.times): # this time should be in the list, but it is not
+            fp.redoVTKSeriesNoLog(sv.folder) # remake the VTK.series file
+            sv.times = fp.parseVTKSeries(sv.folder) # read times from the new VTK.series file
             if time in sv.times:
                 sv.animationScene1.AnimationTime = time
                 sv.timeKeeper1.Time = time
             else:
-                print(f'time {time} is not in list {sv.times}')
+                logging.warning(f'time {time} is not in list {sv.times}')
                 sv.animationScene1.AnimationTime = sv.times[-1]
                 sv.timeKeeper1.Time = sv.times[-1]
         
         
         
-## initialize paraview
+
 def initializeP(sv:stateVars) -> stateVars:  
+    '''initialize paraview'''
     ResetSession()     
     LoadPalette(paletteName='WhiteBackground')
         # make background white

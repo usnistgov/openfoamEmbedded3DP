@@ -1,18 +1,23 @@
+#!/usr/bin/env python
+'''Analyzing simulated single filaments
+'''
+
+import sys
 import os
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import csv
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
-import seaborn as sns
-import statistics as st
-from PIL import Image
-import scipy as sp
 from shapely.geometry import Polygon
 import re
-from folderparser import caseFolder, caseFolders
 from typing import List, Dict, Tuple, Union, Any
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+import folderparser as fp
 
 # BATHRIGHT = 4.834
 # NOZZLEBOTTOM = 0.3015
@@ -22,8 +27,20 @@ from typing import List, Dict, Tuple, Union, Any
 # NOZZLERIGHTEDGE = NOZZLEXCENTER + NOZZLEDIAMETER/2+NOZZLETHICKNESS
 # BEHINDNOZZLE = NOZZLERIGHTEDGE + NOZZLEDIAMETER
 
-# the folderStats class is used to store critical information about the nozzle geometry
+__author__ = "Leanne Friedrich"
+__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
+__credits__ = ["Leanne Friedrich"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Leanne Friedrich"
+__email__ = "Leanne.Friedrich@nist.gov"
+__status__ = "Production"
+
+#################################################################
+
 class folderStats:
+    '''the folderStats class is used to store critical information about the nozzle geometry'''
+    
     def __init__(self, folder:str):
         self.folder = folder
         try:
@@ -49,69 +66,87 @@ class folderStats:
     
 ########### FILE HANDLING ##############
 
-# import the legend file
+
 def importLegend(folder:str) -> pd.DataFrame:
+    '''import the legend file'''
     file = os.path.join(folder, 'legend.csv')
     if os.path.exists(file):
         return pd.read_csv(os.path.join(folder, 'legend.csv'), names=['title', 'val'])
     else:
         raise Exception('No legend file')
     
-# import a csv to a pandas dataframe
-# ic is the index column. Int if there is an index column, False if there is none
-def plainIm(file:str, ic:Union[int, bool]) -> Union[pd.DataFrame, List[Any]]:
+
+def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
+    '''import a csv to a pandas dataframe. ic is the index column. Int if there is an index column, False if there is none'''
     if os.path.exists(file):
         try:
             d = pd.read_csv(file, index_col=ic)
             d.columns = map(str.lower, d.columns)
+            row1 = list(d.iloc[0])
+            if type(row1[0]) is str and ('m' in row1 or 's' in row1):
+                unitdict = dict(d.iloc[0])
+                d = d.drop(0)
+            else:
+                unitdict = dict([[s,'undefined'] for s in d])
         except:
-            return []
-        return d
+            return [],{}
+        return d, unitdict
     else:
-        return []
+        return [], {}
 
-# file is a full path name
-# slist is the list of column names for the columns that need mm conversion
-def importFilemm(file:str, slist:List[str]) -> Union[pd.DataFrame, List[Any]]:
-    d = plainIm(file, False)
+
+def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
+    '''Import a file and convert m to mm. File is a full path name. slist is the list of column names for the columns that need mm conversion'''
+    d,units = plainIm(file, False)
+    mdict = {'m':'mm', 'm/s':'mm/s'}
     if len(d)==0:
-        return d
+        return d,units
     else:
         for s in slist:
             d[s.lower()]*=1000
-        return d
-
+            units[s]=mdict.get(units[s], units[s]+'*10^3')
+        return d,units
     
-def importPointsFile(file:str) -> Union[pd.DataFrame, List[Any]]:
-    d = plainIm(file, False)
+
+def importLine(folder:str, time:float) -> pd.DataFrame:
+    '''import a csv of a line trace pulled from ParaView. These are not automatically created for all folders'''
+    file = os.path.join(folder, 'line_t_'+str(int(round(time*10)))+'_x_1.5.csv')
+    return importFilemm(file, ['U:0', 'U:1', 'U:2', 'arc_length', 'Points:0', 'Points:1', 'Points:2'])  
+
+def importPointsFile(file:str) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
+    '''This is useful for importing interfacePoints.csv files. '''
+    d,units = plainIm(file, False)
     if len(d)==0:
         return []
     try:
         d = d[pd.to_numeric(d.time, errors='coerce').notnull()] # remove non-numeric times
     except:
         pass
+    mdict = {'m':'mm', 'm/s':'mm/s'}
     for s in ['x', 'y', 'z', 'vx', 'vy', 'vz']:
-        d[s] = d[s].astype(float)
-        if type(d[s][0]) is str:
-            raise Exception('Non-numeric values for '+s)
+        try:
+            d[s] = d[s].astype(float)
+        except:
+            raise Exception('Non-numeric values for '+s+' in '+file)
         else:
             d[s]*=1000
+        units[s]=mdict.get(units[s], units[s]+'*10^3')
     d = d.sort_values(by='x')
-    return d
+    return d,units
     
-# import all points in the interface at a given time
-def importPoints(folder:str, time:float) -> Union[pd.DataFrame, List[Any]]:
+
+def importPoints(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
+    '''# import all points in the interface at a given time'''
     file = os.path.join(folder, 'interfacePoints', 'interfacePoints_t_'+str(int(round(time*10)))+'.csv')
     return importPointsFile(file)
 
-# import points just from one slice
-# folder is full path name
+
 def importPtsSlice(folder:str, time:float, x:float) -> Union[pd.DataFrame, List[Any]]:
-    pts = importPoints(folder, time)
+    '''import points just from one slice. folder is full path name, time is in s, x is absolute position in mm. Finds the closest position to the requested position and gives up if there is no x value within 0.2 mm'''
+    pts,units = importPoints(folder, time)
     if len(pts)>0:
         xlist = xpts(pts)
         xreal = closest(xlist, x)
-        #print(xreal, x, abs(xreal-x))
         if abs(xreal-x)>0.2:
             return []
         ptsx = pts[pts['x']==xreal]
@@ -119,15 +154,21 @@ def importPtsSlice(folder:str, time:float, x:float) -> Union[pd.DataFrame, List[
     else:
         return []
     
-
-
-# import slice summaries
-# folder is full path name
 def importSS(folder:str) -> pd.DataFrame:
+    '''import slice summaries. folder is full path name'''
     file = os.path.join(folder, 'sliceSummaries.csv')
-    return plainIm(file, 0)
+    d, units = plainIm(file, 0)
+    if len(d)==0:
+        return []
+    try:
+        for s in d:
+            d[s] = pd.to_numeric(d[s], errors='coerce') # remove non-numeric times
+    except Exception as e:
+        pass
+    return d, units
 
 def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
+    '''Construct an image file name with no extension. Exportfolder is the folder to export to. Label is any given label. Topfolder is the folder this image refers to, e.g. HBHBsweep. Insert any extra values in kwargs as keywords'''
     bn = os.path.basename(topfolder)
     s = ''
     for k in kwargs:
@@ -137,28 +178,14 @@ def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
     s = s.replace('/', 'div')
     return os.path.join(exportfolder, bn, label+'_'+bn+'_'+s)
 
-# export an image
-# fn is a full path name, without the extension
-# fig is a matplotlib figures
-def exportIm(fn:str, fig:plt.Figure) -> None:
+
+def exportIm(fn:str, fig) -> None:
+    '''export an image. fn is a full path name, without the extension. fig is a matplotlib figure'''
     for s in ['.svg', '.png']:
         fig.savefig(fn+s, bbox_inches='tight', dpi=300)
     print('Exported ', fn)
 
-# export an image from a comboplot or gridofplots object
-def exportImage(exportfolder:str, label:str, topfolder:str, mode:int, cp) -> None:
-    # don't export an empty plot
-    if len(cp.xlistreal)==0:
-        return
-    fn = imFn(exportfolder, label, topfolder, mode)
-    exportIm(fn, cp.fig)
- 
-    
-    # import a csv of a line trace pulled from ParaView. 
-# These are not automatically created for all folders
-def importLine(folder:str, time:float) -> pd.DataFrame:
-    file = os.path.join(folder, 'line_t_'+str(int(round(time*10)))+'_x_1.5.csv')
-    return importFilemm(file, ['U:0', 'U:1', 'U:2', 'arc_length', 'Points:0', 'Points:1', 'Points:2'])  
+
 
 
     ########## DATA HANDLING ############
@@ -232,18 +259,18 @@ def sliceSummary(fs:folderStats, sli:pd.DataFrame) -> Dict[str, float]:
     rv['time'] = sli.iloc[0]['time']
     
     if len(sli)<10:
-        #print('Not enough points')
+        #logging.error('Not enough points')
         raise Exception('Not enough points')
 
     try:
         rv['centery'], rv['centerz'], rv['area'] = centroidAndArea(sli)
     except:
-        #print('centroid error')
+        #logging.error('centroid error')
         raise Exception('centroid error')
     rv['maxheight'] = sli['z'].max()-sli['z'].min()
     rv['maxwidth'] = sli['y'].max()-sli['y'].min()
     if rv['maxheight']==0 or rv['maxwidth']==0:
-        #print('Cross-section is too small')
+        #logging.error('Cross-section is too small')
         raise Exception('Cross-section is too small')
     
     rv['centerzn'] = rv['centerz']/fs.niw
@@ -260,6 +287,15 @@ def sliceSummary(fs:folderStats, sli:pd.DataFrame) -> Dict[str, float]:
 
     return rv
 
+def sliceUnits(ipUnits:Dict) -> Dict:
+    xu = ipUnits['x']
+    return {'x':xu, 'xbehind':xu, 'time':ipUnits['time'], \
+          'centery':xu, 'centerz':xu, 'area':xu+'^2', 'maxheight':xu, 'maxwidth':xu, \
+           'centeryn':'', 'centerzn':'', 'arean':'', 'maxheightn':'', 'maxwidthn':'',\
+          'vertdisp':xu, 'vertdispn':'', 'aspectratio':'', 'speed':ipUnits['vx'], 'speeddecay':''}
+    
+    
+
 
 # go through all the interface points files and summarize each x and time slice
 # fs should be a folderStats object
@@ -271,13 +307,13 @@ def summarizeSlices(fs: folderStats) -> pd.DataFrame:
     ipfiles = os.listdir(ipfolder)
     s = []
     for f in ipfiles:
-        data = importPointsFile(os.path.join(ipfolder, f))
+        data, units = importPointsFile(os.path.join(ipfolder, f))
         if len(data)>0:
             xlist = xpts(data)
             try:
                 xlist = xlist[xlist>fs.behind]
             except Exception as e:
-                print(f, e, xlist)
+                logging.error(f+': '+e+', '+str(xlist))
                 raise e
             for x in xlist:
                 sli = data[data['x']==x]
@@ -285,12 +321,11 @@ def summarizeSlices(fs: folderStats) -> pd.DataFrame:
                     try:
                         ss1 = sliceSummary(fs, sli)
                     except Exception as e:
-                        #print(e)
                         pass
                     else:
                         s.append(ss1)
-    slicesummaries = pd.DataFrame(s)
-    return slicesummaries
+    sliceSummaries = pd.DataFrame(s)
+    return sliceSummaries, units
 
 # slice Summaries file name
 def ssFile(folder:str) -> str:
@@ -303,7 +338,7 @@ def ssFile(folder:str) -> str:
 # a return value of 0 indicates success
 # a return value of 1 indicates failure
 def summarize(folder:str, overwrite:bool) -> int:
-    cf = caseFolder(folder)
+    cf = fp.caseFolder(folder)
     if not os.path.exists(cf):
         return
     if os.path.exists(folder):
@@ -319,21 +354,26 @@ def summarize(folder:str, overwrite:bool) -> int:
             # summarizeSlices will raise an exception if there are no interface
             # points files
             try:
-                slicesummaries = summarizeSlices(fs)
+                sliceSummaries, ipunits = summarizeSlices(fs)
             except Exception as e:
-                print(e)
+                logging.error(str(e))
                 return 1
             
             # if there are points in the summary, save them
-            if len(slicesummaries)>0:
-                slicesummaries = slicesummaries.sort_values(by=['time', 'x'])
-                slicesummaries.to_csv(sspath)
-                print('    Exported', sspath)
+            if len(sliceSummaries)>0:
+                sliceSummaries = sliceSummaries.sort_values(by=['time', 'x'])
+                if len(sliceSummaries)>0:
+                    # add a units header
+                    units = sliceUnits(ipunits)
+                    unitrow = pd.DataFrame(dict([[s,units[s]] for s in sliceSummaries]), index=[0])
+                    sliceSummaries = pd.concat([unitrow, sliceSummaries]).reset_index(drop=True)
+                sliceSummaries.to_csv(sspath)
+                logging.info(f'    Exported {sspath}')
             else:
-                print('No slices recorded in ', folder)
+                logging.info(f'No slices recorded in {folder}')
                 header = ['x', 'xbehind', 'time', 'centery', 'centerz', 'area', 'maxheight', 'maxwidth', 'centeryn', 'centerzn', 'arean', 'maxheightn', 'maxwidthn','vertdisp', 'vertdispn', 'aspectratio', 'speed', 'speeddecay']
-                slicesummaries = pd.DataFrame([], columns=header)
-                slicesummaries.to_csv(sspath)
+                sliceSummaries = pd.DataFrame([], columns=header)
+                sliceSummaries.to_csv(sspath)
                 return 1
     else:
         return 1
@@ -343,30 +383,34 @@ def summarize(folder:str, overwrite:bool) -> int:
 
 ####### DETERMINING STEADY STATE FILAMENT SHAPE
 
-# steadyTime determines a list of times and positions which have reached steady state
-    # folder is a full path name
-    # dt is the size of the chunk of time in s over which we want to evaluate if the chunk is "steady", e.g. 1
-    # vdcrit is the maximum range of the variable of interest to be considered "steady", e.g. 0.01
-    # col is the column name, e.g. 'vertdispn'
-    # mode is 'x' or 'time': 
-        # 'x' means that for each x, we're finding a steady time. 
-        # 'time' means that for each time, we're finding a steady x
+
 def steadyList(folder:str, dother:float, vdcrit:float, col:str, mode:str) -> pd.DataFrame:
+    '''steadyList determines a list of times and positions which have reached steady state, for either steady in time or steady in position.
+    folder is a full path name
+    dt is the size of the chunk of time in s over which we want to evaluate if the chunk is "steady", e.g. 1
+    vdcrit is the maximum range of the variable of interest to be considered "steady", e.g. 0.01
+    col is the column name of the variable we're watching to see if it's steady, e.g. 'vertdispn'
+    mode is 'xbehind' or 'time': 
+        'xbehind' means that for each x, we're finding a range of steady times. 
+        'time' means that for each time, we're finding a range of steady xbehinds'''
+    try:
+        ss, ssunits = importSS(folder)
+    except:
+        raise Exception('Problem with summaries')
+    
     if mode=='xbehind': # mode is the variable that we use to split into groups
         other='time' # other is the variable that we scan across
         outlabel = ['x', 't0', 'tf']
+        flatlist = [[ssunits['xbehind'], ssunits['time'], ssunits['time']]]
     else:
         other='xbehind'
         outlabel = ['t', 'x0', 'xf']
-    try:
-        ss = importSS(folder)
-    except:
-        raise Exception('Problem with summaries')
+        flatlist = [[ssunits['time'], ssunits['xbehind'], ssunits['xbehind']]]
+        
     if len(ss)<2:
         return pd.DataFrame([], columns=outlabel)
     
-    list1 = ss[mode].unique()
-    flatlist = []
+    list1 = ss[mode].unique() # this gets the list of unique values for the mode variable
     for xtmode in list1:
         l1 = ss[ss[mode]==xtmode] # get this slice in x if mode is x, time if mode is time
         l1 = l1.sort_values(by=other) # sort the slice by time if mode is x, x if mode is time
@@ -429,17 +473,17 @@ def steadyMetric(folder:str, mode:int, overwrite:bool) -> int:
         try:
             tab = f(folder, 1, 0.01, 'vertdispn') # returns a table
         except Exception as e:
-            print(e)
+            logging.error(str(e))
             raise e
         tab.to_csv(fn)
-        print('    Exported', fn)
+        logging.info(f'    Exported {fn}')
     return 0
 
 # exports steadyTimes and steadyPositions
 # folder is full path name
 # overwrite true to overwrite existing files
 def steadyMetrics(folder:str, overwrite:bool) -> int:
-    cf = caseFolder(folder)
+    cf = fp.caseFolder(folder)
     if not os.path.exists(cf):
         return
     for mode in [0,1]:
@@ -469,7 +513,7 @@ def sumAndSteady(folder:str, overwrite:bool) -> None:
     if not os.path.exists(cf):
         return 
 
-    print(folder)
+    logging.debug(folder)
     
     # get initial summaries of the slices in time and position
     sret = summarize(folder, overwrite)
@@ -532,4 +576,79 @@ def sumAndSteady(folder:str, overwrite:bool) -> None:
 #             os.remove(csvfile)
 #             return 1
 #     return 0
+
+
+# def exportImage(exportfolder:str, label:str, topfolder:str, cp) -> None:
+#     '''export an image from a comboplot or gridofplots object, given an export folder, a label, a folder this came from, and a comboPlot object'''
+    
+#     if len(cp.xlistreal)==0: # don't export an empty plot
+#         return
+#     fn = imFn(exportfolder, label, topfolder)
+#     exportIm(fn, cp.fig)
+
+
+def addUnits(csvfile:str):
+    blist = []
+    with open(csvfile, 'r') as b:
+        canreturn = True
+        csv_reader = csv.reader(b)
+        try:
+            line1 = next(csv_reader)
+        except:
+            return
+        if 'interfacePoints' in csvfile or 'line' in csvfile:
+            headerdict = {'alpha.ink':'alpha', 'Points:0':'x', 'Points:1':'y', 'Points:2':'z', 'U:0':'vx', 'U:1':'vy', 'U:2':'vz', 'Time':'time', 'nu1':'nu_ink', 'nu2':'nu_sup'}
+            header = [headerdict.get(h, h) for h in line1]
+            if header==line1:
+                canreturn = True
+            else:
+                line1=header
+                canreturn = False
+        blist.append(line1)
+        try:
+            line2 = next(csv_reader)
+        except:
+            return
+        
+        if 'interfacePoints' in csvfile or 'line' in csvfile:
+            unitdict = {'time':'s', 'x':'m', 'y':'m', 'z':'m', 'vx':'m/s', 'vy':'m/s', 'vz':'m/s', 'alpha':'', 'nu1':'m^2/s', 'nu2':'m^2/s', 'nu_ink':'m^2/s', 'nu_sup':'m^2/s', 'p':'kg/(m*s^2)', 'p_rgh':'kg/(m*s^2)', 'rAU':'m^3*s/kg', 'arc_length':'m'}
+        if 'sliceSummaries' in csvfile:
+            xu = 'mm'
+            unitdict = {'x':xu, 'xbehind':xu, 'time':'s', 'centery':xu, 'centerz':xu, 'area':xu+'^2', 'maxheight':xu, 'maxwidth':xu, 'centeryn':'', 'centerzn':'', 'arean':'', 'maxheightn':'', 'maxwidthn':'', 'vertdisp':xu, 'vertdispn':'', 'aspectratio':'', 'speed':'mm/s', 'speeddecay':''}
+        if 'steadyTimes' in csvfile:
+            unitdict = {'x':'mm', 't0':'s', 'tf':'s'}
+        if 'steadyPositions' in csvfile:
+            unitdict = {'x0':'mm', 'xf':'mm', 't':'s'}
+        unitline = [unitdict.get(s, '') for s in line1]   
+        blist.append(unitline)
+        if line2==unitline:
+            line3 = next(csv_reader)
+            if not line3==line2 and canreturn:
+                return # this table already has units, so we're done
+            # otherwise, this table has two rows of units, and the second one needs to be ignored
+        else:
+            # this table does not have units
+            blist.append(line2)
+        blist = blist+list(csv_reader)
+    with open(csvfile, 'w', newline='', encoding='utf-8') as b:
+        writer = csv.writer(b)
+        for row in blist:
+            writer.writerow(row)
+    logging.debug(csvfile)
+    
+    
+def addUnitsAll(serverfolder):
+    for topfolder in [os.path.join(serverfolder, s) for s in ['HBHBsweep', 'HBnewtsweep', 'newtHBsweep', 'newtnewtsweep']]:
+        for cf in fp.caseFolders(topfolder):
+            print(cf)
+            for ipfile in os.listdir(cf):
+                if 'line' in ipfile and 'csv' in ipfile:
+                    f = os.path.join(cf, ipfile)
+                    if os.path.exists(f):
+                        try:
+                            addUnits(f)
+                        except Exception as e:
+                            logging.error(f'ERROR in {f}: {str(e)}')
+                            return
+    return
 

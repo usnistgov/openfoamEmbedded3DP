@@ -1,26 +1,37 @@
+#!/usr/bin/env python
+'''Plotting steady state metrics'''
+
+
+import sys
 import os
-import csv
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import numpy as np
-import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 import seaborn as sns
-import statistics as st
-from PIL import Image
+from typing import List, Dict, Tuple, Union, Any, TextIO
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 import interfacemetrics as intm
-import scipy as sp
-from shapely.geometry import Polygon
-import re
-import folderparser as fp
-import random
-import math
+from plot_general import *
+
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
-from typing import List, Dict, Tuple, Union, Any, TextIO
-from interfacemetricsplots import *
+
+
+__author__ = "Leanne Friedrich"
+__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
+__credits__ = ["Leanne Friedrich"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Leanne Friedrich"
+__email__ = "Leanne.Friedrich@nist.gov"
+__status__ = "Production"
 
 
 #################### STEADY STATE PLOTS  
@@ -36,8 +47,8 @@ def stsp(folder:str):
         raise stfn+' does not exist'
     if not os.path.exists(spfn):
         raise spfn+' does not exist'
-    st = intm.plainIm(stfn, 0)
-    sp = intm.plainIm(spfn, 0)
+    st, stunits = intm.plainIm(stfn, 0)
+    sp, spunits = intm.plainIm(spfn, 0)
     return st,sp
 
 
@@ -171,7 +182,7 @@ def stab1(folder:str, t:float, x:float, i:int, num:int, ax:plt.Axes, dx:float, c
         xlist = list(pts['y']+dx*i)
         ylist = list(pts['z'])
         color = cmap(i/(num-1))
-        ax.scatter(xlist, ylist, color=color, s=0.01)
+        ax.scatter(xlist, ylist, color=color, s=0.01, rasterized=True)
 
 # go back to the stability plot and fix it after the fact
 def adjustStabilityPlot(ax:plt.Axes, numx:float, xlabel:str, xlist:List[float], dx:float) -> None:

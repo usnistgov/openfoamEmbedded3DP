@@ -3,6 +3,8 @@ import numpy as np
 import csv
 import re
 from paraview.simple import * # import the simple module from the paraview
+import logging
+logger = logging.getLogger(__name__)
 
 
 
