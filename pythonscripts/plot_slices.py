@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''Plotting cross-sections'''
+'''Functions for plotting cross-sections'''
 
 import sys
 import os
@@ -10,11 +10,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 import interfacemetrics as intm
 from plot_general import *
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
@@ -34,9 +35,10 @@ __status__ = "Production"
 
 #### plot slices
 
-# use this to plot all slices within a pandas dataframe containing the points on the interface
-    # data is a pandas dataframe, e.g. one imported from importpoints
+
 def plotSlices(data:pd.DataFrame) -> plt.Figure:
+    '''use this to plot all slices within a pandas dataframe containing the points on the interface
+    data is a pandas dataframe, e.g. one imported from importpoints'''
     d = data
     ticks = [-1, -0.5, 0, 0.5, 1]
     size = 8
@@ -65,11 +67,12 @@ def plotSlices(data:pd.DataFrame) -> plt.Figure:
 
 #### cross-section plots
 
-# plot cross-sections for whole folder
-    # xs is a pandas DataFrame holding points
-    # folder is a full pathname
-    # cp is a comboPlot object
+
 def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
+    '''plot cross-sections for whole folder
+    xs is a pandas DataFrame holding points
+    folder is a full pathname
+    cp is a comboPlot object'''
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
     except:
@@ -91,26 +94,29 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     ax.scatter(xlist, ylist, c=color, s=0.01, rasterized=True)
     ax.arrow(x0, y0, xmid-x0, ymid-y0, ls='--', head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
     
-# this plots an ideal cross-section on the cross-section plot
-# fs is a folderStats object
-def XSPlotIdeal(cp:comboPlot, fs) -> None:
+
+def XSPlotIdeal(cp:comboPlot, fs:intm.folderStats) -> None:
+    '''this plots an ideal cross-section on the cross-section plot
+    fs is a folderStats object'''
     x0 = cp.xrtot[0]+cp.dx/2
     y0 = cp.yrtot[-1]-cp.dy/2
     color='Black'
     plotCircle(cp.axs[0], x0, y0, fs.niw/2, 'Ideal', color)
 
-# plots cross-section from one file
+
 def XSPlotf(folder:str, time:float, x:float, cp:comboPlot) -> None:
+    '''plots cross-section from one file'''
     ptsx = intm.importPtsSlice(folder, time, x)
     if len(ptsx)>0:
         XSPlot(ptsx, folder, cp)
 
-# plot all cross-sections together
-    # topFolder is the folder that holds all the files
-    # time is the time at which to take the cross-section
-    # x is the distance behind the center of the nozzle to take the cross-section
-    # sigmalist0 is the list of surface tensions to include in this plot
+
 def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:List[float], overwrite:bool=False, **kwargs) -> None:
+    '''plot all cross-sections together
+    topFolder is the folder that holds all the files
+    time is the time at which to take the cross-section
+    x is the distance behind the center of the nozzle to take the cross-section
+    sigmalist0 is the list of surface tensions to include in this plot'''
     label = 'xs_'+str(x)+'_t_'+str(time)
     fn = intm.imFn(exportFolder, label, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):

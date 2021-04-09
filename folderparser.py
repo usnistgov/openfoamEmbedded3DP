@@ -3,8 +3,9 @@
 folderparser identifies log files from interFoam, etc. and collects information into csv tables
 '''
 
-import numpy as np
 import os
+import sys
+import numpy as np
 import re
 import csv
 import shutil 
@@ -12,7 +13,7 @@ import errno
 from typing import List, Dict, Tuple, Union, Any, TextIO
 from datetime import datetime
 import time
-import logging, platform, socket, sys
+import logging, platform, socket
 
 
 __author__ = "Leanne Friedrich"

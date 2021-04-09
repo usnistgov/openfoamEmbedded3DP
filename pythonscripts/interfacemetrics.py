@@ -1,12 +1,8 @@
 #!/usr/bin/env python
-'''Analyzing simulated single filaments
-'''
+'''Analyzing simulated single filaments'''
 
 import sys
 import os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
 import csv
 import numpy as np
 import pandas as pd
@@ -14,18 +10,16 @@ from shapely.geometry import Polygon
 import re
 from typing import List, Dict, Tuple, Union, Any
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 
 import folderparser as fp
 
-# BATHRIGHT = 4.834
-# NOZZLEBOTTOM = 0.3015
-# NOZZLEDIAMETER = 0.603
-# NOZZLETHICKNESS = 0.152
-# NOZZLEXCENTER = -2.4120
-# NOZZLERIGHTEDGE = NOZZLEXCENTER + NOZZLEDIAMETER/2+NOZZLETHICKNESS
-# BEHINDNOZZLE = NOZZLERIGHTEDGE + NOZZLEDIAMETER
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
@@ -35,6 +29,16 @@ __version__ = "1.0.0"
 __maintainer__ = "Leanne Friedrich"
 __email__ = "Leanne.Friedrich@nist.gov"
 __status__ = "Production"
+
+#################################################################
+
+# BATHRIGHT = 4.834
+# NOZZLEBOTTOM = 0.3015
+# NOZZLEDIAMETER = 0.603
+# NOZZLETHICKNESS = 0.152
+# NOZZLEXCENTER = -2.4120
+# NOZZLERIGHTEDGE = NOZZLEXCENTER + NOZZLEDIAMETER/2+NOZZLETHICKNESS
+# BEHINDNOZZLE = NOZZLERIGHTEDGE + NOZZLEDIAMETER
 
 #################################################################
 
@@ -108,35 +112,41 @@ def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[An
         return d,units
     
 
-def importLine(folder:str, time:float) -> pd.DataFrame:
-    '''import a csv of a line trace pulled from ParaView. These are not automatically created for all folders'''
-    file = os.path.join(folder, 'line_t_'+str(int(round(time*10)))+'_x_1.5.csv')
-    return importFilemm(file, ['U:0', 'U:1', 'U:2', 'arc_length', 'Points:0', 'Points:1', 'Points:2'])  
+def importLine(folder:str, time:float, x:float=1.5) -> pd.DataFrame:
+    '''import a csv of a line trace pulled from ParaView. time and x are the time and position the line trace are taken at'''
+    file = os.path.join(folder, f'line_t_{int(round(time*10))}_x_{x}.csv')
+    try:
+        data, units = importPointsFile(file) 
+    except:
+        addUnits(file)
+        data, units = importPointsFile(file) 
+    return  data, units
 
 def importPointsFile(file:str) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
     '''This is useful for importing interfacePoints.csv files. '''
     d,units = plainIm(file, False)
     if len(d)==0:
-        return []
+        return d,units
     try:
         d = d[pd.to_numeric(d.time, errors='coerce').notnull()] # remove non-numeric times
     except:
         pass
     mdict = {'m':'mm', 'm/s':'mm/s'}
-    for s in ['x', 'y', 'z', 'vx', 'vy', 'vz']:
-        try:
-            d[s] = d[s].astype(float)
-        except:
-            raise Exception('Non-numeric values for '+s+' in '+file)
-        else:
-            d[s]*=1000
-        units[s]=mdict.get(units[s], units[s]+'*10^3')
+    for s in ['x', 'y', 'z', 'vx', 'vy', 'vz', 'arc_length']:
+        if s in d:
+            try:
+                d[s] = d[s].astype(float)
+            except:
+                raise Exception('Non-numeric values for '+s+' in '+file)
+            else:
+                d[s]*=1000
+            units[s]=mdict.get(units[s], units[s]+'*10^3')
     d = d.sort_values(by='x')
     return d,units
     
 
 def importPoints(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
-    '''# import all points in the interface at a given time'''
+    '''import all points in the interface at a given time'''
     file = os.path.join(folder, 'interfacePoints', 'interfacePoints_t_'+str(int(round(time*10)))+'.csv')
     return importPointsFile(file)
 
@@ -172,7 +182,8 @@ def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
     bn = os.path.basename(topfolder)
     s = ''
     for k in kwargs:
-        s = s + k + '_'+str(kwargs[k])+'_'
+        if not k in ['nuinklist', 'nusuplist', 'adjustBounds']:
+            s = s + k + '_'+str(kwargs[k])+'_'
     s = s[0:-1]
     s = s.replace('*', 'x')
     s = s.replace('/', 'div')
@@ -190,12 +201,14 @@ def exportIm(fn:str, fig) -> None:
 
     ########## DATA HANDLING ############
 def xpts(data:pd.DataFrame) -> pd.Series:
+    '''List of all of the x positions in the dataframe'''
     xl = np.sort(data.x.unique())
     return xl
 
-# get the coordinates of a polygon centroid
-    # p is a Polygon from shapely.geometry
+
 def splitCentroid(p:Polygon) -> Tuple[float, float, float]:
+    '''get the coordinates of a polygon centroid
+    p is a Polygon from shapely.geometry'''
     c = p.centroid.wkt
     slist = re.split('\(|\)| ', c)
     x = float(slist[2])
@@ -203,6 +216,7 @@ def splitCentroid(p:Polygon) -> Tuple[float, float, float]:
     return x,y
 
 def xyFromDf(sli: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+    '''Get a list of y,z positions from points in a dataframe'''
     if type(sli) is np.ndarray:
         sli2 = sli
     else:
@@ -210,27 +224,31 @@ def xyFromDf(sli: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         sli2 = sli[['y','z']].values.tolist()
     return sli2
 
-# find centroid and other slice measurements
-    # sli is a list of points in a slice
+
 def centroid(sli: Union[np.ndarray, pd.DataFrame]) -> Tuple[float, float]:
+    '''find centroid and other slice measurements
+    sli is a list of points in a slice or a pandas dataframe that contains points'''
     sli2 = xyFromDf(sli)
     p = Polygon(sli2).convex_hull
     return splitCentroid(p)
 
-# get the centroid and area
+
 def centroidAndArea(sli: Union[np.ndarray, pd.DataFrame]) -> Tuple[float, float, float]:
+    '''get the centroid and area of a slice, given as a list of points or a dataframe'''
     sli2 = xyFromDf(sli)
     p = Polygon(sli2).convex_hull
     x,y=splitCentroid(p)
     a = p.area
     return x,y,a
 
-# find the centroid of a slice represented as a pandas dataframe
+
 def pdCentroid(xs:pd.DataFrame) -> Tuple[float, float, float]:
+    '''find the centroid of a slice represented as a pandas dataframe'''
     return centroid(np.array(xs[['y', 'z']]))
 
-# find the closest value in a list to the float K    
-def closest(lst:List[float], K:float) -> float:       
+ 
+def closest(lst:List[float], K:float) -> float: 
+    '''find the closest value in a list to the float K   '''
     return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))]   
 
 ############ CREATE FILES ############
@@ -238,10 +256,11 @@ def closest(lst:List[float], K:float) -> float:
 
 #### SUMMARIZING SLICES
 
-# sliceSummary collects important stats from a slice of a filament at a certain x and time
-    # sli is a subset of points as a pandas dataframe
-    # fs is a folderStats object
+
 def sliceSummary(fs:folderStats, sli:pd.DataFrame) -> Dict[str, float]:
+    '''sliceSummary collects important stats from a slice of a filament at a certain x and time and returns as a dictionary
+    sli is a subset of points as a pandas dataframe
+    fs is a folderStats object'''
     ev = -100 # error value
     rv = {'x':ev, 'xbehind':ev, 'time':ev, \
           'centery':ev, 'centerz':ev, 'area':ev, 'maxheight':ev, 'maxwidth':ev, \
@@ -288,19 +307,18 @@ def sliceSummary(fs:folderStats, sli:pd.DataFrame) -> Dict[str, float]:
     return rv
 
 def sliceUnits(ipUnits:Dict) -> Dict:
+    '''Find the units for a slice summary dictionary based on the units of the interfacePoints csv'''
     xu = ipUnits['x']
     return {'x':xu, 'xbehind':xu, 'time':ipUnits['time'], \
           'centery':xu, 'centerz':xu, 'area':xu+'^2', 'maxheight':xu, 'maxwidth':xu, \
            'centeryn':'', 'centerzn':'', 'arean':'', 'maxheightn':'', 'maxwidthn':'',\
           'vertdisp':xu, 'vertdispn':'', 'aspectratio':'', 'speed':ipUnits['vx'], 'speeddecay':''}
     
-    
 
-
-# go through all the interface points files and summarize each x and time slice
-# fs should be a folderStats object
-# outputs a pandas DataFrame
 def summarizeSlices(fs: folderStats) -> pd.DataFrame:
+    '''go through all the interface points files and summarize each x and time slice
+    fs should be a folderStats object
+    outputs a pandas DataFrame'''
     ipfolder = os.path.join(fs.folder, 'interfacePoints')
     if not os.path.exists(ipfolder):
         raise Exception('No interface points')
@@ -327,17 +345,19 @@ def summarizeSlices(fs: folderStats) -> pd.DataFrame:
     sliceSummaries = pd.DataFrame(s)
     return sliceSummaries, units
 
-# slice Summaries file name
+
 def ssFile(folder:str) -> str:
+    '''slice Summaries file name'''
     return os.path.join(folder, 'sliceSummaries.csv')
 
-# given a simulation, get critical statistics on the filament shape
-# folder is the full path name to the folder holding all the files for the simulation
-# there must be an interfacePoints folder holding csvs of the interface points
-# overwrite true to overwrite existing files, false to only write new files
-# a return value of 0 indicates success
-# a return value of 1 indicates failure
+
 def summarize(folder:str, overwrite:bool) -> int:
+    '''given a simulation, get critical statistics on the filament shape
+    folder is the full path name to the folder holding all the files for the simulation
+        there must be an interfacePoints folder holding csvs of the interface points
+    overwrite true to overwrite existing files, false to only write new files
+    a return value of 0 indicates success
+    a return value of 1 indicates failure'''
     cf = fp.caseFolder(folder)
     if not os.path.exists(cf):
         return
@@ -442,27 +462,32 @@ def steadyList(folder:str, dother:float, vdcrit:float, col:str, mode:str) -> pd.
             flatlist.append([modevar, other0, otherf]) # stable within this margin
     return pd.DataFrame(flatlist, columns=outlabel)
 
-# steady in time
+
 def steadyTime(folder:str, dt:float, vdcrit:float, col:str) -> pd.DataFrame:
+    '''get steady in time stats'''
     return steadyList(folder, dt, vdcrit, col, 'xbehind')
 
-# steady in position
+
 def steadyPos(folder:str, dx:float, vdcrit:float, col:str) -> pd.DataFrame:
+    '''get steady in position stats'''
     return steadyList(folder, dx, vdcrit, col, 'time')
 
 
 
 def stFile(folder:str) -> str:
+    '''steady time file name'''
     return os.path.join(folder, 'steadyTimes.csv')
 
 def spFile(folder:str) -> str:
+    '''steady positions file name'''
     return os.path.join(folder, 'steadyPositions.csv')
 
-# exports steadyTimes or steadyPositions
-# folder is full path name
-# mode 0 for steady times, 1 for steady positions
-# overwrite true to overwrite existing files
+
 def steadyMetric(folder:str, mode:int, overwrite:bool) -> int:
+    '''exports steadyTimes or steadyPositions
+    folder is full path name
+    mode 0 for steady times, 1 for steady positions
+    overwrite true to overwrite existing files'''
     if mode==0:
         fn = stFile(folder)
         f = steadyTime
@@ -479,10 +504,11 @@ def steadyMetric(folder:str, mode:int, overwrite:bool) -> int:
         logging.info(f'    Exported {fn}')
     return 0
 
-# exports steadyTimes and steadyPositions
-# folder is full path name
-# overwrite true to overwrite existing files
+
 def steadyMetrics(folder:str, overwrite:bool) -> int:
+    '''exports steadyTimes and steadyPositions
+    folder is full path name
+    overwrite true to overwrite existing files'''
     cf = fp.caseFolder(folder)
     if not os.path.exists(cf):
         return
@@ -494,10 +520,10 @@ def steadyMetrics(folder:str, overwrite:bool) -> int:
     return 0
 
 
-# summarize and find steady state for a simulation
-# folder is full path name
-# overwrite true to overwrite existing files, false to only write new ones
 def sumAndSteady(folder:str, overwrite:bool) -> None:
+    '''summarize slices and find steady state for a simulation
+    folder is full path name
+    overwrite true to overwrite existing files, false to only write new ones'''
     
     if not overwrite:
         ssfn = ssFile(folder)
@@ -588,6 +614,7 @@ def sumAndSteady(folder:str, overwrite:bool) -> None:
 
 
 def addUnits(csvfile:str):
+    '''Add units to a csv file'''
     blist = []
     with open(csvfile, 'r') as b:
         canreturn = True
@@ -637,18 +664,44 @@ def addUnits(csvfile:str):
     logging.debug(csvfile)
     
     
-def addUnitsAll(serverfolder):
-    for topfolder in [os.path.join(serverfolder, s) for s in ['HBHBsweep', 'HBnewtsweep', 'newtHBsweep', 'newtnewtsweep']]:
-        for cf in fp.caseFolders(topfolder):
-            print(cf)
-            for ipfile in os.listdir(cf):
-                if 'line' in ipfile and 'csv' in ipfile:
-                    f = os.path.join(cf, ipfile)
-                    if os.path.exists(f):
-                        try:
-                            addUnits(f)
-                        except Exception as e:
-                            logging.error(f'ERROR in {f}: {str(e)}')
-                            return
-    return
+# def addUnitsAll(serverfolder):
+#     for topfolder in [os.path.join(serverfolder, s) for s in ['HBHBsweep', 'HBnewtsweep', 'newtHBsweep', 'newtnewtsweep']]:
+#         for cf in fp.caseFolders(topfolder):
+#             print(cf)
+#             for ipfile in os.listdir(cf):
+#                 if 'line' in ipfile and 'csv' in ipfile:
+#                     f = os.path.join(cf, ipfile)
+#                     if os.path.exists(f):
+#                         try:
+#                             addUnits(f)
+#                         except Exception as e:
+#                             logging.error(f'ERROR in {f}: {str(e)}')
+#                             return
+#     return
+
+
+# def correctName(csvfile:str) -> None:
+#     d,units = importPointsFile(csvfile)
+#     if len(d)==0:
+#         return
+#     xabs = (d['x'].unique())[0]
+#     xrel = xabs+2.412
+#     folder = os.path.dirname(csvfile)
+#     bn = os.path.basename(csvfile)
+#     csvsplit = re.split('x_', bn)
+#     newname = os.path.join(folder, csvsplit[0]+'x_{:.1f}.csv'.format(xrel))
+#     if newname==csvfile:
+#         return
+#     idx = 2
+#     while os.path.exists(newname):
+#         d2, units2 = importPointsFile(newname)
+#         if len(d2)==0:
+#             os.remove(newname)
+#         elif d2.equals(d) and units2==units:
+#             os.remove(csvfile)
+#             return
+#         else:
+#             newname = newname.replace('.csv', f' ({idx}).csv')
+#             idx+=1
+#     os.rename(csvfile, newname)
 

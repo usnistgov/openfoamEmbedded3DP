@@ -1,5 +1,7 @@
-#### ncreate3d.py ####
-# these functions are used to generate OpenFOAM input files for a nozzle in a 3D bath
+#!/usr/bin/env python
+'''Functions to generate OpenFOAM input files for a nozzle in a 3D bath'''
+
+
 import os
 from stl import mesh
 import matplotlib.pyplot as plt
@@ -10,9 +12,23 @@ import matplotlib.patches as mpatches
 import functools
 from typing import List, Dict, Tuple, Union, Any, TextIO, Callable
 import numpy as np
-import folderscraper as fs
 import logging
 logging.basicConfig(level=logging.INFO)
+
+import folderscraper as fs
+
+
+
+__author__ = "Leanne Friedrich"
+__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
+__credits__ = ["Leanne Friedrich"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Leanne Friedrich"
+__email__ = "Leanne.Friedrich@nist.gov"
+__status__ = "Production"
+
+#-------------------------------------------------------------------------------------------------  
 
 
 #-------------------------------------------------
@@ -28,7 +44,7 @@ SCALE = 0.001 # scale all units by this amount * m
  ############## GENERAL
     
 def tabs(n:int) -> str:
-    """return n tabs in a row"""
+    '''return n tabs in a row'''
     s = ""
     for i in range(n):
         s = s + "\t"
@@ -36,13 +52,13 @@ def tabs(n:int) -> str:
 
 
 class DictList:
-    """DictList is an object that ensures uniform formatting of variables into files"""
+    '''DictList is an object that ensures uniform formatting of variables into files'''
         
     def __init__(self, title:str, form:int, proplist:List[str]):
-        """Inputs: title, form, proplist
+        '''Inputs: title, form, proplist
         title is the title of the variable group
         form is 0 for bracketed entries e.g. group definitions, 1 for parentheses e.g. point lists
-        proplist is a list of properties that we're storing within this group"""
+        proplist is a list of properties that we're storing within this group'''
         self.title = title
         self.proplist = proplist
         if form==0: 
@@ -60,9 +76,9 @@ class DictList:
     
     
     def prnt(self, level:int) -> str:
-        """Format the title and variables into the format that OpenFOAM likes. 
+        '''Format the title and variables into the format that OpenFOAM likes. 
         Input: the number of tabs before the title of the group. If you want no title, use level -1
-        Output: formatted string"""
+        Output: formatted string'''
         if level<0:
             s = ""
         else:
@@ -92,10 +108,10 @@ class DictList:
     
     
 class FileGroup:
-    """This holds all of the strings that get outputted to text files and the meshes used to generate stls"""
+    '''This holds all of the strings that get outputted to text files and the meshes used to generate stls'''
 
     def __init__(self, folder:str, exportMesh:bool=False, onlyMesh:bool=False):
-        """Input is the folder that all of these files will go into"""
+        '''Input is the folder that all of these files will go into'''
         
         self.exportMesh = exportMesh
         self.onlyMesh = onlyMesh
@@ -138,7 +154,7 @@ class FileGroup:
     
         
     def exportAllFiles(self) -> str:
-        """exports all of the files that we generated. exportMesh is true to export mesh files in this folder"""
+        '''exports all of the files that we generated. exportMesh is true to export mesh files in this folder'''
         f = self.folder
         folderList = [f]
         
@@ -204,7 +220,7 @@ class FileGroup:
         
     
     def makePlot(self) -> None:
-        """Makes a plot of the simulation geometry"""
+        '''Makes a plot of the simulation geometry'''
         self.plot = plotGeo(self.geo, self.pl, self.blocks, self.br)
         
         
@@ -216,10 +232,10 @@ class FileGroup:
 
 
 def header(cl:str, obj:str) -> str:
-    """header for openfoam files
+    '''header for openfoam files
     cl is the class name (string)
     obj is the object name (string)
-    """
+    '''
     s = ("/*--------------------------------*- C++ -*----------------------------------*\n"
         +"| =========                 |                                                 |\n"
         +"| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n"
@@ -240,7 +256,7 @@ def header(cl:str, obj:str) -> str:
 
 
 def compileAllClean() -> str:
-    """this removes residual data from previous runs"""
+    '''this removes residual data from previous runs'''
     s = ("cd \"${0%/*}\" || exit                                # Run from this directory"
          + ". $WM_PROJECT_DIR/bin/tools/CleanFunctions; "
          + "cleanCase"
@@ -249,12 +265,12 @@ def compileAllClean() -> str:
 
 
 def compileAllAllRun() -> str:
-    """for folders that contain both a mesh and case folder, create a function that runs both allrun functions"""
+    '''for folders that contain both a mesh and case folder, create a function that runs both allrun functions'''
     s = ("./mesh/Allrun; ./case/Allrun")
     return s
 
 def fListLoop(s:str, functionlist:List[str], folder:str) -> str:
-    """Write a bash script to go through multiple functions"""
+    '''Write a bash script to go through multiple functions'''
     for f in functionlist:
         s = s + 'echo \"running ' + f + ' in ' + folder + '\"; '
         s = s + f + ">>log_" + f + "; "
@@ -262,7 +278,7 @@ def fListLoop(s:str, functionlist:List[str], folder:str) -> str:
 
 
 def compileAllRun(folder:str, solver:str) -> str:
-    """this is the allrun bash script for the case folder"""
+    '''this is the allrun bash script for the case folder'''
     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " \
          + "echo \""+folder+"\"; "
           + "cd \"${0%/*}\" || exit; "
@@ -274,7 +290,7 @@ def compileAllRun(folder:str, solver:str) -> str:
 
 
 def compileContinue(folder:str, solver:str) -> str:
-    """this script picks up in the middle of a solve and keeps solving"""
+    '''this script picks up in the middle of a solve and keeps solving'''
     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
           + "cd \"${0%/*}\" || exit; "
          )
@@ -284,7 +300,7 @@ def compileContinue(folder:str, solver:str) -> str:
 
 
 def compileAllRunMesh(folder:str) -> str:
-    """this script runs the meshing functions in the mesh folder"""
+    '''this script runs the meshing functions in the mesh folder'''
     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
         + "cd \"${0%/*}\" || exit; ")
     functionlist = ["surfaceFeatureExtract", "blockMesh", "snappyHexMesh -overwrite", "foamToVTK"]
@@ -305,7 +321,7 @@ CLOSELINE = "// ****************************************************************
         
 
 class Block:
-    """stores information about a block during blockMesh """
+    '''stores information about a block during blockMesh '''
     
     def __init__(self):
         self.vertices = []
@@ -314,10 +330,10 @@ class Block:
         
 
 class BoundaryInput:
-    """# stores information about a boundary """
+    '''# stores information about a boundary '''
     
     def __init__(self, labelin:str, typin:str):
-        """Input: labelin is the name of the boundary e.g. outerWall. typin is the boundary type, e.g. patch"""
+        '''Input: labelin is the name of the boundary e.g. outerWall. typin is the boundary type, e.g. patch'''
         self.label = labelin # name of the boundary e.g. outerWall
         self.typ = typin # name of boundary type e.g. patch for blockMeshDict
         self.flist = [] # list of faces, which are lists of point indices
@@ -336,10 +352,10 @@ class BoundaryInput:
 
 
 class NozVars:
-    """this is where the geometry of the nozzle is defined"""
+    '''this is where the geometry of the nozzle is defined'''
     
     def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152):
-        """ Allowed input variables:
+        ''' Allowed input variables:
             bathWidth: (default=16) bath width in nozzle inner diameters
             bathHeight: (default=7) bath height in nozzle inner diameters
             bathDepth: (default=7) bath depth  in nozzle inner diameters
@@ -349,7 +365,7 @@ class NozVars:
             npts: (default=50) number of points in the circle used to define the nozzle
             nozzleInnerWidth: (default=0.603) inner diameter of the nozzle in mm
             nozzleThickness: (default=0.152) nozzle wall thickness in mm
-        """
+        '''
         self.niw = nozzleInnerWidth # nozzle inner width
         self.nt = nozzleThickness # nozzle thickness
         self.bw = bathWidth*self.niw # bath width (x)
@@ -401,11 +417,11 @@ class NozVars:
 
 
 def plotGeo(geo:NozVars, pl:np.array, blocks:List[Block], br:List[BoundaryInput]) -> plt.Figure:
-    """plot the requested geometry
+    '''plot the requested geometry
     geo is a nozzleVars object
     pl is a point list used for blockMesh
     blocks is a list of blocks used for blockMesh
-    br is real boundaries used for generating stls and setting boundary conditions"""
+    br is real boundaries used for generating stls and setting boundary conditions'''
     fig = plt.figure(figsize=[14,14])
     ax = fig.add_subplot(111, projection='3d')
     maxdim = max([geo.bw, geo.bh, geo.bd])
@@ -453,9 +469,9 @@ def plotGeo(geo:NozVars, pl:np.array, blocks:List[Block], br:List[BoundaryInput]
 #----------------CREATING GEOMETRIES--------------
 
 def circlePoints(r:float, npts:int) -> List:
-    """get a list of points in a circle. Inputs: r, npts
+    '''get a list of points in a circle. Inputs: r, npts
     r is the radius of the circle
-    npts is the number of points"""
+    npts is the number of points'''
     pts = np.zeros([npts+1, 2])
     tstep = 2*np.pi/(npts)
     theta = 0
@@ -467,8 +483,8 @@ def circlePoints(r:float, npts:int) -> List:
     
 
 def createNozzle(nv:NozVars) -> np.array:
-    """get list of vertices in the block mesh
-    Input: nv is a NozVars object"""
+    '''get list of vertices in the block mesh
+    Input: nv is a NozVars object'''
     xlist = np.array([nv.ble-0.01,  nv.bri+0.01])
     ylist = np.array([nv.bfr-0.01, nv.bba+0.01])
     zlist = np.array([nv.bbo-0.01, nv.bto+0.01])
@@ -483,8 +499,8 @@ def createNozzle(nv:NozVars) -> np.array:
 
 
 def blockCornerList(pl:np.array) -> List:
-    """select the points that are the bottom corner of the blockCornerList
-    Input: pl is a point list"""
+    '''select the points that are the bottom corner of the blockCornerList
+    Input: pl is a point list'''
     xmax = max(pl[:, 0])
     ymax = max(pl[:, 1])
     zmax = max(pl[:, 2])
@@ -493,16 +509,16 @@ def blockCornerList(pl:np.array) -> List:
  
 
 def ptFromPts(pts:np.array, x:float, y:float, z:float) -> List[float]:
-    """select the point (x,y,z) from an array of points pts
-    Input: pts, x, y, z"""
+    '''select the point (x,y,z) from an array of points pts
+    Input: pts, x, y, z'''
     pt = pts[(pts[:,0]==x) & (pts[:,1]==y) & (pts[:,2]==z), :]
     return pt[0]
 
 
 def blockPts(pl:float, corner:List[float]) -> np.array:
-    """select the points in this block based on the first corner, and put the points in the order that openFOAM likes
+    '''select the points in this block based on the first corner, and put the points in the order that openFOAM likes
     pl is an array containing points
-    corner is one point which marks the first corner of the block"""
+    corner is one point which marks the first corner of the block'''
     xlist = np.unique(pl[:,0])
     ylist = np.unique(pl[:,1])
     zlist = np.unique(pl[:,2])
@@ -525,7 +541,7 @@ def blockPts(pl:float, corner:List[float]) -> np.array:
 
 
 def axisFace(xyz:List[float]) -> np.array:
-    """given two two-element lists and one one-element list, determine the two triangles that constitute that face. For example, two x values, two y values, and a z value"""
+    '''given two two-element lists and one one-element list, determine the two triangles that constitute that face. For example, two x values, two y values, and a z value'''
     x = xyz[0]
     y = xyz[1]
     z = xyz[2]
@@ -543,7 +559,7 @@ def axisFace(xyz:List[float]) -> np.array:
 
 
 def ptFace(pts:np.array) -> np.array:
-    """given an array of 4 points pts, construct a face. The line from point 1 to point 2 must cross through the center of the face"""
+    '''given an array of 4 points pts, construct a face. The line from point 1 to point 2 must cross through the center of the face'''
     data = np.zeros(2, dtype=mesh.Mesh.dtype)
     data['vectors'][0] = np.array([pts[0], pts[1], pts[2]])
     data['vectors'][1] = np.array([pts[1], pts[2], pts[3]])
@@ -551,7 +567,7 @@ def ptFace(pts:np.array) -> np.array:
 
 
 def setZ(pts2d:np.array, z:float) -> np.array:
-    """given an array of 2d points pts2d, create an array of 3d points at position z"""
+    '''given an array of 2d points pts2d, create an array of 3d points at position z'''
     out = np.zeros([len(pts2d), 3])
     out[:, 0:2] = pts2d
     out[:, 2] = z
@@ -559,11 +575,11 @@ def setZ(pts2d:np.array, z:float) -> np.array:
 
 
 def arcFace(ina:np.array, outa:np.array) -> np.array:
-    """an arc face could be a donut on a plane (e.g. the bottom of the nozzle) if both lists have the same x,y,or z
+    '''an arc face could be a donut on a plane (e.g. the bottom of the nozzle) if both lists have the same x,y,or z
     it could be a circle or cone (e.g. the nozzle inlet) if ina has length 1
     it could be a cylinder or frustrum if the two lists have different x,y,and z
     ina is a list of points on the inner radius of the arc
-    outa is a list of points on the outer radius of the arc  """
+    outa is a list of points on the outer radius of the arc  '''
     data = np.zeros(2*len(ina), dtype = mesh.Mesh.dtype)
     if len(ina)==1:
         ina2 = np.ones([len(outa), 3])
@@ -577,11 +593,11 @@ def arcFace(ina:np.array, outa:np.array) -> np.array:
 
 
 def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:float) -> np.array:
-    """get a mesh array that describes a hole in a plane
+    '''get a mesh array that describes a hole in a plane
     cpts is a list of circle points. cpts should be in order from 0 to 2 pi
     x is a list of 2 x values for the plane
     y is a list of 2 y values for the plane
-    z is a scalar that the plane lies on"""
+    z is a scalar that the plane lies on'''
     n = len(cpts)-1 # number of points on the circle
     nchunks = int(np.floor(n/4)) # split the circle into four chunks, number of points in a chunk
     data = np.zeros(n+4, dtype = mesh.Mesh.dtype)
@@ -599,8 +615,8 @@ def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:float) -> np.arra
 
 
 def combineMeshes(meshList:List[List]) -> np.array:
-    """combine all meshes into one list
-    meshlist is a list of lists of triangles"""
+    '''combine all meshes into one list
+    meshlist is a list of lists of triangles'''
     n = functools.reduce(lambda a,b : a+len(b), meshList, 0) # total number of mesh triangles
     data = np.zeros(n, dtype=mesh.Mesh.dtype)
     di = 0
@@ -622,8 +638,8 @@ def combineMeshes(meshList:List[List]) -> np.array:
 
 
 def vec2cpp(v:List[float]) -> str:
-    """convert a vector to the format it needs to be in for OpenFOAM to read it
-    v is a list"""
+    '''convert a vector to the format it needs to be in for OpenFOAM to read it
+    v is a list'''
 
     s = "("
     for vi in v:
@@ -633,13 +649,13 @@ def vec2cpp(v:List[float]) -> str:
 
 
 def block2txt(block:Block) -> str:
-    """convert block to openfoam string"""
+    '''convert block to openfoam string'''
     s = "hex " + vec2cpp(block.vertices[:, 3].astype(int)) + " " + vec2cpp(block.meshi)
     s = s + " simpleGrading " + vec2cpp(block.grading)
     return s
 
 def blocks2txt(blocks:List[Block]) -> str:
-    """convert list of blocks to openfoam string"""
+    '''convert list of blocks to openfoam string'''
     pl = DictList("blocks", 1, [])
     for b in blocks:
         pl.proplist.append(block2txt(b))
@@ -649,9 +665,9 @@ EDGES = "edges\n(\n);"
 
 
 def faceSelector(block:Block, st:str) -> np.array:
-    """gets a list of vertices for a list
+    '''gets a list of vertices for a list
     block is a Block object
-    st is a string indicating which face to use"""
+    st is a string indicating which face to use'''
     if st == "x-":
         li = [0, 4, 7, 3]
     elif st == "x+":
@@ -668,8 +684,8 @@ def faceSelector(block:Block, st:str) -> np.array:
 
 
 def boundaryList(blocks:List[Block]) -> List[BoundaryInput]:
-    """compiles a list of all the boundaries in the system for blockMesh
-    because we are using snappyHexMesh, we only need one boundary in blockMesh"""
+    '''compiles a list of all the boundaries in the system for blockMesh
+    because we are using snappyHexMesh, we only need one boundary in blockMesh'''
     allb = BoundaryInput("allBoundary", "patch")
     for st in ["x-", "x+", "y-", "y+", "z-", "z+"]:
         allb.flist.append(faceSelector(blocks[0], st)) # front and back faces
@@ -677,9 +693,9 @@ def boundaryList(blocks:List[Block]) -> List[BoundaryInput]:
 
 
 def walsel(geo:NozVars, st:str):
-    """select the boundaries of a wall
+    '''select the boundaries of a wall
     geo is a NozVars object
-    st is a string indicating which face to take"""
+    st is a string indicating which face to take'''
     xli = [geo.ble, geo.bri]
     yli = [geo.bfr, geo.bba]
     zli = [geo.bbo, geo.bto]
@@ -699,10 +715,10 @@ def walsel(geo:NozVars, st:str):
 
 
 def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
-    """get a list of boundaries for snappyHexMesh, setFields
+    '''get a list of boundaries for snappyHexMesh, setFields
     geo is a NozVars object geo.bv and geo.iv are bath velocities and ink velocities, scaled to m/s
     mv is a MeshVars object
-    exportMesh is true if we want to create a mesh folder"""
+    exportMesh is true if we want to create a mesh folder'''
     bf = BoundaryInput("bathFlow", "")
     bf.alphalist = DictList(bf.label, 0, [["type", "fixedValue"], ["value", "uniform 0"]])
     bf.Ulist = DictList(bf.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
@@ -739,7 +755,7 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     
 
 def boundarycpp(bl:List[BoundaryInput]) -> str: 
-    """get the whole cpp section for list of boundaries"""
+    '''get the whole cpp section for list of boundaries'''
     bb = DictList("boundary", 1, [])
     for b in bl:
         # for each boundary in the boundary list
@@ -754,10 +770,10 @@ def boundarycpp(bl:List[BoundaryInput]) -> str:
 
 
 def compileBlockMeshDict(pl:np.array, blocks:List[Block], bl:List[BoundaryInput]) -> str:
-    """get the blockMeshDict text
+    '''get the blockMeshDict text
     pl is a point list
     blocks is a list of Block objects
-    bl is a list of BoundaryInput objects"""
+    bl is a list of BoundaryInput objects'''
     s = header("dictionary", "blockMeshDict")
     s = s + "scale " + str(SCALE) + ";\n\n"
     s = s + DictList("vertices", 1, pl[:, 0:3]).prnt(0)
@@ -773,7 +789,7 @@ def compileBlockMeshDict(pl:np.array, blocks:List[Block], bl:List[BoundaryInput]
 #-----------------surfaceFeatureExtractDict--------
 
 def compileSurfaceFeatureExtractDict(bl:List[BoundaryInput]) -> str:
-    """compile surfaceFeatureExtractDict"""
+    '''compile surfaceFeatureExtractDict'''
     bnames = [o.label for o in bl]
     s = header("dictionary", "surfaceFeatureExtractDict")
     s = s + DictList("", 0, \
@@ -793,12 +809,12 @@ def compileSurfaceFeatureExtractDict(bl:List[BoundaryInput]) -> str:
 
 
 def format0(bl:List[BoundaryInput], classn:str, obj:str, dims:str, intfield:str, f:Callable) -> str:
-    """puts files in the 0 folder into the correct format
+    '''puts files in the 0 folder into the correct format
     classn is the class that goes into the header, e.g. "volScalarField" or "pointScalarField"
     obj is the object that goes into the header, e.g. "U"
     dims is the dimensions of the field, e.g. "[1 -1 -2 0 0 0 0]", which means kg/(m*s^2)
     intfield is the internal field, e.g. "0" or "(0 0 0)"
-    # f is the function to run on each boundaryInput object to get a list of properties of interest"""
+    # f is the function to run on each boundaryInput object to get a list of properties of interest'''
     s = header(classn, obj) # header
     simplelist = DictList("", 0, [["dimensions", dims], ["internalField", "uniform " + intfield]]) # list of simple variables to define
     s = s + simplelist.prnt(-1) # format the simple list 
@@ -831,7 +847,7 @@ def compilePointLevel(bl:List[BoundaryInput]) -> str:
 
 
 def compileSetFieldsDict(geo:NozVars) -> str:
-    """compile setFieldsDict"""
+    '''compile setFieldsDict'''
     s = header("dictionary", "setFieldsDict")
     s = s + DictList("defaultFieldValues", 1, ["volScalarFieldValue alpha.ink 0"]).prnt(0)
     r = DictList("regions", 1, [])                 
@@ -852,7 +868,7 @@ def compileSetFieldsDict(geo:NozVars) -> str:
    
 
 def geometryFile(geo:NozVars) -> str:
-    """geometryFile gets a csv string of all of the geometry variables we care about"""
+    '''geometryFile gets a csv string of all of the geometry variables we care about'''
     l = [['nozzle inner width (mm)', geo.niw],\
          ['nozzle thickness (mm)', geo.nt], \
          ['bath width (mm)', geo.bw], \
@@ -889,7 +905,7 @@ def geometryFile(geo:NozVars) -> str:
  #--------------------------------------------------------------------------------------------------------
 
 class MeshVars:
-    """mesh variables"""
+    '''mesh variables'''
     
     fwreflev = 2
     nCellsBetweenLevels = 10
@@ -915,7 +931,7 @@ class MeshVars:
         # that can see intersections whose angle exceeds this
         
     def cmc(self) -> List[List[str]]:
-        """generates a list of variables for the castellatedMeshControls file"""
+        '''generates a list of variables for the castellatedMeshControls file'''
         
         return(self.varList(["maxLocalCells", "maxGlobalCells", "minRefinementCells", "nCellsBetweenLevels", "resolveFeatureAngle", "locationInMesh", "allowFreeStandingZoneFaces"]))
        
@@ -941,7 +957,7 @@ class MeshVars:
         # surface feature point or edge, to local maximum edge length
         
     def sc(self) -> List[List[str]]:
-        """generates a list of variables for the snapControls file"""
+        '''generates a list of variables for the snapControls file'''
         
         return(self.varList(["nSmoothPatch", "tolerance", "nSolveIter", "nRelaxIter", "nFeatureSnapIter", "implicitFeatureSnap", "explicitFeatureSnap", "multiRegionFeatureSnap"]))
     
@@ -1025,7 +1041,7 @@ class MeshVars:
         # writes the refinement level for each cell as a volScalarField
 
     def alc(self) -> List[List[str]]:
-        """generates a list of variables for the addLayersControls table in dynamicMeshDict"""
+        '''generates a list of variables for the addLayersControls table in dynamicMeshDict'''
         
         return(self.varList(["relativeSizes", "expansionRatio", "finalLayerThickness", "minThickness", "nGrow",\
                              "featureAngle", "nRelaxIter", "nSmoothSurfaceNormals", "nSmoothNormals",\
@@ -1033,19 +1049,19 @@ class MeshVars:
                              "minMedianAxisAngle", "nBufferCellsNoExtrude", "nLayerIter", "nRelaxedIter"]))
     
     def mqc(self) -> List[List[str]]:
-        """generates a list of variables for the meshQualityControls table in dynamicMeshDict"""
+        '''generates a list of variables for the meshQualityControls table in dynamicMeshDict'''
         
         return(self.varList(["nSmoothScale", "errorReduction"]))
     
     def dmd(self) -> List[List[str]]:
-        """generates a list of variables for the dynamicMeshDictionary table in dynamicMeshDict"""
+        '''generates a list of variables for the dynamicMeshDictionary table in dynamicMeshDict'''
         
         return(self.varList(["refineInterval", "field", "lowerRefineLevel", "upperRefineLevel", "unrefineLevel",\
                              "nBufferLayers", "maxRefinement", "maxCells", "dumpLevel"]))
     
     
     def varList(self, li) -> List[List[str]]:
-        """Given a list of variable names li, construct a table with those variables."""
+        '''Given a list of variable names li, construct a table with those variables.'''
         
         out = [["", ""] for x in range(len(li))]
         for i, l in enumerate(li):
@@ -1063,7 +1079,7 @@ class MeshVars:
 
 
 def compileMeshQualityDict() -> str:
-    """compile meshQualityDict"""
+    '''compile meshQualityDict'''
     s = header("dictionary", "meshQualityDict")
     s = s + "#includeEtc \"caseDicts/meshQualityDict\"\n\n"
     s = s + CLOSELINE
@@ -1074,7 +1090,7 @@ def compileMeshQualityDict() -> str:
 
 
 def compileSnappyHexMeshDict(bl:List[BoundaryInput], mv:MeshVars) -> str:
-    """compile SnappyHexMeshDict"""
+    '''compile SnappyHexMeshDict'''
     bnames = [o.label for o in bl]
     s = header("dictionary", "snappyHexMeshDict")
     s = s + DictList("", 0, [\
@@ -1150,14 +1166,14 @@ def compileDynamicMeshDict(mv:MeshVars) -> str:
     #--------------------------------------------------------------------------------------------------------
     
 class CDVars:
-    """controlDict variables """
+    '''controlDict variables '''
         
     def __init__(self, startTime:float, endTime:float, dt:float, writeDt:float):
-        """Inputs: startTime, endTime, dt, writeDt
+        '''Inputs: startTime, endTime, dt, writeDt
         startTime is in seconds
         endTime is in seconds
         dt is the initial time step of the simulation in seconds
-        writeDt is the time step at which to write results to file"""
+        writeDt is the time step at which to write results to file'''
         # solver
         self.application = "interFoam"
         
@@ -1190,7 +1206,7 @@ class CDVars:
 
     
     def varList(self) -> List[List[str]]:
-        """Constructs a table with all of the variables held in this object. The table has two columns: the variable name and the value"""
+        '''Constructs a table with all of the variables held in this object. The table has two columns: the variable name and the value'''
         l = []        
         for attr, value in self.__dict__.items():
             l.append([attr, value])
@@ -1199,12 +1215,12 @@ class CDVars:
     #--------------------------------------------------------------------------------------------------------
 
 class FVSolGrp:
-    """fvsolution variables for a given solve variable (e.g. interFoam)"""
+    '''fvsolution variables for a given solve variable (e.g. interFoam)'''
 
     def __init__(self, st:str, solver:str):
-        """Inputs: st, solver
+        '''Inputs: st, solver
         st is a string that tells us what variable is being solved for, e.g. 'alphaink', 'pcorr', 'prgh', 'prghfinal', or 'U'
-        solver is the type of solver being used: 'interFoam' or 'interIsoFoam'"""
+        solver is the type of solver being used: 'interFoam' or 'interIsoFoam''''
         
         self.badcharlist = []
                      
@@ -1260,7 +1276,7 @@ class FVSolGrp:
             self.relTol = 0
     
     def dl(self) -> DictList:
-        """Gives a DictList object which is used for printing variables to file"""
+        '''Gives a DictList object which is used for printing variables to file'''
         l = self.badcharlist
         for attr, value in self.__dict__.items():
             if attr!="dicttitle" and attr!="badcharlist":
@@ -1270,11 +1286,11 @@ class FVSolGrp:
     #--------------------------------------------------------------------------------------------------------
 
 class FVVars: 
-    """Holds all fvsolution and fvschemes variables"""
+    '''Holds all fvsolution and fvschemes variables'''
     
 
     def __init__(self, solver:str) -> None:
-        """Input: solver is the type of solver being used: 'interFoam' or 'interIsoFoam'"""
+        '''Input: solver is the type of solver being used: 'interFoam' or 'interIsoFoam''''
         self.solver = solver
         
         # FVSchemes
@@ -1306,7 +1322,7 @@ class FVVars:
     
 
     def fvSchemeList(self) -> List[DictList]:
-        """format the fvSchemes variables into a list of DictLists so they are ready to print to file"""
+        '''format the fvSchemes variables into a list of DictLists so they are ready to print to file'''
         l = []       
         for v in self.slist:
             l.append(DictList(v, 0, [["default", getattr(self, v+"Default")]]))
@@ -1316,7 +1332,7 @@ class FVVars:
 
 
     def solverlist(self) -> DictList:
-        """for fvsolutions, get a list of DictLists created by the FVSolGrp objects so they are ready to print to file"""
+        '''for fvsolutions, get a list of DictLists created by the FVSolGrp objects so they are ready to print to file'''
         l = []
         for o in [self.alphaink, self.pcorr, self.prgh, self.prghfinal, self.U]:
             l.append(o.dl())
@@ -1324,7 +1340,7 @@ class FVVars:
 
     
     def pimple(self) -> DictList:
-        """get a DictList for the PIMPLE variables"""
+        '''get a DictList for the PIMPLE variables'''
         l = []
         for o in ["momentumPredictor", "nOuterCorrectors", "nCorrectors", "nNonOrthogonalCorrectors"]:
             l.append([o, getattr(self, o)])
@@ -1338,7 +1354,7 @@ class FVVars:
 
 
 def compileControlDict(cdv:CDVars) -> str:
-    """gets the text for controlDict"""
+    '''gets the text for controlDict'''
     s = header("dictionary", "controlDict")
     v = cdv.varList()
     #v.append(["#sinclude", "sampling"])
@@ -1351,7 +1367,7 @@ def compileControlDict(cdv:CDVars) -> str:
 #---------------fvSchemes-----------------------  
 
 def compileFvSchemes(fvv:Union[FVVars, str]) -> str:
-    """gets the text for the fvSchemes file. Input empty string to get file for mesh folder"""
+    '''gets the text for the fvSchemes file. Input empty string to get file for mesh folder'''
     s = header("dictionary", "fvSchemes")
     if isinstance(fvv, FVVars):
         s = s + DictList("", 0, fvv.fvSchemeList()).prnt(-1)
@@ -1364,7 +1380,7 @@ def compileFvSchemes(fvv:Union[FVVars, str]) -> str:
 #-------------------------------------------------
 #---------------fvSolution-----------------------
 def compileFvSolution(fvv:Union[FVVars, str]) -> str:
-    """gets the text for fvSolution. Input empty string to get empty file for mesh folder"""
+    '''gets the text for fvSolution. Input empty string to get empty file for mesh folder'''
     s = header("dictionary", "fvSolution")
     if isinstance(fvv, FVVars):
         s = s + fvv.solverlist().prnt(0)
@@ -1374,7 +1390,7 @@ def compileFvSolution(fvv:Union[FVVars, str]) -> str:
     return s
 
 def compileFV(fvv:FVVars, out:FileGroup) -> FileGroup:
-    """compiles fvsolution and fvschemes files"""
+    '''compiles fvsolution and fvschemes files'''
     out.fvSchemes = compileFvSchemes(fvv)
     out.fvSolution = compileFvSolution(fvv)
     return out
@@ -1384,12 +1400,12 @@ def compileFV(fvv:FVVars, out:FileGroup) -> FileGroup:
 
 
 def solverObjects(startTime:float, endTime:float, dt:float, writeDt:float, solver:str) -> Tuple[CDVars, FVVars]:
-    """gets the control dictionary variable object and fvsolution and fvschemes dictionary variable object
+    '''gets the control dictionary variable object and fvsolution and fvschemes dictionary variable object
     starttime is the start time for the simulation in s
     endtime is the end time for the simulation in s
     dt is the initial solve time step in s
     writedt is the write time step in s
-    solver is interFoam or interIsoFoam"""
+    solver is interFoam or interIsoFoam'''
     cdv = CDVars(startTime, endTime, dt, writeDt)
     cdv.application = solver
     fvv = FVVars(solver)
@@ -1397,7 +1413,7 @@ def solverObjects(startTime:float, endTime:float, dt:float, writeDt:float, solve
 
 
 def compileSolverFiles(cdv:CDVars, fvv:FVVars, out:FileGroup) -> FileGroup:
-    """generates the text for the controlDict, FVsolution, FVschemes, and bash scripts"""
+    '''generates the text for the controlDict, FVsolution, FVschemes, and bash scripts'''
     out.controlDict = compileControlDict(cdv)
     out = compileFV(fvv, out)
     out.allallrun = compileAllAllRun()
@@ -1422,7 +1438,7 @@ def compileSolverFiles(cdv:CDVars, fvv:FVVars, out:FileGroup) -> FileGroup:
 
 
 def compileG() -> str:
-    """compile g"""
+    '''compile g'''
     s = header("uniformDimensionedVectorField", "g")
     s = s + DictList("", 0, [["dimensions", "[0 1 -2 0 0 0 0]"], ["value", "(0 0 -9.81)"]]).prnt(-1)
     s = s + CLOSELINE
@@ -1433,19 +1449,19 @@ def compileG() -> str:
 
 
 def transportGroupNewt(title:str, nu:Union[float, str], rho:Union[float, str]) -> DictList:
-    """gets a DictList object that describes the transport properties
+    '''gets a DictList object that describes the transport properties
     title is the name of the phase, e.g. 'ink'
     nu is the kinematic viscosity in m^2/s
-    rho is the density in kg/m^3"""
+    rho is the density in kg/m^3'''
     return DictList(title, 0, [["transportModel", "Newtonian"], ["nu", str(nu)], ["rho", str(rho)]])
 
 
 def transportGroupHB(title:str, nu0:Union[float, str], tau0:Union[float, str], k:Union[float, str], n:Union[float, str], rho:Union[float, str]) -> DictList:
-    """transportGroupHB gets a DictList that describes Herschel-Bulkley transport properties
+    '''transportGroupHB gets a DictList that describes Herschel-Bulkley transport properties
     title is the name of the phase
     the HB model follows nu = min(nu0, tau0/gammadot + k*gammadot^(n-1))
     inputs to the model are nu0 in m^2/s, tau0 in m^2/s^2, k in m^2/s, n unitless
-    rho is the density in kg/m^3"""
+    rho is the density in kg/m^3'''
     return DictList(title, 0, \
                   [["transportModel", "HerschelBulkley"], \
                   DictList("HerschelBulkleyCoeffs", 0, \
@@ -1458,9 +1474,9 @@ def transportGroupHB(title:str, nu0:Union[float, str], tau0:Union[float, str], k
 
 
 def compileTransportProperties(ink:DictList, sup:DictList, sigma:Union[float, str]) -> str:
-    """compile transportProperties
+    '''compile transportProperties
     ink and sup are DictLists created by transportGroupNewt and transportGroupHB
-    sigma is the surface tension in J/m^2"""
+    sigma is the surface tension in J/m^2'''
     s = header("dictionary", "transportProperties")
     s = s + DictList("", 0, [["phases (ink sup)"],ink, sup, ["sigma", str(sigma)]]).prnt(-1)
     s = s + CLOSELINE
@@ -1488,9 +1504,9 @@ def compileTurbulenceProperties() ->str:
 
 
 def saveStls(folder:str, bl:List[BoundaryInput]) -> None:
-    """exports stls
+    '''exports stls
     folder is a full path name
-    bl is a list of boundaryInput objects """
+    bl is a list of boundaryInput objects '''
     for b in bl:
         me = b.meshi
         me2 = mesh.Mesh(np.zeros(len(me), dtype=mesh.Mesh.dtype))
@@ -1501,10 +1517,10 @@ def saveStls(folder:str, bl:List[BoundaryInput]) -> None:
 
 
 def exportFile(folder:str, file:str, text:str) -> None:
-    """exports text files
+    '''exports text files
     folder is a full path name
     file is a basename
-    text is the text to export"""
+    text is the text to export'''
     fn = os.path.join(folder, file)
     File_object = open(fn,"w")
     File_object.write(text)
@@ -1513,8 +1529,8 @@ def exportFile(folder:str, file:str, text:str) -> None:
     
 
 def mkdirif(path:str) -> int:
-    """makes a directory if it doesn't already exist
-    path is the directory to create"""
+    '''makes a directory if it doesn't already exist
+    path is the directory to create'''
     try:
         os.mkdir(path)
     except OSError:
@@ -1528,8 +1544,8 @@ def mkdirif(path:str) -> int:
 
 
 def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=False, onlyMesh:bool=False) -> FileGroup:
-    """gets the text for most of the files in the folder
-    exportMesh is true if we want to create a mesh folder"""
+    '''gets the text for most of the files in the folder
+    exportMesh is true if we want to create a mesh folder'''
     
     fg = FileGroup(folder, exportMesh=exportMesh, onlyMesh=onlyMesh)
     fg.geofile = geometryFile(geo)
@@ -1591,7 +1607,7 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
                     writeDt:float=0.1, \
                     solver:float="interFoam",\
                     **kwargs) -> FileGroup:
-    """Generate all files but transport files.
+    '''Generate all files but transport files.
     ii is either a folder name (e.g. 'folderA') or a number (e.g. 25) to be appended to the folder name
     exportMesh true to export a mesh folder inside of this simulation folder
     onlyMesh true to only export a mesh folder
@@ -1603,7 +1619,7 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
     writeDt is the time step for saving results to file in s
     solver could be interFoam or interIsoFoam
     Additional keyword vars are passed into NozVars. Examples are bathWidth=16, vink=10
-    """
+    '''
     if onlyMesh:
         folder = topFolder
     else:
@@ -1623,7 +1639,7 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
 
 
 class Fluid:
-    """OpenFOAM needs to use kinematic units (see: kinematic vs. dynamic viscosity). If viscosities are given in dynamic units (e.g. Pa*s for viscosity, Pa for stress), then they need to be normalized by the density. We indicate whether units are kinematic or dynamic using 'units'. Units that mention Pa or dynamic will be considered dynamic. If no units are given, kinematic units are assumed."""
+    '''OpenFOAM needs to use kinematic units (see: kinematic vs. dynamic viscosity). If viscosities are given in dynamic units (e.g. Pa*s for viscosity, Pa for stress), then they need to be normalized by the density. We indicate whether units are kinematic or dynamic using 'units'. Units that mention Pa or dynamic will be considered dynamic. If no units are given, kinematic units are assumed.'''
     def __init__(self, units:str='kinematic', **kwargs):
         if 'rho' in kwargs:
             self.rho = kwargs['rho']
@@ -1661,19 +1677,19 @@ class Fluid:
 
 
 def genericExport(ii:Union[int,str], sup:Fluid, ink:Fluid, sigma:float, topFolder:str, exportMesh:bool=False, **kwargs) -> None:
-    """ Export a folder, given a support fluid, ink fluid, and surface tension. 
+    ''' Export a folder, given a support fluid, ink fluid, and surface tension. 
         ii is for the folder label. If you want it to be labeled nb#, input a number. Otherwise, input a string.
         sup is a fluid object that holds info about the support transport properties
         ink is a fluid object that holds info about the ink transport properties
         sigma is in microJ/m^2 (e.g. 0.04)
         topFolder is the folder to save this new folder in
-        exportMesh true to export geometry folders into this folder"""
+        exportMesh true to export geometry folders into this folder'''
     out = allButTransport(ii, topFolder, exportMesh=exportMesh, **kwargs)
     out.transportProperties = compileTransportProperties(ink.transportGroup('ink'), sup.transportGroup('sup'), sigma)
     out.exportAllFiles() 
 
 def genericMesh(parentFolder:str, **kwargs) -> FileGroup:
-    """This generates a folder with mesh and geometry files, but nothing else important. If you want to customize the nozzle, input keyword variables. e.g. genericMesh(myFolder, bathWidth=16)"""
+    '''This generates a folder with mesh and geometry files, but nothing else important. If you want to customize the nozzle, input keyword variables. e.g. genericMesh(myFolder, bathWidth=16)'''
     out = allButTransport('temp', parentFolder, exportMesh=True, onlyMesh=True, **kwargs) # generate mesh files
     out.exportAllFiles() # export all of the mesh files
     out.makePlot() # make a plot of the boundaries
@@ -1691,9 +1707,9 @@ def genericMesh(parentFolder:str, **kwargs) -> FileGroup:
     
 
 # def classIterate(obj, f):
-#     """iterate over all items stored in an object. Inputs: obj, f
+#     '''iterate over all items stored in an object. Inputs: obj, f
 #     obj is an object
-#     f is a function with 2 inputs: the attribute name and the value"""
+#     f is a function with 2 inputs: the attribute name and the value'''
 #      for attr, value in obj.__dict__.items():
 #         f(attr, value)
 

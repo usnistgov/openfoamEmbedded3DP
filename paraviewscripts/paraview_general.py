@@ -9,11 +9,14 @@ from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
 from typing import List, Dict, Tuple, Union, Any, TextIO
+import logging
+
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
+
 import folderparser as fp
-import logging
+
 logger = logging.getLogger(__name__)
 
 __author__ = "Leanne Friedrich"

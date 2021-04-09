@@ -1,18 +1,13 @@
 #!/usr/bin/env python
 '''Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments. '''
 
-import numpy as np
 import os
 import re
-from file_read_backwards import FileReadBackwards
-import csv
-import matplotlib.pyplot as plt
 import shutil 
-import errno
 from typing import List, Dict, Tuple, Union, Any, TextIO
-from datetime import datetime
 import time
 import logging, platform, socket, sys
+
 from folderscraper import populate
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
@@ -35,11 +30,12 @@ __status__ = "Production"
 ########## COPY FUNCTIONS ###############################################
 #########################################################################
 
-# fromFolder is the parent directory to copy from
-# targetFolder is the parent directory to copy to
-# f is the folder within fromFolder to copy
-# st is folder within f to copy
+
 def copyFolder(fromFolder:str, targetFolder:str, f:str, st:str) -> None:
+    '''fromFolder is the parent directory to copy from
+    targetFolder is the parent directory to copy to
+    f is the folder within fromFolder to copy
+    st is folder within f to copy'''
     ipfrom = os.path.join(fromFolder, f, st)
     if not os.path.exists(ipfrom):
         return
@@ -60,8 +56,9 @@ def copyFolder(fromFolder:str, targetFolder:str, f:str, st:str) -> None:
                     shutil.copyfile(fromFile, targetFile)
     return
                 
-# directly copy the files in one folder to another
+
 def copyFilesInFolder(fromFolder:str, targetFolder:str) -> None:
+    '''directly copy the files in one folder to another'''
     mkdirif(targetFolder)
     printOut = False
     checkSizeDiff = False
@@ -99,6 +96,7 @@ def copyFilesInFolder(fromFolder:str, targetFolder:str) -> None:
 
 
 def toDoList(topfolder:str) -> List[str]:
+    '''Simulations still to run'''
     with open (os.path.join(topfolder, 'runallfiles.sh'), "r") as f:
         for i in range(3):
             line = f.readline()
@@ -106,6 +104,7 @@ def toDoList(topfolder:str) -> List[str]:
     return lspl
 
 def doneFolder(topfolder:str, tfinal:float) -> None:
+    '''Go through files in the folder and determine which are done, in progress, and aborted, and abort any simulations that are too slow'''
     done = []
     aborted = []
     aborted1 = []
@@ -201,11 +200,13 @@ def doneFolder(topfolder:str, tfinal:float) -> None:
 # legend
 
 def copyAndPrint(fromfile:str, tofile:str) -> None:
+    '''Copy the file and print a status update.'''
     shutil.copyfile(fromfile, tofile)
     logging.info('Copied '+ tofile)
     return
 
 def copyLegend(fromFolder:str, toFolder:str) -> None:
+    '''Copy most up to date legend from one folder to the other'''
     try:
         fromL = os.path.join(fromFolder, 'legend.csv')
         toL = os.path.join(toFolder, 'legend.csv')
@@ -266,10 +267,12 @@ def copyLegend(fromFolder:str, toFolder:str) -> None:
 #----------------------------
 # logs
 
-# move the log files to the parent folder, out of the case folder
-# returns the name of the log
-# moveSource true to move around files in fromFolder, false to leave it alone
+
 def moveLog(folder:str, cf:str, s:str, moveSource:bool) -> str:
+    '''move the log files to the parent folder (folder), out of the case folder (cf)
+    s is the name of the log file
+    returns the name of the log
+    moveSource true to move around files in folder, false to leave it alone'''
     # we only want to keep the version in the parent folder, not the case folder
     filefromcf = os.path.join(cf, s)
     filefrom = os.path.join(folder, s)
@@ -310,10 +313,11 @@ def moveLog(folder:str, cf:str, s:str, moveSource:bool) -> str:
             
     return filefrom
 
-# move the log files to the parent folder, out of the case folder
-# returns the names of the logs
-# moveSource true to move around files in fromFolder, false to leave it alone
+
 def moveLogs(folder:str, moveSource:bool) -> List[str]:
+    '''move the log files to the parent folder, out of the case folder
+        returns the names of the logs
+        moveSource true to move around files in fromFolder, false to leave it alone'''
     cf = caseFolder(folder)
     files = []
     for s in ['log_foamToVTK', 'log_interFoam']:
@@ -321,16 +325,18 @@ def moveLogs(folder:str, moveSource:bool) -> List[str]:
     return files
 
 def moveLogsTop(topFolder:str) -> None:
+    '''move all of the logs from the case folder to the parent folder for all simulations in topFolder'''
     for f in os.listdir(topFolder):
         folder = os.path.join(topFolder, f)
         if isSimFolder(folder):
             moveLogs(folder, True)
     return
             
-# copy just the logs for one folder
-# f is subfolder name
-# moveSource true to move around files in fromFolder, false to leave it alone
+
 def copyLogs(fromFolder:str, toFolder:str, f:str, moveSource:bool) -> None:
+    '''copy just the logs for one folder
+        f is subfolder name
+        moveSource true to move around files in fromFolder, false to leave it alone'''
     fromf = os.path.join(fromFolder, f)
     if not os.path.isdir(fromf):
         return
@@ -352,9 +358,10 @@ def copyLogs(fromFolder:str, toFolder:str, f:str, moveSource:bool) -> None:
             shutil.copyfile(log, fileto)
             logging.info('Copied '+fileto)
 
-# copy just the logs for many folders
-# moveSource true to move around files in fromFolder, false to leave it alone
+
 def copyLogsTop(fromFolder:str, toFolder:str, moveSource:bool) -> None:
+    '''copy just the logs for many folders
+        moveSource true to move around files in fromFolder, false to leave it alone'''
     for f in os.listdir(fromFolder):
         if isSimFolder(os.path.join(fromFolder, f)):
             copyLogs(fromFolder, toFolder, f, moveSource)
@@ -364,6 +371,7 @@ def copyLogsTop(fromFolder:str, toFolder:str, moveSource:bool) -> None:
 ##############
 
 def vtkCheck(file):
+    '''check if the .vtk.series file is up to date, and redo it if it's not'''
     folder = os.path.dirname(os.path.dirname(file))
     times = parseVTKSeries(folder)
     files = vtkfiles(folder)
@@ -373,6 +381,7 @@ def vtkCheck(file):
     return files
 
 def copySeries(fromFile:str, toFile:str) -> None:
+    '''update and copy vtk.series file from one place to another'''
     fromFiles = vtkCheck(fromFile)
     toFiles = vtkCheck(toFile)
     if fromFiles>toFiles:
@@ -385,6 +394,7 @@ def copySeries(fromFile:str, toFile:str) -> None:
 #############################
 
 def copySubFolder(fromFolder:str, toFolder:str, s:str) -> None:
+    '''copy subfolder within fromFolder to subfolder in toFolder'''
     cf = caseFolder(fromFolder) # folder that the case files are in
     vtkfolder = os.path.join(cf, s)
     if not os.path.exists(vtkfolder):
@@ -398,9 +408,10 @@ def copySubFolder(fromFolder:str, toFolder:str, s:str) -> None:
 ########## COPY WHOLE FOLDERS
 
 
-# copy the legend, interface points, vtk, and images
-# this is most useful for moving files from E to server
+
 def copyEtoServer(EFolder:str, serverFolder:str) -> None:
+    '''copy the legend, interface points, vtk, and images
+    this is most useful for moving files from E to server'''
     logging.info(' ---------- Copying files from E to server')
     for f in os.listdir(EFolder):
         fromf = os.path.join(EFolder, f)
@@ -416,8 +427,9 @@ def copyEtoServer(EFolder:str, serverFolder:str) -> None:
     logging.info(' ---------- Done copying files from E to server')
     return
 
-# fromServer is true if we're copying from the server
+
 def copyToE(fromFolder:str, Efolder:str, fromServer:bool) -> None:
+    '''copy folders to E. fromServer is true if we're copying from the server'''
     if fromServer:
         logging.info(' ---------- Copying files from server to E')
     else:
@@ -435,8 +447,9 @@ def copyToE(fromFolder:str, Efolder:str, fromServer:bool) -> None:
                 # copy legend
     logging.info(' ---------- Done copying files to E')
     
-# move files from C to E and server
+
 def moveCtoServer(CFolder:str, serverFolder:str, Efolder:str='') -> None:
+    '''move files from C to E and server. If you only want C to server, leave Efolder empty'''
     if not os.path.exists(CFolder) and os.path.exists(Efolder):
         copyToE(serverFolder, Efolder, True)
         logging.info('------ all files copied in '+os.path.basename(Efolder))
@@ -459,9 +472,10 @@ def moveCtoServer(CFolder:str, serverFolder:str, Efolder:str='') -> None:
             logging.info('------ all files copied in '+s)
         
 
-# this loops infinitely, copying files to the server
-# time is the time in hours between loops
+
 def copyCtoServer(CFolder:str, serverFolder:str, timex:float, Efolder:str='') -> None:
+    '''this loops infinitely, copying files to the server
+        time is the time in hours between loops'''
     if timex>1:
         waittime = str(timex)+' hours'
     else:
@@ -476,8 +490,9 @@ def copyCtoServer(CFolder:str, serverFolder:str, timex:float, Efolder:str='') ->
             logging.info('Waiting '+waittime+'\n\n\n')
             time.sleep(60*60*timex)
             
-# loop indefiniteily, for multiple folders            
+        
 def copyCtoServerFolders(SERVERFOLDER:str, CFOLDER:str, slist:List[str], timex:float, EFOLDER:str='') -> None:
+    ''' loop indefinitely, for multiple folders. Leave EFOLDER empty to only copy from cfolder to serverfolder. slist is a list of subfolders, e.g. ['HBHBsweep']    '''
     if timex>1:
         waittime = str(timex)+' hours'
     else:

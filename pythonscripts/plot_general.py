@@ -14,8 +14,6 @@ import seaborn as sns
 import itertools
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 import interfacemetrics as intm
 import folderparser as fp
@@ -24,6 +22,8 @@ plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
@@ -36,42 +36,31 @@ __status__ = "Production"
 
 #-------------------------------------------
 
-###############################################################################################################
-###############################################################################################################
-################# PLOTS #######################################################################################
-###############################################################################################################
-###############################################################################################################
 
-# converts kinematic viscosity to dynamic viscosity
-# can be a single float or a list of floats
-def kinToDyn(v:Union[List[float], float]) -> Union[List[float], float]:
+# formatting units
+
+def kinToDyn(v:Union[List[float], float], density:float=1000) -> Union[List[float], float]:
+    '''converts kinematic viscosity to dynamic viscosity
+    v can be a single float or a list of floats. The default assumes a density of 1000 kg/m^3'''
     if type(v) is list:
         v2 = []
         for vi in v:
             v2.append(kinToDyn(vi))
         return v2
     else:
-        v2 = v*1000
+        v2 = v*density
         if v2>=1:
             v2 = int(round(v2))
         return v2
 
-# preset colors for surface tensions
-def sigmaColor(sigma:int) -> str:
-    if sigma==0:
-        return '#940f0f'
-    elif sigma==40:
-        return '#61bab0'
-    elif sigma==70:
-        return '#1e5a85'
-
-# put a number in exponential format
 def expFormat(x:float) -> str:
+    '''display a number in exponential format'''
     return r'$10^{{{}}}$'.format(int(round(np.log10(x))))
 
-# determine what kind of format to put the number in
-# might return float or string
+
 def decideFormat(x:float) -> Union[float, str]:
+    '''determine what kind of format to put the number in
+    might return float or string'''
     if x==0:
         return x
     l = np.log10(x)
@@ -80,44 +69,58 @@ def decideFormat(x:float) -> Union[float, str]:
     else:
         return expFormat(x)
 
-# put the whole list in exponential format
+
 def expFormatList(xlist:List[float]) -> List[Any]:
+    '''put the whole list in exponential or appropriate format'''
     xout = []
     for x in xlist:
         xout.append(decideFormat(x))
     return xout  
 
+#-----------------------------------------
+# x, y functions
 
-#{'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma}
-
-# use this function to just pluck a value out of the transport properties
 def tpFunc(tp:Dict, stri:str) -> float:
+    '''use this function to pluck a value out of the transport properties. Candidates include: nuink (ink viscosity), tau0ink (ink yield stress), kink (ink consistency index), nink (ink power law index), nusup (support viscosity), tau0sup, ksup, nsup, sigma (surface tension)}'''
     return tp[stri]
-
-# x,y functions
-    # inkv is an ink viscosity
-    # supv is a support viscosity
-    # sigma is a surface tension
+ 
 def multfunc(tp:Dict) -> float:
+    '''ink viscosity * support viscosity. tp is a transportProperties dict'''
     return round(tp['nuink']*tp['nusup'], 10)
 
 def divfunc(tp:Dict) -> float:
+    '''support viscosity / ink viscosity. tp is a transportProperties dict'''
     return round(tp['nusup']/tp['nuink'], 10)
 
+#-----------------------------------------
 # color functions
+
+def sigmaColor(sigma:int) -> str:
+    '''preset colors for surface tensions in mJ/m^2'''
+    if sigma==0:
+        return '#940f0f'
+    elif sigma==40:
+        return '#61bab0'
+    elif sigma==70:
+        return '#1e5a85'
+
 def sigfuncc(tp:Dict) -> str:
+    '''color for this surface tension. tp is a transportProperties dict'''
     return sigmaColor(tp['sigma'])
 
-# val should be 0-1
-# returns a color
+
 def cubehelix1(val:float):
+    '''val should be 0-1. returns a color'''
     cm = sns.cubehelix_palette(as_cmap=True, rot=-0.4)
     return cm(val)
 
-# give the value's position within range as a fraction, on a log scale
-# rang is total list of values, or just the min and max
-# val is a value within the list
+#-----------------------------------------
+# ranges
+
 def logRatio(val:float, rang:List[float]) -> float:
+    '''give the value's position within range as a fraction, on a log scale. Useful for making legends.
+    rang is total list of values, or just the min and max
+    val is a value within the list'''
     val2 = np.log10(val)
     expmax = np.log10(max(rang))
     expmin = np.log10(min(rang))
@@ -125,127 +128,50 @@ def logRatio(val:float, rang:List[float]) -> float:
         return 0
     return (val2-expmin)/(expmax-expmin)
 
-# give the value's position within range as a fraction
-# rang is total list of values, or just the min and max
-# val is a value within the list
+
 def linRatio(val:float, rang:List[float]) -> float:
+    '''give the value's position within range as a fraction. Useful for making legends.
+    rang is total list of values, or just the min and max
+    val is a value within the list'''
     maxv = max(rang) 
     minv = min(rang)
     if maxv-minv==0:
         return 0
     return (val-minv)/(maxv-minv)
 
-# give the value's position within range as a fraction
-# decide whether to use a log scale or linear scale depending on the size of the range
-# rang is total list of values, or just the min and max
-# val is a value within the list
+
 def decideRatio(val:float, rang:List[float]) -> float:
+    '''give the value's position within range as a fraction
+    decide whether to use a log scale or linear scale depending on the size of the range
+    rang is total list of values, or just the min and max
+    val is a value within the list'''
     mr = min(rang)
     if mr==0 or max(rang)-min(rang)<max(rang)/10:
         return linRatio(val, rang)
     else:
         return logRatio(val, rang)
 
-# give the value's position within range as a fraction
-# inkv is ink viscosity
-# supv is support viscosity
-# sigma is surface tension
-# func is the function to apply to inkv, supv, sigma to get one value
-# rang is total list of values, or just the min and max
+    
 def logRatioFunc(tp:Dict, func, rang:List[float]) -> float:
+    '''give the value's position within range as a fraction
+    tp is transport properties dictionary
+    func is the function to apply to transport properties to get one value
+    rang is total list of values, or just the min and max'''
     val = func(tp)
-    logRatio(val, rang)
-
-# given a folder, get one value to represent that folder
-# func is the function to apply to inkv, supv, sigma to get one value
-def folderToFunc(folder:str, func) -> float:
-    tp = extractTP(folder)
-    return func(tp)
-
-def tpCombos(tplists:Dict) -> List:
-    vallists = []
-    for l in tplists:
-        vallist = [[l[0:-4],i] for i in tplists[l]] # e.g. [['nuink', 5], ['nuink', 6]]
-        vallists.append(vallist)
-    l0 = list(itertools.product(*vallists))
-    l0 = [dict(l) for l in l0]
-    return l0
-
-# unqList finds the unique x or y positions
-    # f is the function to apply to ink viscosity, support viscosity, sigma
-    # nuinklist is a list of ink viscosities
-    # nusuplist is a list of support viscosities
-    # sigmalist is a list of surface tensions
-def unqList(f, tplists:Dict) -> List[float]:
-    lout = []
-    combos = tpCombos(tplists)
-    for tp in combos:
-        l = f(tp)
-        if l not in lout:
-            lout.append(l)
-    lout.sort()
-    return lout
-
-# given a folder of many simulations, find unique x or y positions in comboPlot or gridOfPlots
-def unqListFolders(folders:List[str], func) -> List[float]:
-    funcvals = [] # outputs for the func
-    for f in folders:
-        val = folderToFunc(f, func)
-        if val not in funcvals:
-            funcvals.append(val)
-    return funcvals
-
-
-    
-    
-#### WORKING WITH SINGLE FILES
+    return logRatio(val, rang)
 
 
 
 
-    #############################################################
-#### WORKING WITH MULTIPLE PLOTS
-    
-# find the position of v in list l
-    # l is a list
-    # v is a value
-def findPos(l, v):
-    try:
-        p = l.index(v)
-    except ValueError:
-        return -1
-    return p
+#--------- 
+# get transport properties
 
-# find values needed for plotting in grids
-    # nuink is the viscosity of the ink
-    # nusup is the viscosity of the support
-    # sigma is the surface tension
-    # xpv is a comboPlot or gridOfPlots object
-def vv(tp:Dict, xpv):
-    x = xpv.xfunc(tp)
-    y = xpv.yfunc(tp)
-    xpos = findPos(xpv.xlist, x)
-    ypos = findPos(xpv.ylist, y)
-    sigmapos = findPos(xpv.tplists['sigmalist'], tp['sigma'])
-    if xpos<0 or ypos<0 or sigmapos<0:
-        raise ValueError
-    if xpv.type=="comboPlot":
-        x0 = xpv.xmlist[xpos]
-        y0 = xpv.ymlist[ypos]
-    else:
-        x0 = xpos
-        y0 = len(xpv.ylist)-ypos-1
-    if x not in xpv.xlistreal:
-        xpv.xlistreal.append(x)
-    if y not in xpv.ylistreal:
-        xpv.ylistreal.append(y)
-    color = xpv.cfunc(tp)
-    return color, x0, y0, sigmapos
-
-# le is the legend
-# nui is the index of the viscosity
-# getHB is true to get herschel-bulkley parameters
 def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
+    '''Extract transport properties from a legend. 
+        le is the legend
+        nui is the index of the viscosity
+        getHB is true to get herschel-bulkley parameters
+        used by extractTP'''
     nu = kinToDyn(float(le.loc[nui, 'val'])) # get the actual viscosity in Pa s
     if getHB:
         tau0 = kinToDyn(float(le.loc[nui+1, 'val']))
@@ -257,9 +183,11 @@ def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
         n = 0
     return nu, tau0, k, n
 
-# extractTP gets the transport properties (viscosities and surface tension) for a folder
-    # folder is a full path name
+
 def extractTP(folder:str) -> Tuple[float, float, float]:
+    '''extractTP gets the transport properties (viscosities and surface tension) for a folder
+    folder is a full path name
+    used by vvplot, listTPvalues, folderToFunc'''
     le = intm.importLegend(folder)
     if len(le)==0:
         raise Exception('No values in legend')
@@ -303,20 +231,17 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
         
     # convert surface tension to mJ/m^2
     sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
-#     return nuink, nusup, sigma
     return {'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma}
 
-# vvplot finds variables used for plotting in grids
-    # folder is a folder name
-    # xpv is a comboPlot or gridOfPlots object
-def vvplot(folder:str, xpv):
-#     nuink, nusup, sigma = extractTP(folder)
-    tp = extractTP(folder)
-    return vv(tp, xpv)
+#---
 
-# get a list of all of the viscosity and surface tension values in this list of folders
-    # flist is a list of folders (full path names)
-def listTPvalues(flist, **kwargs):
+def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
+    '''get a list of all of the transport property values in this list of folders
+    flist is a list of folders (full path names)
+    Returns a list of files and Dict of properties. 
+        If we use kwargs to say we only want files with, e.g. nuink=10, then it will only return those files.
+        The dictionary lists all of the values in the list of files for each transport property variable. e.g. {'nuinklist':[10,100], 'tau0inklist':[0], 'kinklist':[0], ...}
+    '''
     flist2 = flist
     ap0 = False # ap0 tells us if we should automatically include or exclude files
     tp = extractTP(flist[0]) # this gives us an initial list of strings that extractTP pulls out
@@ -354,22 +279,118 @@ def listTPvalues(flist, **kwargs):
         
     return flist2, lists
 
-################# 
-### CLASSES
+#---------------------------------------
+# using transport properties to decide how to plot
 
-#### WORKING WITH GRIDS
+def folderToFunc(folder:str, func) -> float:
+    '''given a folder, get one value to represent that folder
+    func is the function to apply to transport properties to get one value
+    used by unqListFolders'''
+    tp = extractTP(folder)
+    return func(tp)
+
+def tpCombos(tplists:Dict) -> List:
+    '''List of combinations of transportProperties values. tplists comes from listTPvalues
+    used by unqList, and will look like {'nuinklist':[10, 100], 'tau0inklist':[10], ...}'''
+    vallists = []
+    for l in tplists:
+        vallist = [[l[0:-4],i] for i in tplists[l]] # e.g. [['nuink', 10^5], ['nuink', 10^6]]
+        vallists.append(vallist)
+    l0 = list(itertools.product(*vallists))
+    l0 = [dict(l) for l in l0]
+    return l0
 
 
+def unqList(f, tplists:Dict) -> List[float]:
+    '''unqList finds the unique x or y positions in the plot
+    f is the function to apply to transport properties
+    tplists is a list of transport properties
+    used by folderplot'''
+    lout = []
+    combos = tpCombos(tplists)
+    for tp in combos:
+        l = f(tp)
+        if l not in lout:
+            lout.append(l)
+    lout.sort()
+    return lout
+
+def unqListFolders(folders:List[str], func) -> List[float]:
+    '''given a folder of many simulations, find unique x or y positions in comboPlot or gridOfPlots'''
+    funcvals = [] # outputs for the func
+    for f in folders:
+        val = folderToFunc(f, func)
+        if val not in funcvals:
+            funcvals.append(val)
+    return funcvals
+
+
+#--------------------------------
+
+def findPos(l:List, v:Any) -> Any:
+    '''find the position of v in list l. l is a list. v is a value in the list.
+    used by vv'''
+    try:
+        p = l.index(v)
+    except ValueError:
+        return -1
+    return p
+
+#---
+
+def vv(tp:Dict, xpv) -> Tuple[Any, float, float, int]:
+    '''find values needed for plotting in grids
+    tp holds transport properties for a single simulation
+    xpv is a comboPlot or gridOfPlots object
+    Returns the color (could be a string or other), x plot position, y plot position, and position of sigma in list of sigmas
+    used by vvplot'''
+    x = xpv.xfunc(tp)
+    y = xpv.yfunc(tp)
+    xpos = findPos(xpv.xlist, x)
+    ypos = findPos(xpv.ylist, y)
+    sigmapos = findPos(xpv.tplists['sigmalist'], tp['sigma'])
+    
+    # find the position in the plot x0,y0 for this simulation. Not the real value! Just a placeholder so we don't have to deal with logs.
+    if xpos<0 or ypos<0 or sigmapos<0:
+        raise ValueError
+    if xpv.type=="comboPlot":
+        x0 = xpv.xmlist[xpos]
+        y0 = xpv.ymlist[ypos]
+    else:
+        x0 = xpos
+        y0 = len(xpv.ylist)-ypos-1  # we need to flip y upside down for a grid of plots
+        
+    # expand the list of real x and y values to include this one
+    if x not in xpv.xlistreal:
+        xpv.xlistreal.append(x)
+    if y not in xpv.ylistreal:
+        xpv.ylistreal.append(y)
+    color = xpv.cfunc(tp)
+    return color, x0, y0, sigmapos
+
+def vvplot(folder:str, xpv):
+    '''vvplot finds variables used for plotting in grids
+    folder is a folder name
+    xpv is a comboPlot or gridOfPlots object'''
+    tp = extractTP(folder)
+    return vv(tp, xpv)
 
 
 #-------------------------------------------------
+#-------------------------------------------------
+#-------------------------------------------------
+#-------------------------------------------------
+# PLOT CLASSES
+#-------------------------------------------------
+#-------------------------------------------------
 
-
-# topFolder is the folder we're plotting
-# imsize is the size of the total image in inches
-# split is true to split by surface tension
 class folderPlots:
+    '''A generic class used for plotting many folders at once. Subclasses are comboPlot, which puts everything on one plot, and gridOfPlots, which puts everythign in separate plots based on viscosity.'''
+    
     def __init__(self, topFolder:str, imsize:float, split:bool=False, **kwargs):
+        '''topFolder is the folder we're plotting
+            imsize is the size of the total image in inches
+            split is true to split into separate plots by surface tension'''
         self.kwargs = kwargs
         self.ab = not 'adjustBounds' in self.kwargs or self.kwargs['adjustBounds']==True
         self.topFolder = topFolder
@@ -378,6 +399,7 @@ class folderPlots:
         self.plotsLists(**kwargs)
         
     def convertFunc(self, var):
+        '''Convert a variable name or expression, e.g. 'nuink' or 'nusup/nuink' into a lambda function to be used on transport properties dict'''
         if len(var)>0:
             if var in self.strings:
                 func = lambda tp: tpFunc(tp, var)
@@ -387,23 +409,22 @@ class folderPlots:
                     var = var.replace(s, "tp[\'"+s+"\']")
                 func = lambda tp: eval(var)
                 return func
-                
-
-                
+       
         
-    # plotsLists initializes gridOfPlots and comboPlots objects
-    # obj is a gridOfPlots or comboPlots object
     def plotsLists(self, **kwargs):
+        '''plotsLists initializes gridOfPlots and comboPlots objects, creating the initial figure'''
         self.flist = fp.caseFolders(self.topFolder) # list of all folders in the top folder
         self.flist, self.tplists = listTPvalues(self.flist, **kwargs) # list of transport property lists
         self.cfunc = sigfuncc
         
         self.strings = [s[0:-4] for s in list(self.tplists.keys())]
         
+        # get the variables or expressions we want to operate on
         if 'xvar' in kwargs and 'yvar' in kwargs:
             self.xvar = kwargs['xvar']
             self.yvar = kwargs['yvar']
-        if 'mode' in kwargs:
+        elif 'mode' in kwargs:
+            # older versions of the code used preset plotting modes. Defining 'xvar' and 'yvar' directly allows for more flexibility.
             self.xvar = ''
             self.yvar = ''
             self.mode = kwargs['mode']
@@ -437,10 +458,12 @@ class folderPlots:
             if not 'yvar' in kwargs:
                 raise ValueError('Invalid function: missing yvar')  
         
+        # convert those variables into functions that we can use on transport properties dicts
         self.xfunc = self.convertFunc(self.xvar)
         self.yfunc = self.convertFunc(self.yvar)
         
         try:
+            # find lists of unique x values and y values
             self.xlist = unqList(self.xfunc, self.tplists)
             self.ylist = unqList(self.yfunc, self.tplists)
             self.xlistreal = []
@@ -450,7 +473,9 @@ class folderPlots:
             raise ValueError('Failed to identify x and y variables')
         return self
     
+    
     def legendList(self):
+        '''Make a legend from the list of sigma values and store it for later'''
         if not self.split:
             sigmalist = self.tplists['sigmalist']
             plist = [mpatches.Patch(color=sigmaColor(sigmalist[i]), label=sigmalist[i]) for i in range(len(sigmalist))]
@@ -460,7 +485,7 @@ class folderPlots:
         return 
     
     def getLabel(self, var, short):
-        
+        '''Get label for the x or y axis'''
         # determine which axis we're trying to name
         if var=='x':
             func = self.xfunc
@@ -497,12 +522,13 @@ class folderPlots:
     
 #-------------------------------------------------
 
-# this creates a grid of several plots
-    # topFolder is a full path name. topFolder contains all of the folders we want to plot
-    # imsize is the size of each image
 
 class gridOfPlots(folderPlots):
+    '''a grid of several plots'''
+    
     def __init__(self, topFolder, imsize, **kwargs):
+        '''topFolder is a full path name. topFolder contains all of the folders we want to plot
+        imsize is the size of EACH plot'''
         super().__init__(topFolder, imsize, **kwargs)
         self.type = 'gridOfPlots'
         self.ylist.reverse() # we reverse the rows so values go upwards up the side of the plot
@@ -518,9 +544,9 @@ class gridOfPlots(folderPlots):
         self.axs = axs
         self.fig = fig 
     
-    # clean post-processes the plot to add components after all plots are added
+    
     def clean(self):
-        
+        '''post-processes the plot to add components after all plots are added'''
         if self.ab:
             self.xlistreal.sort()
             self.ylistreal.sort()
@@ -591,15 +617,17 @@ class gridOfPlots(folderPlots):
 #         self.fig.tight_layout()
         
 #-------------------------------------------------
-        
-### this class stores variables needed to create big combined plots across several folders 
-    # topFolder is a full path name. topFolder contains all of the folders we want to plot
-    # xr is the min and max x value for each section of the plot, e.g. [-0.7, 0.7]
-    # yr is the min and max y value for each section of the plot
-    # imsize is the size of the whole image in inches
-    # gridlines true to show gridlines
+
 class comboPlot(folderPlots):
+    '''stores variables needed to create big combined plots across several folders '''
+    
     def __init__(self, topFolder:str, xr:List[float], yr:List[float], imsize:float, gridlines:bool=True, **kwargs):
+        '''topFolder is a full path name. topFolder contains all of the folders we want to plot
+        xr is the min and max x value for each section of the plot, e.g. [-0.7, 0.7]
+        yr is the min and max y value for each section of the plot
+        imsize is the size of the whole image in inches
+        gridlines true to show gridlines'''
+        
         super().__init__(topFolder, imsize, **kwargs)
         self.type="comboPlot"
         
@@ -636,7 +664,7 @@ class comboPlot(folderPlots):
         if not self.split:
             self.titley = 1
         else:
-            self.titley = 1
+            self.titley = 0.8
         # store variables
         self.axs = axs
         self.fig = fig 
@@ -644,11 +672,13 @@ class comboPlot(folderPlots):
         self.addLegend()
         
     def addLegend(self):
+        '''Add a surface tension legend'''
         if not self.split:
             self.axs[0].legend(handles=self.plist, loc='upper center', ncol=4, bbox_to_anchor=(0.5, self.titley+0.1))
         
-    # clean post-processes the plot to add components after all plots are added    
     def clean(self):
+        '''post-processes the plot to add components after all plots are added '''
+        
         # adjust the bounds of the plot to only include plotted data
         # each time we added a folder to the plot, we added the 
         # x and y values of the centers to xlistreal and ylistreal
@@ -656,9 +686,7 @@ class comboPlot(folderPlots):
         # is unplottable. e.g., very low support viscosity/ink viscosity
         # values produce filaments which curl up on the nozzle, so they don't produce cross-sections.
         # This step cuts out the space we set out for those folders that didn't end up in the final plot
-        
-        
-        
+        # if we were given adjustBounds=False during initialization, don't adjust the bounds
         if self.ab:
             self.xrtot = adjustBounds(self.xlistreal, self.xr, self.xlist)
             self.yrtot = adjustBounds(self.ylistreal, self.yr, self.ylist)
@@ -713,12 +741,16 @@ class comboPlot(folderPlots):
 #         self.fig.tight_layout()
         
         return
+    
+#---------------------------------------
+# plotting tools
 
-# adds a grid of dots at intersections to the viscosity maps
-    # ax is th axis to add dots to
-    # xlist is a list of x points
-    # ylist is a list of y points
-def addDots(ax, xlist, ylist):
+ 
+def addDots(ax:plt.Axes, xlist:List[float], ylist:List[float]):
+    '''adds a grid of dots at intersections to the viscosity map
+    ax is the axis to add dots to
+    xlist is a list of x points
+    ylist is a list of y pointss'''
     xl = []
     yl = []
     for x in xlist:
@@ -727,12 +759,13 @@ def addDots(ax, xlist, ylist):
             yl.append(y)
     ax.scatter(xl, yl, color='#969696', s=10)
     return
-    
-# adjust the bounds of the plot
-    # xlistreal is a list of x points to be included in the plot
-    # xr is the [min, max] position of each segment, e.g. [-0.7, 0.7]
-    # xlist is the initial list of x points we included in the plot
-def adjustBounds(xlistreal, xr, xlist):
+
+
+def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float]):
+    '''adjust the bounds of the plot.
+    xlistreal is a list of x points to be included in the plot
+    xr is the [min, max] position of each segment, e.g. [-0.7, 0.7]
+    xlist is the initial list of x points we included in the plot'''
     if len(xlistreal)>1:
         xmin = min(xlistreal)
         xmax = max(xlistreal)
@@ -744,34 +777,38 @@ def adjustBounds(xlistreal, xr, xlist):
         xrtot = [0]
     return xrtot
 
-def emptyYLabels(ax):
+def emptyYLabels(ax:plt.Axes):
+    '''Leave the y tick labels empty. Useful for side-by-side plots.'''
     labels = [item.get_text() for item in ax.get_xticklabels()]
     empty_string_labels = ['']*len(labels)
     ax.set_yticklabels(empty_string_labels)
 
-    
-   
- # plotCircle plots a circle, with optional caption
-    # ax is axis to plot on
-    # x0 is the x position
-    # y0 is the y position
-    # radius is the radius of the circle, in plot coords
-    # caption is the label. use '' to have no caption
-    # color is the color of the circle
 def plotCircle(ax:plt.Axes, x0:float, y0:float, radius:float, caption:str, color, sigmapos:int=0) -> None:
-    circle = plt.Circle([x0,y0], radius, color=color, fill=False)
-    ax.add_artist(circle)
-    angle=(90-30*sigmapos)*(2*np.pi/360)
-    dar = 0.2 # length of arrow
+    '''plotCircle plots a circle, with optional caption.
+    ax is axis to plot on
+    x0 is the x position
+    y0 is the y position
+    radius is the radius of the circle, in plot coords
+    caption is the label. use '' to have no caption
+    color is the color of the circle
+    sigmapos is the position in the sigma list for this circle. Useful for timeplots, so labels don't stack on top of each other. If we're using this to plot an ideal cross-section or some other sigma-unaffiliated value, sigmapos=0 will put the label inside the circle or just above it.'''
+    
+    circle = plt.Circle([x0,y0], radius, color=color, fill=False) # create the circle
+    ax.add_artist(circle)                                         # put the circle on the plot
+
     if len(caption)>0:
         if radius>0.3:
-            txtx = x0
+            # if the circle is big, put the label inside
+            txtx = x0                         
             txty = y0+0.2*sigmapos
             ax.text(txtx, txty, caption, horizontalalignment='center', verticalalignment='center', color=color)
         else:
-            arrowx = x0+radius*np.cos(angle)
+            # if the circle is small, put the label outside
+            angle=(90-30*sigmapos)*(2*np.pi/360)  # angle to put the label at, in rad                            
+            dar = 0.2                             # length of arrow
+            arrowx = x0+radius*np.cos(angle)      # where the arrow points   
             arrowy = y0+radius*np.sin(angle)
-            txtx = arrowx+dar*np.cos(angle)
+            txtx = arrowx+dar*np.cos(angle)       # where the label is
             txty = arrowy+dar*np.sin(angle)
             ax.annotate(caption, (arrowx, arrowy), color=color, xytext=(txtx, txty), ha='center', arrowprops={'arrowstyle':'->', 'color':color})
         

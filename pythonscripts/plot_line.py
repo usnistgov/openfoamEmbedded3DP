@@ -10,11 +10,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 from plot_general import *
 import interfacemetrics as intm
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
@@ -33,37 +34,21 @@ __status__ = "Production"
 
 ############ line plots
 
-# files is a list of folders (e.g. nb16, nb17) to include in the plot
-# func is the function to use for deciding plot colors. func should be as a function of inkvisc, supvisc, sigma
-# e.g. func could be multfunc
-def linePlots(folders:List[str], func, time:float, imsize:int, mode:int=0) -> plt.Figure:
-    funcvals = unqListFolders(folders, func)
-    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=False, figsize=(imsize, imsize))
-    for f in folders:
-        linePlot(f, time, ax, func, funcvals, mode)
-    ax.legend(bbox_to_anchor=(1, 1), loc='upper left', ncol=1)
-    ax.set_xlabel('z (mm)')
-    if mode==0:
-        ax.set_ylabel('x velocity (mm/s)')
-    else:
-        ax.set_ylabel('Viscosity (Pa.s)')
-        ax.set_yscale('log')
-    return fig
+  
     
-    
-# plot the result of a line trace collected with paraview
-# colorf is the function to use to determne the color of the plotted line, e.g. sigfunc
-# rang is the total list of values that you get when you evaluate colorf over the whole folder
+
 def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode:int=0) -> None:
-    t1 = intm.importLine(folder, time)
+    '''plot the result of a line trace collected with paraview
+        colorf is the function to use to determne the color of the plotted line, e.g. sigfunc
+        rang is the total list of values that you get when you evaluate colorf over the whole folder
+        mode is 0 to plot velocities, 1 to plot viscosities'''
+    t1,units = intm.importLine(folder, time)
     if len(t1)==0:
         print('File is missing in ', folder)
         return 
 
     if mode==0:
         # velocity mode
-#         ystrink = 'u:0'
-#         ystrsup = 'u:0'
         ystrink = 'vx'
         ystrsup = 'vx'
     else:
@@ -82,10 +67,8 @@ def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode
             nu_inklist = [tp['nuink'] for i in range(len(t1))]
             t1['nu_ink'] = nu_inklist
 
-#     inkPts = t1[t1['alpha.ink']>0.5]
     inkPts = t1[t1['alpha']>0.5]
     zname = 'z'
-#     zname = 'points:2'
     minx = min(inkPts['z'])
     maxx = max(inkPts['z'])
     supPtsLeft = t1[t1['z']<minx]
@@ -105,3 +88,24 @@ def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode
     pts = t1[(t1['z']==minx) | (t1['z']==maxx)]
     ax.scatter(pts['z'], pts[ystrink], color=color, label=decideFormat(val))
     ax.scatter(pts['z'], pts[ystrsup], color=color)
+    
+    
+    
+    
+
+def linePlots(folders:List[str], func, time:float, imsize:int, mode:int=0) -> plt.Figure:
+    '''files is a list of folders (e.g. nb16, nb17) to include in the plot
+    func is the function to use for deciding plot colors. func should be as a function of transport properties dictionary
+    e.g. func could be multfunc'''
+    funcvals = unqListFolders(folders, func)
+    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=False, figsize=(imsize, imsize))
+    for f in folders:
+        linePlot(f, time, ax, func, funcvals, mode)
+    ax.legend(bbox_to_anchor=(1, 1), loc='upper left', ncol=1)
+    ax.set_xlabel('z (mm)')
+    if mode==0:
+        ax.set_ylabel('x velocity (mm/s)')
+    else:
+        ax.set_ylabel('Viscosity (Pa.s)')
+        ax.set_yscale('log')
+    return fig

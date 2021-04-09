@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-'''Functions for generating legends for OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. Scrapes input files for input variables.
-'''
+'''Functions for generating legends for OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. Scrapes input files for input variables.'''
 
 import numpy as np
 import os
@@ -13,11 +12,12 @@ from typing import List, Dict, Tuple, Union, Any, TextIO
 from datetime import datetime
 import time
 import logging, platform, socket, sys
+
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
-from folderparser import *
 
+from folderparser import *
 
 
 __author__ = "Leanne Friedrich"
@@ -31,11 +31,13 @@ __status__ = "Production"
 
 #-------------------------------------------------------------------------------------------------  
 
-# the scrape class is used to store variables scraped from the log files
-# scrape contains a function scrape.table(), which converts all the data in the class into a 2 column table
+
 class scrape:
-        # folder is a folder name (string) which should point either to the case folder or one level above it
+    '''the scrape class is used to store variables scraped from the log files
+        scrape contains a function scrape.table(), which converts all the data in the class into a 2 column table'''
+        
     def __init__(self, folder:str):
+        '''folder is a folder name (string) which should point either to the case folder or one level above it'''
         
         self.fold = folder # full path
         self.meshfold = meshFolder(folder)
@@ -55,6 +57,8 @@ class scrape:
     
     #-------------------------
     def initRates(self):
+        '''initial (empty) values for simulation rates'''
+        
         # these values are ripped from log files
         self.shmtimes = ['snappyHexMesh time (s)', ''] 
             # how long it takes snappyHexMesh to run
@@ -70,7 +74,7 @@ class scrape:
         
     #-------------------------
     def initGeo(self):
-        # these values measure the geometry of the system and are stored in geometry.csv, which is created by ncreate3d.py/noz3dscript.ipynb
+        '''these values measure the geometry of the system and are stored in geometry.csv, which is created by ncreate3d.py/noz3dscript.ipynb'''
         self.GEOniw = ['nozzle inner width (mm)', '0.603']
         self.GEOnt = ['nozzle thickness (mm)', '0.152']
         self.GEObw = ['bath width (mm)', '']
@@ -90,6 +94,7 @@ class scrape:
     
     #-------------------------
     def initMesh(self):
+        '''initial values for mesh variables'''
         
         self.SHMlist = [['castellatedMesh', ''],\
                         ['snap', ''],\
@@ -136,6 +141,7 @@ class scrape:
     
     #-------------------------
     def initDMD(self):
+        '''initial values for dynamic mesh dictionary'''
         self.DMDlist = [['refineInterval', ''], \
                         ['lowerRefineLevel', ''], \
                         ['upperRefineLevel', ''], \
@@ -146,6 +152,7 @@ class scrape:
     
     #-------------------------
     def initTransport(self):
+        '''initial values for transport model'''
         self.TPinklist = [['transportModel', ''],\
                           ['nu', ''], \
                           ['nu0', ''], \
@@ -165,6 +172,7 @@ class scrape:
     
     #-------------------------
     def initControl(self):
+        '''initial values for controlDict'''
         self.controlDictList =  [['application', ''],\
                                  ['endTime', ''], \
                                  ['deltaT', ''], \
@@ -179,6 +187,7 @@ class scrape:
     
     #-------------------------
     def initFV(self):
+        '''initial values for fvSolution, fvSchemes'''
         self.fvSailist = [['nAlphaSubCycles', ''],\
                           ['cAlpha', ''], \
                           ['nAlphaCorr', ''], \
@@ -213,8 +222,9 @@ class scrape:
         
         
     #-------------------------
-# this function takes all the values we ripped and stored as variables in the scrape object and turns them into a table with 2 columns: the variable name and the variable value
+
     def table(self) -> List[List[str]]:
+        '''this function takes all the values we ripped and stored as variables in the scrape object and turns them into a table with 2 columns: the variable name and the variable value'''
         col = [] # start with an empty table, then add to it sequentially
         for i in [self.folder, self.compareto, self.shmtimes, \
                   self.shmtimem, self.iftimes, self.iftimehr, \
@@ -250,11 +260,12 @@ class scrape:
 
 
 
-# ca is used by scrape.table() to compile all of the data in the object into a table
-    # col is a table with 2 columns. 
-    # hlist is a list of headers that describe this chunk of data. they are added as rows with an empty value 
-    # li is a list of [variable name, value] to add to col
+
 def ca(col:List[List[str]], hlist:List[str], li:List[List[str]]) -> None:
+    '''ca is used by scrape.table() to compile all of the data in the object into a table
+    col is a table with 2 columns. 
+    hlist is a list of headers that describe this chunk of data. they are added as rows with an empty value 
+    li is a list of [variable name, value] to add to col'''
     for i in hlist:
         col.append([i, ''])
     for i in li:
@@ -264,12 +275,13 @@ def ca(col:List[List[str]], hlist:List[str], li:List[List[str]]) -> None:
  ###################### SCRAPING TOOLS ##################
 
         
-# placeInList puts a value v into a list with 2 columns, where s is the name of the variable
-# this function will only place the value into the list if the variable name s is in the list and there isn't already a value there
-    # l is a list
-    # s is a string
-    # v is a value
+
 def placeInList(l:List[List[str]], s:str, v:str) -> None: 
+    '''placeInList puts a value v into a list with 2 columns, where s is the name of the variable
+        this function will only place the value into the list if the variable name s is in the list and there isn't already a value there
+        l is a list
+        s is a string
+        v is a value'''
     try:
         i = l.index([s, '']) # i is the position in the list
     except:
@@ -278,20 +290,22 @@ def placeInList(l:List[List[str]], s:str, v:str) -> None:
         l[i][1] = v # this puts the value in the list
     return
 
-# cancelUnits removes the units list (e.g. [ 0 2 -1 0 0 0 0]) from a value
-    # s is a string
+
 def cancelUnits(s:str) -> str:
+    '''cancelUnits removes the units list (e.g. [ 0 2 -1 0 0 0 0]) from a value
+    s is a string'''
     strs = re.split(' ', s)
     return strs[-1]
 
-# listLevel is a tool that looks for sections of interest within files and scrapes values out of them
-    # startString is a string that tells us that we've reached the section of interest. It should be at the beginning of the line
-    # endString tells us that we've reached the end of the section of interest. It should be at the beginning of the line.
-    # line is the starting line
-    # f is a file stream created by open()
-    # l is a list of variable names and values that we're going to scrape values into
-    # returns the line we just read
+
 def listLevel(startString:str, endString:str, line:str, f:TextIO, l:List[List[str]]) -> str:
+    '''listLevel is a tool that looks for sections of interest within files and scrapes values out of them
+    startString is a string that tells us that we've reached the section of interest. It should be at the beginning of the line
+    endString tells us that we've reached the end of the section of interest. It should be at the beginning of the line.
+    line is the starting line
+    f is a file stream created by open()
+    l is a list of variable names and values that we're going to scrape values into
+    returns the line we just read'''
     while not line.startswith(startString):
         line = f.readline()
     while not line.startswith(endString):
@@ -307,14 +321,15 @@ def listLevel(startString:str, endString:str, line:str, f:TextIO, l:List[List[st
         line = f.readline()
     return line  
 
-# readLevel0 is a simpler version of listLevel, where instead of placing many values in a list,
-# we're looking for a single value. This function targets lines in files that have no tabs at the beginning, just "name\tvalue"
-    # s is a trigger string that tells us we've found the value we're looking for
-    # line is a starting line
-    # f is a file stream created by open()
-    # obj is a [1x2] list into which we'll store our value
-    # returns the line we just read
+
 def readLevel0(s:str, line:str, f:TextIO, obj:List[List[str]]) -> str:
+    '''readLevel0 is a simpler version of listLevel, where instead of placing many values in a list,
+    we're looking for a single value. This function targets lines in files that have no tabs at the beginning, just "name\tvalue"
+    s is a trigger string that tells us we've found the value we're looking for
+    line is a starting line
+    f is a file stream created by open()
+    obj is a [1x2] list into which we'll store our value
+    returns the line we just read'''
     while not line.startswith(s):
         line = f.readline()
     strs = re.split(';|\t', line) # split the line at ; and tabs
@@ -324,9 +339,10 @@ def readLevel0(s:str, line:str, f:TextIO, obj:List[List[str]]) -> str:
 
 ###################### SCRAPING FILES ##################
 
-# scrape the snappyHexMesh log file
-    # s is a scrape object
+
 def scrapeSHMLog(s:scrape) -> None:
+    '''scrape the snappyHexMesh log file
+    s is a scrape object'''
     shmlog = os.path.join(s.meshfold, 'log_snappyHexMesh')
     if os.path.exists(shmlog):
         with FileReadBackwards(shmlog, encoding="utf-8") as BigFile: 
@@ -338,12 +354,14 @@ def scrapeSHMLog(s:scrape) -> None:
                     s.shmtimes[1] = "%.2f" % shmtime
                     s.shmtimem[1] = "%.2f" % (shmtime/60)
                     return 
+    
 
-# scrape the interFoam log file
-# Because interFoam can take hours to days, sometimes runs get split into pieces. 
-# Each interFoam run adds onto the existing log file. 
-    # s is a scrape object                
+              
 def scrapeIFLog(s:scrape) -> None:
+    '''scrape the interFoam log file
+        Because interFoam can take hours to days, sometimes runs get split into pieces. 
+        Each interFoam run adds onto the existing log file. 
+        s is a scrape object  '''
     ifLog = os.path.join(s.casefold, 'log_interFoam')
     if not os.path.exists(ifLog):
         ifLog = os.path.join(s.fold, 'log_interFoam')
@@ -377,6 +395,7 @@ def scrapeIFLog(s:scrape) -> None:
     return
 
 def scrapeRunTime(s:scrape) -> None:
+    '''Get the simulation time from the folder'''
     ti = times(s.fold)
     if len(ti)>0:
         s.simTime[1] = str(max(ti))
@@ -384,16 +403,18 @@ def scrapeRunTime(s:scrape) -> None:
         s.simTime[1] = '0'
     return
 
-# scrape all of the times (run time, simulation time, etc.)
-    # s is a scrape object
+
 def scrapeLogs(s:scrape) -> None:
+    '''scrape all of the times (run time, simulation time, etc.)
+    s is a scrape object'''
     scrapeRunTime(s)
     scrapeSHMLog(s)
     scrapeIFLog(s)
     
-# scrape blockMeshDict
-    # s is a scrape object
+
 def scrapeBlockMeshDict(s:scrape) -> None:
+    '''scrape blockMeshDict
+    s is a scrape object'''
     bm = os.path.join(s.meshfold, 'system', 'blockMeshDict')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -426,9 +447,10 @@ def scrapeBlockMeshDict(s:scrape) -> None:
             s.blocksdims[1] = strs[1] # number of cells in the blocks: this should look like (# # #)
             return
 
-# scrape setFieldsDict
-    # s is a scrape object
+
 def scrapeSetFieldsDict(s:scrape) -> None:
+    '''scrape setFieldsDict
+    s is a scrape object'''
     bm = os.path.join(s.casefold, 'system', 'setFieldsDict')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -449,9 +471,10 @@ def scrapeSetFieldsDict(s:scrape) -> None:
             s.GEOnbc[1] = str(s.GEOnbc[1])
             return
         
-# scrape 0/U
-    # s is a scrape object
+
 def scrapeU(s:scrape) -> None:
+    '''scrape 0/U
+    s is a scrape object'''
     bm = os.path.join(s.casefold, '0', 'U')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -474,12 +497,13 @@ def scrapeU(s:scrape) -> None:
     else:
         logging.info('path ', bm, ' does not exist')
 
-# scrape snappyHexMeshDict
-# here we use listLevel because snappyHexMeshDict has a lot of sections and we're scraping all of the data
-# to change which fields we collect, go back to the scrape class definition
-# we're collecting data for SHMlist, CMClist, CMCfixedWallsLevel, SClist, ALClist, ALCfixedWallsLayers, MQClist, and SHMmergeTolerance
-    # s is a scrape object
+
 def scrapeSHM(s:scrape) -> None:
+    '''scrape snappyHexMeshDict
+    here we use listLevel because snappyHexMeshDict has a lot of sections and we're scraping all of the data
+    to change which fields we collect, go back to the scrape class definition
+    we're collecting data for SHMlist, CMClist, CMCfixedWallsLevel, SClist, ALClist, ALCfixedWallsLayers, MQClist, and SHMmergeTolerance
+    s is a scrape object'''
     bm = os.path.join(s.meshfold, 'system', 'snappyHexMeshDict')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -513,9 +537,10 @@ def scrapeSHM(s:scrape) -> None:
     else:
         logging.warning('path ', bm, ' does not exist')
 
-# scrape dynamicMeshDict
-    # s is a scrape object
+
 def scrapeDMD(s:scrape) -> None:
+    '''scrape dynamicMeshDict
+    s is a scrape object'''
     bm = os.path.join(s.casefold, 'constant', 'dynamicMeshDict')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -526,9 +551,10 @@ def scrapeDMD(s:scrape) -> None:
     else:
         logging.warning('path ', bm, ' does not exist')
 
-# scrape transportProperties
-    # s is a scrape object
+
 def scrapeTP(s:scrape) -> None:
+    '''scrape transportProperties
+    s is a scrape object'''
     bm = os.path.join(s.casefold, 'constant', 'transportProperties')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -540,9 +566,10 @@ def scrapeTP(s:scrape) -> None:
     else:
         logging.warning('path ', bm, ' does not exist')
         
-# scrape controlDict
-    # s is a scrape object
+
 def scrapeCD(s:scrape) -> None:
+    '''scrape controlDict
+    s is a scrape object'''
     bm = os.path.join(s.casefold, 'system', 'controlDict')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -553,11 +580,12 @@ def scrapeCD(s:scrape) -> None:
         logging.warning('path ', bm, ' does not exist')
         
 
-# scrape fvSolution
-# fvSolution files are broken into sections by the variable we're solving for, e.g. alpha, pcorr, p_rgh. 
-# scrape each section into a different list stored in s
-    # s is a scrape object
+
 def scrapeFV(s:scrape) -> None:
+    '''scrape fvSolution
+        fvSolution files are broken into sections by the variable we're solving for, e.g. alpha, pcorr, p_rgh. 
+        scrape each section into a different list stored in s
+        s is a scrape object'''
     bm = os.path.join(s.casefold, 'system', 'fvSolution')
     if os.path.exists(bm):
         with open (bm, "r") as f:
@@ -572,10 +600,11 @@ def scrapeFV(s:scrape) -> None:
     else:
         logging.warning('path ', bm, ' does not exist')
 
-# scrape geometry.csv
-# this file was created by ncreate3d.py/noz3dscript.ipynb when we generated the whole folder
-    # s is a scrape object
+
 def scrapeGeo(s:scrape) -> None:
+    '''scrape geometry.csv
+        geometry.csv was created by ncreate3d.py/noz3dscript.ipynb when we generated the whole folder
+        s is a scrape object'''
     bm = os.path.join(s.fold, 'geometry.csv')
     if os.path.exists(bm):
         with open(bm, "r") as f:
@@ -601,17 +630,17 @@ def scrapeGeo(s:scrape) -> None:
         return
 
 
-# populate scrapes all the data from the folder and exports it to a table called legend.csv
-    # folder is a full path name
+#----------------------------------------------------------------------------
+
 def populate(folder:str) -> List[List[str]]:
+    '''populate scrapes all the data from the folder and exports it to a table called legend.csv
+    folder is a full path name'''
     if not isSimFolder(folder):
         raise Exception("Not a simulation folder")
     s = scrape(folder)   # create an object to store variables
     fn = os.path.join(folder, 'legend.csv')     # export file name
     scrapeLogs(s)   # scrape the logs
     if os.path.exists(fn):
-#         s.initTransport()
-#         scrapeTP(s) # overwrite transport properties
         # if a legend file already exists, keep that 
         # legend file and just replace the processing times
         # all of the other variables are set at the folder generation and don't change
@@ -619,7 +648,6 @@ def populate(folder:str) -> List[List[str]]:
             t = list(csv.reader(f))
             t2 = s.table()
             t[2:8] = t2[2:8]
-#             t[91:109] = t2[91:109]
     else:
         # if there is no legend file, we have to go through all the files and scrape data
         scrapeGeo(s)
@@ -636,10 +664,11 @@ def populate(folder:str) -> List[List[str]]:
     return t
 
 
-# take one folder and either import the existing legend or create a new one
-    # folder is a full path name
-    # repopulate is true if you want to overwrite existing legend.csv files
+
 def populateToTable(folder:str, repopulate:bool = False) -> List[List[str]]:
+    '''take one folder and either import the existing legend or create a new one
+    folder is a full path name
+    repopulate is true if you want to overwrite existing legend.csv files'''
     if repopulate:
         # overwrite times in legend.csv, or if there is no file, create a new legend file
         t2 = populate(folder)
@@ -648,11 +677,12 @@ def populateToTable(folder:str, repopulate:bool = False) -> List[List[str]]:
         t2 = importIf(folder)
     return t2
 
-# populateList scrapes all data for all files in a list and creates a combined table
-    # liInit is a list of folders to scrape
-    # exportFilename is the destination to export the summary file
-    # repopulate is true if you want to overwrite existing legend.csv files
+
 def populateList(liInit:List[str], exportFilename:str, repopulate:bool = False) -> None:
+    '''populateList scrapes all data for all files in a list and creates a combined table
+    liInit is a list of folders to scrape
+    exportFilename is the destination to export the summary file
+    repopulate is true if you want to overwrite existing legend.csv files'''
     li = []
     for folder in liInit:
         if os.path.exists(folder):
@@ -683,8 +713,9 @@ def populateList(liInit:List[str], exportFilename:str, repopulate:bool = False) 
 # These functions are used to scrape log files for times and fitting metrics
 ###################################################
 
-# the logEntry class is used to store information scraped from log files
+
 class logEntry:
+    '''the logEntry class is used to store information scraped from log files'''
     courantmin = 0
     courantmax = 0
     deltaT = 0
@@ -694,16 +725,17 @@ class logEntry:
     realtime = 0
     cells = 0
 
-# interFile finds the interFoam log
-    # folder can be a case folder or its parent
 def interFile(folder:str) -> str:
+    '''interFile finds the interFoam log
+    folder can be a case folder or its parent'''
     cf = caseFolder(folder)
     fn = os.path.join(cf, 'log_interFoam')
     return fn
 
-# logRead extracts values from log files and stores them in a list of logEntry objects
-    # folder can be a case folder or its parent
+
 def logRead(folder:str) -> List[logEntry]:
+    '''logRead extracts values from log files and stores them in a list of logEntry objects
+    folder can be a case folder or its parent'''
     intf = interFile(folder)
     li = []   # this will be a list of logEntry objects
     if os.path.exists(intf):
@@ -753,12 +785,15 @@ def logRead(folder:str) -> List[logEntry]:
         
     return li
 
-# list an attribute for each object in a list
-    # li is a list of objects
-    # at is the attribute that we want to get from each object
+
 def la(li:List[Any], at:str) -> List[Any]:
+    '''list an attribute for each object in a list
+    li is a list of objects
+    at is the attribute that we want to get from each object'''
     return list(getattr(o, at) for o in li)
 
+#--------------------------------------------------
+# ARCHIVE
 
 # # plot 4 plots that show the simulation metrics over time
 #     # folder can be a case folder or its parent

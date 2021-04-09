@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''Plotting overall metrics, such as simulation time, folder name, simulation rate, cross-sectional area...'''
+'''Functions for plotting overall metrics, such as simulation time, folder name, simulation rate, cross-sectional area...'''
 
 import sys
 import os
@@ -13,12 +13,13 @@ import seaborn as sns
 import math
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 import folderparser as fp
 import interfacemetrics as intm
 from plot_general import *
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
@@ -36,14 +37,15 @@ __status__ = "Production"
 #-------------------------------------------
 
  
-# plotSquare plots a square
-    # ax is axis to plot on
-    # x0 is the x position
-    # y0 is the y position
-    # dx is the spacing between xlist
-    # caption is the label
-    # color is the color of the circle
+
 def plotSquare(ax:plt.Axes, x0:float, y0:float, dx:float, caption:str, color) -> None:
+    '''plotSquare plots a square
+    ax is axis to plot on
+    x0 is the x position
+    y0 is the y position
+    dx is the spacing between xlist
+    caption is the label
+    color is the color of the circle'''
     if len(caption)>0:
         # calculate brightness of color
         l = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
@@ -56,12 +58,11 @@ def plotSquare(ax:plt.Axes, x0:float, y0:float, dx:float, caption:str, color) ->
     ax.add_artist(box)
     
     
-
-# plot slice summaries. produces a row of 2 plots: column as a function of x and as a function of time
-    # ss is a dataframe of slice summary data, e.g. as imported by importSS or created by summarize
-    # column is the column name, e.g. 'centery'
-    # tmin is the minimum time to include in these plots
 def plotSS(ss:pd.DataFrame, column:str, tmin:float) -> None:
+    '''plot slice summaries. produces a row of 2 plots: column as a function of x and as a function of time
+    ss is a dataframe of slice summary data, e.g. as imported by importSS or created by summarize
+    column is the column name, e.g. 'centery'
+    tmin is the minimum time to include in these plots'''
     size=4
     ss2 = ss[ss['time']>=tmin]
     fig, axes = plt.subplots(nrows=1, ncols=2, sharex=False, figsize=(10, 4))
@@ -74,14 +75,15 @@ def plotSS(ss:pd.DataFrame, column:str, tmin:float) -> None:
     
       
 
-##################################################################
-#### text plot, shows which folders correspond to which viscosities    
+#------------------------------------------
+# text plot, shows which folders correspond to which viscosities    
 
-# txtPlot assigns a single folder to the plot
-    # folder is a full path name
-    # cp is a comboPlot object
-    # dt is the spacing between text items. A good value is 0.2
-def txtPlot(folder, cp, dt):
+
+def txtPlot(folder:str, cp:folderPlots, dt:float) -> None:
+    '''txtPlot assigns a single folder to the plot
+    folder is a full path name
+    cp is a comboPlot object
+    dt is the spacing between text items. A good value is 0.2'''
     try:
         [color, x0, y0, sigmapos] = vvplot(folder, cp) # find the position of this plot within the big plot
     except Exception as e:
@@ -95,9 +97,12 @@ def txtPlot(folder, cp, dt):
         axnum = 0
     cp.axs[axnum].text(xmid, ymid, b, horizontalalignment='center', verticalalignment='center', c=color) # put the folder name on the plot
    
-    # write names of a list of folders on one big plot
-    # topFolder is the folder that holds all of the folders
-def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs):
+    
+def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -> None:
+    '''write names of a list of folders on one big plot
+    topFolder is the folder that holds all of the folders
+    exportFolder is the folder to export the figure to
+    overwrite true to overwrite existing files'''
     labeli = 'names'
     fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):
@@ -115,14 +120,15 @@ def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs):
 
     intm.exportIm(fn, cp.fig)
 
-    
-######## run time plot
+#------------------------------------------   
+# run time plot: how long the simulation ran in simulation seconds
 
-# runtimePlot assigns a single folder to the plot
-    # folder is a full path name
-    # cp is a comboPlot object
-    # dt is the spacing between text items. A good value is 0.2
-def runtimePlot(folder, cp, dt):
+
+def runtimePlot(folder:str, cp:folderPlots, dt:float) -> None:
+    '''runtimePlot assigns a single folder to the plot
+    folder is a full path name
+    cp is a comboPlot object
+    dt is the spacing between text items. A good value is 0.2'''
     try:
         [color, x0, y0, sigmapos] = vvplot(folder, cp) # find the position of this plot within the big plot
     except:
@@ -136,9 +142,10 @@ def runtimePlot(folder, cp, dt):
         axnum = 0
     cp.axs[axnum].text(xmid, ymid, b, horizontalalignment='center', verticalalignment='center', c=color) # put the folder name on the plot
    
-    # write names of a list of folders on one big plot
-    # topFolder is the folder that holds all of the folders
-def runtimePlots0(topFolder, exportFolder, overwrite:bool=False, **kwargs):
+    
+def runtimePlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -> None:
+    '''write names of a list of folders on one big plot
+    topFolder is the folder that holds all of the folders'''
     labeli = 'runtime'
     fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):
@@ -151,10 +158,11 @@ def runtimePlots0(topFolder, exportFolder, overwrite:bool=False, **kwargs):
     cp.clean()
     intm.exportIm(fn, cp.fig)
     
-    
-#### processing time plot
+ #------------------------------------------   
+#### generic value plots
 
-def valueCaption(val, tmax, tmin):
+def valueCaption(val:str, tmax:str, tmin:str) -> str:
+    '''Caption that shows the value, with an appropriate number of decimals. If the val is outside the captioning region, don't generate a caption. If the val is large or tmax is large, use 0 decimals. If they are small, use 2.'''
     if math.isnan(val):
         return ''
     if val>=tmax or val<=tmin:
@@ -167,9 +175,13 @@ def valueCaption(val, tmax, tmin):
     return caption
         
         
-
-# t1 is a dataframe made from timePlot outputs
-def valuePlots(t1:pd.DataFrame, cp:comboPlot, tminmode:int, timeplot:bool=False):
+def plotTableVals(t1:pd.DataFrame, cp:comboPlot, tminmode:int, timeplot:bool=False) -> Dict:
+    '''Plot a list of values on a comboPlot using either circle size plot or color density plot. 
+    t1 is a dataframe made from timePlot outputs
+    cp is the comboPlot to plot the values on
+    tminmode=0 to set the minimum to 0. tminmode=1 to set the minimum to the min value in the table.
+    timeplot true if we are plotting times. This is necessary for circle scaling.'''
+    
     if len(t1)<1:
         raise ValueError
     if 'tmin' in cp.kwargs:
@@ -225,28 +237,25 @@ def valuePlots(t1:pd.DataFrame, cp:comboPlot, tminmode:int, timeplot:bool=False)
             plotCircle(ax, t['x0'], t['y0'], np.sqrt(val)*rmax, caption, t['color'], sigmapos=t['sigmapos'])
 
     return {'tmin':tmin, 'tmax':tmax, 'cmap':cmap}
-    
-def valueLegend(cp, vpout):
-    if cp.split:
-        #cbaxes = cp.fig.add_axes([0.2, -0.4, 0.6, 0.1])
-#         cbaxes = cp.fig.add_axes([0.2, 0.16, 0.6, 0.05])
-        cbaxes = cp.fig.add_axes([0.2, -0.2, 0.6, 0.05])
-        nm = plt.Normalize(vmin=vpout['tmin'], vmax=vpout['tmax'])
-        sm = plt.cm.ScalarMappable(cmap=vpout['cmap'], norm=nm)
-        plt.colorbar(sm, cax=cbaxes, orientation="horizontal")
 
-# this is the output dictionary from a timePlot or metricPlot entry from one folder
-    # folder is a full path name
-    # cp is a comboPlot object
-    # rate is a value to plot
-def valPlotOutput(folder, cp, rate):
+
+def folderToPlotVals(folder:str, cp, rate) -> Dict:
+    '''this is the output dictionary for a timePlot or metricPlot entry from one simulation
+    folder is a full path name
+    cp is a comboPlot object
+    rate is a value to plot'''
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp) # find the position of this plot within the big plot
     except:
         raise ValueError
     return {'color':color, 'x0':x0, 'y0':y0, 'rate':rate, 'sigmapos':sigmapos}
 
-def constructValTable(function, cp:comboPlot, tminmode:int, timeplot:bool=False):
+
+def plotAllFolderVals(function, cp:comboPlot, tminmode:int, timeplot:bool=False) -> Dict:
+    '''Go through all of the folders in the folder list stored in cp, and construct a table of values to plot.
+    function is the function to use on each folder. Usually some variation on folderToPlotVals
+    tminmode is 0 to use 0 as the min value, 1 to use the min value in the table as min value for choosing colors
+    timeplot=True if we are plotting simulation rates. Important for circle size scaling.'''
     t1 = []
     for f in cp.flist:
         try:
@@ -260,47 +269,70 @@ def constructValTable(function, cp:comboPlot, tminmode:int, timeplot:bool=False)
             t1.append(row)
     t2 = pd.DataFrame(t1)
     t2 = t2.dropna()
+    return plotTableVals(t2, cp, tminmode, timeplot)
+    
+def valueLegend(cp:comboPlot, vpout:Dict) -> None:
+    '''Put a color legend for the gradient plot on the bottom'''
+    if cp.split:
+        cbaxes = cp.fig.add_axes([0.2, 0.1, 0.6, 0.05])
+        nm = plt.Normalize(vmin=vpout['tmin'], vmax=vpout['tmax'])
+        sm = plt.cm.ScalarMappable(cmap=vpout['cmap'], norm=nm)
+        plt.colorbar(sm, cax=cbaxes, orientation="horizontal")
 
-    return valuePlots(t2, cp, tminmode, timeplot)
+
+
+#------------------------------------------
+# time plots: how fast the simulation ran, in real hr per simulation s
         
-# timePlot determines the position and size of circle to plot
-    # folder is a full path name
-    # cp is a comboPlot object
+
 def timePlot(folder:str, cp:comboPlot):
+    '''timePlot determines the position and size of circle to plot
+    folder is a full path name
+    cp is a comboPlot object'''
+    
     le = intm.importLegend(folder)
     rate = float((le[le['title']=='simulation rate (hr/s)']).val) # find the simulation rate
-    return valPlotOutput(folder, cp, rate)
+    return folderToPlotVals(folder, cp, rate) 
        
        
-# timePlots plots computation rates as circles
-    # topFolder is a full path name to the folder containing all the simulations
-    # exportFolder is the folder to export the plot to
+
 def timePlots(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -> None:
+    '''timePlots plots computation rates as circles
+    topFolder is a full path name to the folder containing all the simulations
+    exportFolder is the folder to export the plot to'''
+    
     labeli = 'simrate'
-    fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)
-    if not overwrite and os.path.exists(fn+'.png'):
+    fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)  # file name for the plot
+    if not overwrite and os.path.exists(fn+'.png'):            # quit if this plot already exists and overwrite==False
         return
     
-    cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, **kwargs)
-    lfunc = lambda folder, cp: timePlot(folder,cp)
+    cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, **kwargs)  # create a plot
+    lfunc = lambda folder, cp: timePlot(folder,cp)                      # we are going to run timePlot on every folder
     try:
-        vpout = constructValTable(lfunc, cp, 0, timeplot=True)
+        vpout = plotAllFolderVals(lfunc, cp, 0, timeplot=True)          # plot all the files
     except:
         return
     cp.figtitle = 'Simulation time (real hr/simulation s)'
-    cp.clean()
-    valueLegend(cp, vpout)
-    intm.exportIm(fn, cp.fig)
+    cp.clean()                  # clean up the plot
+    valueLegend(cp, vpout)      # add a color legend
+    intm.exportIm(fn, cp.fig)   # export figure
 
+
+#------------------------------------------  
+# slice summary metrics plots
+
+
+def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> Dict:
+    '''Find the value of slice summary metrics for a single simulation.
+    folder is the full path name to a simulation folder
+    time is the time of the slice
+    xbehind is the position of the slice, relative to the center of the nozzle
+    labels is a list of metrics to collect, e.g. ['area', 'centery']'''
     
-#### metrics plots
-
-
-def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> List[float]:
     if not os.path.exists(folder):
         raise ValueError
 
-    le = intm.importSS(folder)
+    le, units = intm.importSS(folder)
         # get slice summaries
     if len(le)<2:
         raise ValueError
@@ -320,44 +352,49 @@ def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> List[
         rates = {label:row.iloc[0][label] for label in labels}
         # find the value of the metric we're looking for
     except:
-        print(folder)
+        logging.debug(folder)
         raise NameError
     return rates
 
 
-# metricPlot determines the position and size of circle to plot
-    # folder is a full path name
-    # cp is a comboPlot object
-    # time is the time since extrusion started in s
-    # xbehind is the distance behind the center of the nozzle in mm
-    # label is the column label, e.g. 'maxz'
+
 def metricPlot(folder:str, cp:comboPlot, time:float, xbehind:float, label:str) -> Dict:
+    '''metricPlot determines the position and size of circle or square to plot
+    folder is a full path name
+    cp is a comboPlot object
+    time is the time since extrusion started in s
+    xbehind is the distance behind the center of the nozzle in mm
+    label is the column label, e.g. 'maxz''''
+    
     try:
         rate = metricVals(folder, time, xbehind, [label])
         rate = rate[label]
     except Exception as e:
         raise e
-    return valPlotOutput(folder, cp, rate)
+    return folderToPlotVals(folder, cp, rate)
        
         
-# metricPlots plots computation rates as circles
-    # topFolder is a full path name to the folder containing all the simulations
-    # exportFolder is the folder to export plots to
-    # time is the time since extrusion started in s
-    # xbehind is the distance behind the center of the nozzle in mm
-    # label is the column label, e.g. 'maxz'
+
 def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, label:str, overwrite:bool=False, **kwargs) -> None:
+    '''# metricPlots plots slice summaries as color density plots
+    topFolder is a full path name to the folder containing all the simulations
+    exportFolder is the folder to export plots to
+    time is the time since extrusion started in s
+    xbehind is the distance behind the center of the nozzle in mm
+    label is the column label, e.g. 'maxz''''
+    
     labeli = label+'_'+str(xbehind)+'_t_'+str(time)
     fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):
         return
     
-    cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, **kwargs)
+    cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, gridlines=False, **kwargs)
     lfunc = lambda f, cp: metricPlot(f, cp, time, xbehind, label)
+    
     try:
-        vpout = constructValTable(lfunc, cp, 1) # use tminmode 1 so the min of the color map is the min of the metric
+        vpout = plotAllFolderVals(lfunc, cp, 1) # use tminmode 1 so the min of the color map is the min of the metric
     except Exception as e:
-        print(e)
+        logging.error(str(e))
         return
     cp.figtitle = label+', '+str(xbehind)+' mm behind nozzle, t = '+str(time)+' s'
     cp.clean()
