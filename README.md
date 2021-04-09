@@ -86,82 +86,82 @@ The files included in this publication use the following hierarchy:
         - set up log generation
 
 - **logs/**
-- for holding logs
+    - for holding logs
 
 - **paraviewscripts/**
-- pvpython scripts for generating images and tables. These run on pvpython.exe. Some scripts use packages that are not native to pvpython.exe and require a virtual environment. We use virtualenv to implement this.
+    - pvpython scripts for generating images and tables. These run on pvpython.exe. Some scripts use packages that are not native to pvpython.exe and require a virtual environment. We use virtualenv to implement this.
     
     - *comboscript.py*
-    - Collecting interface points into csvs from vtk files and generating images from vtk files. Scripting for many folders and many images and tables.
+        - Collecting interface points into csvs from vtk files and generating images from vtk files. Scripting for many folders and many images and tables.
 
     - *linescript.py*
-    - Collecting line traces through the bath in vtk files. Scripting for many folders and many images and tables.
+        - Collecting line traces through the bath in vtk files. Scripting for many folders and many images and tables.
 
     - *paraview_csv.py*
-    - Functions for collecting interface points into csvs from vtk files
+        - Functions for collecting interface points into csvs from vtk files
 
     - *paraview_general.py*
-    - Functions for importing vtk files of simulated filaments.
+        - Functions for importing vtk files of simulated filaments.
 
     - *paraview_line.py*
-    - Functions for collecting line traces through the bath in vtk files
-    -
+        - Functions for collecting line traces through the bath in vtk files
+
     - *paraview_screenshots.py*
-    - Functions for generating images of filaments from vtk files.
+        - Functions for generating images of filaments from vtk files.
 
 - **pythonscripts/**
-- python tools for generating and analyzing OpenFOAM files. These are written for python3.
+    - python tools for generating and analyzing OpenFOAM files. These are written for python3.
 
     - *donescript.py*
-    - Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments.
+        - Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments.
 
     - *foldermover.py*
-    - Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments.
+        - Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments.
 
     - *folderscraper.py*
-    - Functions for generating legends for OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. Scrapes input files for input variables.
+        - Functions for generating legends for OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. Scrapes input files for input variables.
 
     - *interfacemetrics.py*
-    - Functions for analyzing simulated single filaments
+        - Functions for analyzing simulated single filaments
 
     - *interfacemetrics_yielding.ipynb*
-    - Jupyter notebook for analyzing OpenFOAM simulation data, for the yielding dataset
+        - Jupyter notebook for analyzing OpenFOAM simulation data, for the yielding dataset
 
     - *interfacemetrics_viscsweep.ipynb*
-    - Juptyer notebook for analyzing OpenFOAM simulation data, for the viscosity sweep dataset (Friedrich, L., & Seppala, J.E. (2021) Simulated filament shapes in embedded 3D printing, submitted for publication)
+        - Juptyer notebook for analyzing OpenFOAM simulation data, for the viscosity sweep dataset (Friedrich, L., & Seppala, J.E. (2021) Simulated filament shapes in embedded 3D printing, submitted for publication)
 
     - *interfacePlots.py*
-    - All of the plotting functions for plotting interface measurements. (plot_general, plot_line, plot_metrics, plot_pic, plot_slices, and plot_steady)
+        - All of the plotting functions for plotting interface measurements. (plot_general, plot_line, plot_metrics, plot_pic, plot_slices, and plot_steady)
 
     - *movescript.py*
-    - Moves folders to server. Loops continuously.
+        - Moves folders to server. Loops continuously.
 
     - *ncreate3d.py*
-    - Functions to generate OpenFOAM input files for a nozzle in a 3D bath
+        - Functions to generate OpenFOAM input files for a nozzle in a 3D bath
 
     - *noz3dscript.ipynb*
-    - Jupyter notebook for generating OpenFOAM input files.
+        - Jupyter notebook for generating OpenFOAM input files.
 
     - *plot_general.py*
-    - Plotting tools for analyzing OpenFOAM single filaments
+        - Plotting tools for analyzing OpenFOAM single filaments
 
     - *plot_line.py*
-    - Functions for plotting line traces from Paraview
+        - Functions for plotting line traces from Paraview
 
     - *plot_metrics.py*
-    - Functions for plotting overall metrics, such as simulation time, folder name, simulation rate, cross-sectional area...
+        - Functions for plotting overall metrics, such as simulation time, folder name, simulation rate, cross-sectional area...
 
     - *plot_pic.py*
-    - Functions for plotting images of filaments and baths
+        - Functions for plotting images of filaments and baths
     	
     - *plot_slices.py*
-    - Functions for plotting cross-sections
+        - Functions for plotting cross-sections
 
     - *plot_steady.py*
-    - Functions for plotting steady state metrics
+        - Functions for plotting steady state metrics
 
     - *videoscript.py*
-    - Script for combining images into videos. Loops continuously every 6 hours.
+        - Script for combining images into videos. Loops continuously every 6 hours.
 
 --- 
 
