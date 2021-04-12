@@ -3,6 +3,7 @@
 
 import os
 import logging
+import csv
 
 from paraview.simple import * # import the simple module from the paraview
 
@@ -12,7 +13,7 @@ sys.path.append(parentdir)
 
 from paraview_general import *
 import folderparser as fp
-from interfacemetrics import addUnits
+from pythonscripts.pvCleanup import addUnits
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -42,8 +43,8 @@ def initializeAll(folder, xpos):
 def initSeries(sv:stateVars, xpos:float) -> stateVars:
     '''Initialize the series file and get a line trace'''
     caseVTMSeries = initSeries0(sv)
-    # sv.times = casevtmseries.TimestepValues
-    plotOverLine2 = PlotOverLine(Input=casevtmseries, Source='High Resolution Line Source')
+    # sv.times = caseVTMSeries.TimestepValues
+    plotOverLine2 = PlotOverLine(Input=caseVTMSeries, Source='High Resolution Line Source')
     # plotOverLine2.Source.Point1 = [0.002588, 0, 0.0021104998886585236]
     # plotOverLine2.Source.Point2 = [0.002588, 0, -0.0021104998886585236]
     
@@ -79,8 +80,8 @@ def initSeries(sv:stateVars, xpos:float) -> stateVars:
     lineChartView1 = CreateView('XYChartView')
 
     sv.plotOverLine2 = plotOverLine2
-    Hide(casevtmseries, sv.renderView1)
-    sv.casevtmseries = casevtmseries
+    Hide(caseVTMSeries, sv.renderView1)
+    sv.caseVTMSeries = caseVTMSeries
     return sv
 
 
@@ -89,32 +90,47 @@ def exportCsv(file:str, sv:stateVars) -> None:
     SaveData(file, proxy=sv.plotOverLine2, PointDataArrays=['U', 'alpha.ink', 'arc_length', 'p', 'p_rgh'], AddTime=1)
     addUnits(file)   
     
+def exportEmpty(file:str) -> None:
+    '''Export an empty line trace to a csv. This is useful if the simulation didn't produce any results for the line scan, but we don't want to re-check it every time we run the script.'''
+    
+    with open(file, mode='w') as f:
+        writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(['time', 'vx', 'vy', 'vz', 'alpha', 'p', 'rAU', 'vtkValidPointMask', 'arc_length', 'x', 'y', 'z'])
+        writer.writerow(['s', 'm/s', 'm/s', 'm/s', '', 'kg/(m*s^2)', 'm^3*s/kg', '', 'm', 'm', 'm', 'm'])
+        
+def convertToRelative(x:float) -> float:
+    '''convert an absolute x position in m to its position relative to the nozzle in mm'''
+    return x*1000+2.412
 
-def csvfolder(folder:str, xpos:float) -> None:
-    '''Export line trace for the folder'''
+def csvfolder(folder:str, xpos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
+    '''Export line trace for the folder. 
+    xpos is the x position of the trace, in absolute coordinates.
+    tlist is the list to times at which to take the trace
+    forceOverwrite to overwrite existing files'''
     initialized = False
     if os.path.exists(folder):
         times = fp.parseVTKSeries(folder)
         if len(times)>0:
             for time in tlist:
-                xstr = '{:.1f}'.format(xpos*1000+2.412)
-                tstr = str(int(round(time*10)))
-                ipfile = os.path.join(folder, "line_t_"+tstr+"_x_"+xstr+".csv")
-                    # this is the file that all points for this time will be saved in
-                if not os.path.exists(ipfile) or forceoverwrite: 
-                    # only run this if the file hasn't been created already or we're being forced to
-                    if not initialized: # if paraview hasn't already been initialized, initialize it
-                        sv = initializeAll(folder, xpos)
-                        sv.times = times
-                        initialized = True
-                    setTime(time, sv) 
-                    
-                    if sv.timeKeeper1.Time==time:
-                        #raise Exception('Timekeeper broken. Start again.')
-                        print('  time ', time, ', file: ', ipfile)
-                        exportCsv(ipfile, sv)
+                if time in times:
+                    xstr = '{:.1f}'.format(convertToRelative(xpos))
+                    tstr = str(int(round(time*10)))
+                    ipfile = os.path.join(folder, "line_t_"+tstr+"_x_"+xstr+".csv")
+                        # this is the file that all points for this time will be saved in
+                    if not os.path.exists(ipfile) or forceOverwrite: 
+                        # only run this if the file hasn't been created already or we're being forced to
+                        if not initialized: # if paraview hasn't already been initialized, initialize it
+                            sv = initializeAll(folder, xpos)
+                            sv.times = times
+                            initialized = True
+                        setTime(time, sv) 
+
+                        if sv.timeKeeper1.Time==time:
+                            #raise Exception('Timekeeper broken. Start again.')
+                            print('  time ', time, ', file: ', ipfile)
+                            exportCsv(ipfile, sv)
             ResetSession()
-            cleansession()
+            cleanSession()
             try:
                 del sv
             except:

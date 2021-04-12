@@ -16,6 +16,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 
 import folderparser as fp
+from pvCleanup import addUnits
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -613,55 +614,7 @@ def sumAndSteady(folder:str, overwrite:bool) -> None:
 #     exportIm(fn, cp.fig)
 
 
-def addUnits(csvfile:str):
-    '''Add units to a csv file'''
-    blist = []
-    with open(csvfile, 'r') as b:
-        canreturn = True
-        csv_reader = csv.reader(b)
-        try:
-            line1 = next(csv_reader)
-        except:
-            return
-        if 'interfacePoints' in csvfile or 'line' in csvfile:
-            headerdict = {'alpha.ink':'alpha', 'Points:0':'x', 'Points:1':'y', 'Points:2':'z', 'U:0':'vx', 'U:1':'vy', 'U:2':'vz', 'Time':'time', 'nu1':'nu_ink', 'nu2':'nu_sup'}
-            header = [headerdict.get(h, h) for h in line1]
-            if header==line1:
-                canreturn = True
-            else:
-                line1=header
-                canreturn = False
-        blist.append(line1)
-        try:
-            line2 = next(csv_reader)
-        except:
-            return
-        
-        if 'interfacePoints' in csvfile or 'line' in csvfile:
-            unitdict = {'time':'s', 'x':'m', 'y':'m', 'z':'m', 'vx':'m/s', 'vy':'m/s', 'vz':'m/s', 'alpha':'', 'nu1':'m^2/s', 'nu2':'m^2/s', 'nu_ink':'m^2/s', 'nu_sup':'m^2/s', 'p':'kg/(m*s^2)', 'p_rgh':'kg/(m*s^2)', 'rAU':'m^3*s/kg', 'arc_length':'m'}
-        if 'sliceSummaries' in csvfile:
-            xu = 'mm'
-            unitdict = {'x':xu, 'xbehind':xu, 'time':'s', 'centery':xu, 'centerz':xu, 'area':xu+'^2', 'maxheight':xu, 'maxwidth':xu, 'centeryn':'', 'centerzn':'', 'arean':'', 'maxheightn':'', 'maxwidthn':'', 'vertdisp':xu, 'vertdispn':'', 'aspectratio':'', 'speed':'mm/s', 'speeddecay':''}
-        if 'steadyTimes' in csvfile:
-            unitdict = {'x':'mm', 't0':'s', 'tf':'s'}
-        if 'steadyPositions' in csvfile:
-            unitdict = {'x0':'mm', 'xf':'mm', 't':'s'}
-        unitline = [unitdict.get(s, '') for s in line1]   
-        blist.append(unitline)
-        if line2==unitline:
-            line3 = next(csv_reader)
-            if not line3==line2 and canreturn:
-                return # this table already has units, so we're done
-            # otherwise, this table has two rows of units, and the second one needs to be ignored
-        else:
-            # this table does not have units
-            blist.append(line2)
-        blist = blist+list(csv_reader)
-    with open(csvfile, 'w', newline='', encoding='utf-8') as b:
-        writer = csv.writer(b)
-        for row in blist:
-            writer.writerow(row)
-    logging.debug(csvfile)
+
     
     
 # def addUnitsAll(serverfolder):

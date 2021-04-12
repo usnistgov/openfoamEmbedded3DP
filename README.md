@@ -162,6 +162,9 @@ The files included in this publication use the following hierarchy:
 
     - *plot_steady.py*
         - Functions for plotting steady state metrics
+		
+	- *pvCleanup.py*
+		- Functions for cleaning up paraview csvs
 
     - *videoscript.py*
         - Script for combining images into videos. Loops continuously every 6 hours.

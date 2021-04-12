@@ -16,6 +16,7 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 # load the virtual environment
+# this needs to be after paraview_general, because it will otherwise break numpy
 virtualEnv = os.path.join(parentdir, 'env', 'Scripts', 'activate_this.py')
 if sys.version_info.major < 3:
     execfile(virtualEnv, dict(__file__=virtualEnv))
@@ -36,7 +37,7 @@ __license__ = "MIT"
 __version__ = "1.0.0"
 __maintainer__ = "Leanne Friedrich"
 __email__ = "Leanne.Friedrich@nist.gov"
-__status__ = "Production"
+__status__ = "Development"
 
 
 #################################################################
@@ -84,10 +85,11 @@ for topfolder in topfolders:
 ######################################################
 ####################### SCRIPT #######################
 
+logging.info(f'Exporting images and csvs.\nImages: {runList}.\nCSVs: Overwrite {forceOverwrite}.\nFolders: {[os.path.basename(f) for f in folders]}')
 
 while True:
     for folder in folders:
-        logging.debug(folder)
+        logging.debug('Checking '+folder)
         pc.csvFolder(folder, forceOverwrite) # create csvs
         ss.folderScript(folder, runList)
     if not looping:
