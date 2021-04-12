@@ -4,18 +4,17 @@
 
 import os
 import sys
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
-
-
 # from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
+
 from paraview_general import *
 import paraview_csv as pc
 import paraview_screenshots as ss
 
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 # load the virtual environment
 virtualEnv = os.path.join(parentdir, 'env', 'Scripts', 'activate_this.py')
 if sys.version_info.major < 3:
