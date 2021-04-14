@@ -25,7 +25,7 @@ __status__ = "Production"
             
             
 if __name__ == "__main__":
-    serverfolder = os.path.join(cfg.server, 'yieldingsweep', 'HBHByielded')
+    serverfolder = os.path.join(cfg.path.server, 'yieldingsweep', 'HBHByielded')
     topfolders = [os.path.join(serverfolder,s) for s in ['k', 'n', 'tau0']]
     while True:
         try:
