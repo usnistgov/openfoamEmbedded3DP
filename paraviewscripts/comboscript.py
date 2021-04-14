@@ -48,13 +48,15 @@ loopTime = 6 #hours
 ## csv
 
 forceOverwrite = False
+getCSVs = False
 
 
 # screenshots
 runList = []
-runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
-    runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
+runList.append(ss.ssVars('volumes', [], volViewList=['a']))
+# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+# for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
+#     runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
 #runlist.append(ss.ssVars('vectors', [2.5]))
 # runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
@@ -63,8 +65,9 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
 folders = []
 
 #nlist = range(1000, 1100)
-nlist=range(0, 1000)
-
+# nlist=range(0, 1000)
+# nlist = [455]
+nlist = [539, 65, 35, 43, 51, 59, 519, 521, 583, 241, 247, 253, 259, 585, 587, 589, 635, 637, 639, 641, 643, 346, 348, 169, 172, 175, 178, 221, 227, 709, 359, 469, 471, 473]
 
 
 SERVERFOLDER = cfg.path.server
@@ -73,6 +76,7 @@ if not os.path.exists(SERVERFOLDER):
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
 topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep',  s) for s in ['newtHBsweep', 'newtnewtsweep', 'HBHBsweep', 'HBnewtsweep']]
+
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('nb'):
@@ -90,7 +94,8 @@ logging.info(f'Exporting images and csvs.\nImages: {runList}.\nCSVs: Overwrite {
 while True:
     for folder in folders:
         logging.debug('Checking '+folder)
-        pc.csvFolder(folder, forceOverwrite) # create csvs
+        if getCSVs:
+            pc.csvFolder(folder, forceOverwrite) # create csvs
         ss.folderScript(folder, runList)
     if not looping:
         break

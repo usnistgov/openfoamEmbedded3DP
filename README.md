@@ -156,15 +156,21 @@ The files included in this publication use the following hierarchy:
 
     - *plot_pic.py*
         - Functions for plotting images of filaments and baths
-    	
+
     - *plot_slices.py*
         - Functions for plotting cross-sections
 
     - *plot_steady.py*
         - Functions for plotting steady state metrics
-		
-	- *pvCleanup.py*
-		- Functions for cleaning up paraview csvs
+
+    - *pvCleanup.py*
+        - Functions for cleaning up paraview csvs
+        
+    - *videoCombine.ipynb*
+        - Jupyter notebook for combining all of the time series for all simulations into one big video.
+        
+    - *videofuncs.py*
+        - Functions for combining images into videos.
 
     - *videoscript.py*
         - Script for combining images into videos. Loops continuously every 6 hours.

@@ -1,5 +1,8 @@
  
-c: "C:/myDataFolder"
-e: "E:/myDataFolder"
-server: "//myserver.serverloc/myFolder"
-fig: "C:/myFigureFolder"
+path:
+    logs: "logs"
+    log_config: "configs/logging.yml"
+    c: "C:/myfolder/myopenfoamfolder"
+    e: "E:/afolder/afolder/mykingdomforafolder"
+    server: "//server.location/myfolder/myfolder"
+    fig: "C:/myfolder/storeFiguresHere"
