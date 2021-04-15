@@ -1,20 +1,26 @@
 #!/usr/bin/env pvpython
 '''Functions for generating images of filaments from vtk files.'''
 
+# external packages
 import os
 import numpy as np
 import csv
 import re
-from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
-from paraview_general import *
 from typing import List, Dict, Tuple, Union, Any, TextIO
 from vtkmodules.vtkCommonCore import vtkLogger
 vtkLogger.SetStderrVerbosity(vtkLogger.VERBOSITY_OFF)
 import logging
+from paraview.simple import * # import the simple module from the paraview
+
+# local packages
+from paraview_general import *
+
+# logging
 logger = logging.getLogger(__name__)
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -547,6 +553,19 @@ class ssVars:
             self.volList = ['x']
         self.tlist = tlist
         self.tag = tag
+        
+    def prnt(self) -> str:
+        '''convert self to a string'''
+        if len(self.tlist)>0:
+            tprint = self.tlist
+        else:
+            tprint = 'all'
+        s = f'\t{self.tag}: times={tprint}'
+        if self.tag=='volumes':
+            s = s+f', views:{self.volList}, coloring:{self.coloring}'
+        elif self.tag=='tubes':
+            s = s+f', views:{self.volList}, tube position:{self.tubeh}'
+        return s
 
 def runThrough(v:ssVars, sv:stateVars) -> None:
     '''For a given folder, generate all the images'''

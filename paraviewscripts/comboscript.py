@@ -1,13 +1,14 @@
 #!/usr/bin/env pvpython
 '''Collecting interface points into csvs from vtk files and generating images from vtk files. Scripting for many folders and many images and tables.'''
 
-
+# external packages
 import os
 import sys
-# from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
+import logging
 
+# local packages
 from paraview_general import *
 import paraview_csv as pc
 import paraview_screenshots as ss
@@ -16,7 +17,7 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 # load the virtual environment
-# this needs to be after paraview_general, because it will otherwise break numpy
+    # this needs to be after paraview_general, because it will otherwise break numpy
 virtualEnv = os.path.join(parentdir, 'env', 'Scripts', 'activate_this.py')
 if sys.version_info.major < 3:
     execfile(virtualEnv, dict(__file__=virtualEnv))
@@ -24,12 +25,12 @@ else:
     exec(open(virtualEnv).read(), {'__file__': virtualEnv})
 
 from config import cfg
-import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+import folderparser as fp
 
+# logging
+LOGGERDEFINED = fp.openLog(os.path.realpath(__file__), False, level='DEBUG')
 
-
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -48,15 +49,15 @@ loopTime = 6 #hours
 ## csv
 
 forceOverwrite = False
-getCSVs = False
+getCSVs = True
 
 
 # screenshots
 runList = []
-runList.append(ss.ssVars('volumes', [], volViewList=['a']))
-# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-# for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
-#     runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
+# runList.append(ss.ssVars('volumes', [], volViewList=['a']))
+runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
+    runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
 #runlist.append(ss.ssVars('vectors', [2.5]))
 # runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
@@ -67,7 +68,7 @@ folders = []
 #nlist = range(1000, 1100)
 # nlist=range(0, 1000)
 # nlist = [455]
-nlist = [539, 65, 35, 43, 51, 59, 519, 521, 583, 241, 247, 253, 259, 585, 587, 589, 635, 637, 639, 641, 643, 346, 348, 169, 172, 175, 178, 221, 227, 709, 359, 469, 471, 473]
+nlist = [656, 657, 658, 660, 662, 249, 40, 49, 498, 42, 17, 52, 523, 20, 483, 487, 488, 489, 490]
 
 
 SERVERFOLDER = cfg.path.server
@@ -89,7 +90,12 @@ for topfolder in topfolders:
 ######################################################
 ####################### SCRIPT #######################
 
-logging.info(f'Exporting images and csvs.\nImages: {runList}.\nCSVs: Overwrite {forceOverwrite}.\nFolders: {[os.path.basename(f) for f in folders]}')
+logging.info('Exporting images and csvs.')
+logging.info('Images:')
+for r in runList:
+    logging.info(r.prnt())
+logging.info(f'CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
+logging.info(f'Folders: {[os.path.basename(f) for f in folders]}')
 
 while True:
     for folder in folders:

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-'''Functions for handling files and folders used in OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8.
-folderparser identifies log files from interFoam, etc. and collects information into csv tables
+'''Functions for handling files and folders used in OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. folderparser identifies log files from interFoam, etc. and collects information into csv tables
 '''
 
+# external packages
 import os
 import sys
 import numpy as np
@@ -15,7 +15,15 @@ from datetime import datetime
 import time
 import logging, platform, socket
 
+# local packages
+currentdir = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(currentdir)
+try:
+    from config import cfg
+except:
+    pass
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -27,30 +35,50 @@ __status__ = "Production"
 
 #-------------------------------------------------------------------------------------------------  
 
+def logFN(scriptFile:str) -> str:
+    '''Get a log file name, given a script file name'''
+    compname = socket.gethostname()
+    base = os.path.splitext(os.path.basename(scriptFile))[0]
+    dirpath = os.path.dirname(os.path.realpath(__file__))
+    try:
+        cfgbase = cfg.path.logs
+    except:
+        cfgbase = 'logs'
+    logfolder = os.path.join(dirpath, cfgbase)
+    if not os.path.exists(logfolder):
+        logfolder = os.path.join(os.path.dirname(dirpath), cfgbase)
+        if not os.path.exists(logfolder):
+            logfolder = dirpath
+    return os.path.join(logfolder,f'{base}_{compname}.log')
 
-def openLog(f:str, LOGGERDEFINED):
-    '''this code lets you create log files, so you can track when you've moved files'''
+def openLog(f:str, LOGGERDEFINED:bool, level:str="INFO", exportLog:bool=True) -> bool:
+    '''this code lets you create log files, so you can track when you've moved files. f is the file name of the script calling the openLog function'''
     if not LOGGERDEFINED:
+        loglevel = getattr(logging,level)
         root = logging.getLogger()
-        root.setLevel(logging.INFO)
+        root.setLevel(loglevel)
 
         # send messages to file
-        filehandler = logging.FileHandler(f)
-        filehandler.setLevel(logging.INFO)
-        formatter = logging.Formatter("%(asctime)s/{}/%(levelname)s: %(message)s".format(socket.gethostname()), datefmt='%b%d/%H:%M:%S')
-        filehandler.setFormatter(formatter)
-        root.addHandler(filehandler)
+        if exportLog:
+            logfile = logFN(f)
+            filehandler = logging.FileHandler(logfile)
+            filehandler.setLevel(loglevel)
+            formatter = logging.Formatter("%(asctime)s/{}/%(levelname)s: %(message)s".format(socket.gethostname()), datefmt='%b%d/%H:%M:%S')
+            filehandler.setFormatter(formatter)
+            root.addHandler(filehandler)
+            logging.info(f'Established log: {logfile}')
 
         # print messages
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.INFO)
-        formatter2 = logging.Formatter('%(message)s')
+        handler.setLevel(loglevel)
+        formatter2 = logging.Formatter('%(levelname)s: %(message)s')
         handler.setFormatter(formatter2)
         root.addHandler(handler)
         LOGGERDEFINED = True
+        
     return LOGGERDEFINED
 
-def printCurrentTime():
+def printCurrentTime() -> None:
     '''Print the current time'''
     now = datetime.now()
     current_time = "------ Current Time = " + now.strftime("%D, %H:%M:%S")
@@ -60,7 +88,9 @@ def printCurrentTime():
     #-------------------------------------------------------------------------------------------------  
 ########### folder tools ##################
 
-
+def shortName(folder:str) -> str:
+    shortname = os.path.join(os.path.basename(os.path.dirname(folder)), os.path.basename(folder))
+    return shortname
 
 
 def caseFolder(folder:str) -> str:

@@ -1,23 +1,26 @@
 #!/usr/bin/env pvpython
 '''Functions for collecting line traces through the bath in vtk files'''
 
+# external packages
 import os
 import logging
 import csv
-
 from paraview.simple import * # import the simple module from the paraview
 
+# local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
+sys.path.append(currentdir)
 sys.path.append(parentdir)
-
 from paraview_general import *
 import folderparser as fp
 from pythonscripts.pvCleanup import addUnits
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]

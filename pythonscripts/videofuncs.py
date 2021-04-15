@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''Functions for combining images into videos'''
 
+# external packages
 import os, sys
 import glob
 from IPython.display import Image
@@ -13,15 +14,25 @@ import pandas as pd
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
 
+# local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
+sys.path.append(currentdir)
 sys.path.append(parentdir)
 import folderparser as fp
+import folderscraper as fs
 
+# plot settings
 plt.rcParams.update({'font.size': 12})
+
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
+
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -38,7 +49,7 @@ def get_length(filename:str) -> float:
     '''Get the length of the video'''
     rl = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", filename]
     result = subprocess.run(rl, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    duration =float(result.stdout)
+    duration = float(result.stdout)
     return duration
 
 def get_time(filename:str) -> float:
@@ -90,7 +101,7 @@ def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=Tr
     try:
         for folder in folderList:
             if diag:
-                logging.info(folder)
+                logging.info(f'Writing {fp.shortName(folder)}')
             saveTitleCardToWriter(mp4writer, folder, int(round(titleLength*fps)))
             for s in ['y', 'a']:
                 saveFramesToWriter(mp4writer, folder, s, 'umag')
@@ -136,10 +147,31 @@ def exp(n:float) -> str:
 
 #--------------------------------
 
+def checkSimRate(folder:str, fix:bool=True) -> str:
+    '''Check if the simulation rate makes sense'''
+    leg = fp.legendUnique(folder) # legend
+    shortname = os.path.join(os.path.basename(os.path.dirname(folder)), os.path.basename(folder))
+    simrate = leg['simulation_rate_(hr/s)']
+    warn = False
+    try:
+        simrate = '{:.1f}'.format(float(simrate))
+    except:
+        warn = True
+        pass
+    if simrate==0:
+        warn = True
+    if warn:
+        logging.warning(f'{shortname}: Simulation rate is {simrate}')
+        if fix:
+            logging.info(f'{shortname}: Repopulating legend')
+            fs.populate(folder)
+            return checkSimRate(folder, fix=False)
+    return simrate
+
 def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None: 
     '''Create and export a title card using the legend for the simulation'''
-    
     fname = os.path.join(folder, 'images', 'titleCard.png')
+    shortname = fp.shortName(folder)
     if os.path.exists(fname) and not overwrite:
         return
     
@@ -153,16 +185,10 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     ax.set_ylim([10**-3, 10**6])
     ax.set_xlim([10**-6, 10**6])
     
-    colors = ['#263e59', '#b03810']
+    colors = ['#263e59', '#cc3d3d']
     leg = fp.legendUnique(folder) # legend
-    
-    simrate = leg['simulation_rate_(hr/s)']
-    try:
-        simrate = '{:.1f}'.format(float(simrate))
-    except:
-        pass
-    
-    plotvars = [['Simulation number', leg['folder']],\
+    simrate = checkSimRate(folder, True)
+    plotvars = [['Simulation number', shortname],\
                 ['Simulation rate (hr/s)', simrate],\
                 ['Surface tension (mJ/m^2)', round(1000*(float(leg['sigma'])))]]
     rows = [[],[]]
@@ -200,14 +226,14 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
         ax.plot(gammadot, eta, label=s, color=col)
         
     ax.legend()
-    t1 = ax.table(cellText=plotvars, loc='right', edges='', cellLoc='left')
+    t1 = ax.table(cellText=[[i[0]+'\n   '+str(i[1])] for i in plotvars], loc='right', edges='', cellLoc='left')
     for k, rows in enumerate(rows):
         for i in rows:
-            for j in [0,1]:
+            for j in [0]:
                 t1[(i, j)].get_text().set_color(colors[k])
     t1.auto_set_font_size(False)
     t1.set_fontsize(12)
-    t1.auto_set_column_width(col=[0,1])
+    t1.auto_set_column_width(col=[0])
     t1.scale(1, 1)
     fig.set_size_inches(1216/mydpi, 1216/mydpi)
     fig.tight_layout()
@@ -215,4 +241,4 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     plt.close()
     
     if diag:
-        print(os.path.join(os.path.basename(os.path.dirname(folder)), os.path.basename(folder)))
+        logging.info(f'Exported {shortname}\\titleCard.png')

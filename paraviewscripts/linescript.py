@@ -1,19 +1,20 @@
 #!/usr/bin/env pvpython
 '''Collecting line traces through the bath in vtk files. Scripting for many folders and many images and tables.'''
 
+# external packages
 import os
 import logging
 import sys
-
 from paraview.simple import * # import the simple module from the paraview
 
+# local packages
 from paraview_line import csvfolder, convertToRelative
 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 
-# load the virtual environment
+    # load the virtual environment
 virtualEnv = os.path.join(parentdir, 'env', 'Scripts', 'activate_this.py')
 if sys.version_info.major < 3:
     execfile(virtualEnv, dict(__file__=virtualEnv))
@@ -21,10 +22,12 @@ else:
     exec(open(virtualEnv).read(), {'__file__': virtualEnv})
     
 from config import cfg
+import folderparser as fp
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+# logging
+LOGGERDEFINED = fp.openLog(os.path.realpath(__file__), False, level="DEBUG")
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]

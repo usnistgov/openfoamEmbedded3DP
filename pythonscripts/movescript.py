@@ -1,19 +1,24 @@
 #!/usr/bin/env python
 '''Moves folders to server. Loops continuously.'''
 
+# external packages
 import os
 import time
 import socket
 import sys
 
+# local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
-
 import foldermover as fm
 import folderparser as fp
 from config import cfg
 
+# logging
+LOGGERDEFINED = fp.openLog(os.path.realpath(__file__), LOGGERDEFINED)
+
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -25,14 +30,10 @@ __status__ = "Production"
 
 #---------------------------------------
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-LOGGERDEFINED = False
-compname = socket.gethostname()
-LOGGERDEFINED = fp.openLog(os.path.join(dir_path,'folderparser_'+compname+'.log'), LOGGERDEFINED)
 
-SERVERFOLDER = os.path.join(cfg.server, 'yieldingsweep', 'HBHByielded')
-CFOLDER = os.path.join(cfg.c, 'HBHByielded')
-EFOLDER = os.path.join(cfg.e, 'HBHByielded')
+SERVERFOLDER = os.path.join(cfg.path.server, 'yieldingsweep', 'HBHByielded')
+CFOLDER = os.path.join(cfg.path.c, 'HBHByielded')
+EFOLDER = os.path.join(cfg.path.e, 'HBHByielded')
 
 if len(sys.argv)>1:
     waittime = float(sys.argv[1])
