@@ -49,15 +49,18 @@ loopTime = 6 #hours
 ## csv
 
 forceOverwrite = False
-getCSVs = True
+getCSVs = False
 
 
 # screenshots
 runList = []
 # runList.append(ss.ssVars('volumes', [], volViewList=['a']))
-runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
-    runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
+# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
+# for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
+#     runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
+for s in ['py', 'uslicey', 'uzslicey']:
+    runList.append(ss.ssVars(s, [1.0, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
 #runlist.append(ss.ssVars('vectors', [2.5]))
 # runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
@@ -68,7 +71,7 @@ folders = []
 #nlist = range(1000, 1100)
 # nlist=range(0, 1000)
 # nlist = [455]
-nlist = [656, 657, 658, 660, 662, 249, 40, 49, 498, 42, 17, 52, 523, 20, 483, 487, 488, 489, 490]
+nlist = [47, 55, 62, 63, 437, 527, 529, '47_0gradient', '55_0gradient', '62_0gradient', '63_0gradient', '437_0gradient', '527_0gradient', '529_0gradient', '62_0flow', '63_0flow']
 
 
 SERVERFOLDER = cfg.path.server
@@ -76,12 +79,16 @@ if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep',  s) for s in ['newtHBsweep', 'newtnewtsweep', 'HBHBsweep', 'HBnewtsweep']]
+# topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep',  s) for s in ['newtHBsweep', 'newtnewtsweep', 'HBHBsweep', 'HBnewtsweep']]
 
+topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep', s) for s in ['newtnewtsweep', 'HBHBsweep', 'controls']]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('nb'):
-            n1 = float(f[2:])
+            try:
+                n1 = float(f[2:])
+            except:
+                n1 = f[2:]
             if n1 in nlist:
                 folders.append(os.path.join(topfolder, f))
 

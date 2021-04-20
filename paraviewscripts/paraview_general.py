@@ -49,6 +49,7 @@ class stateVars():
         self.times = ""
         self.slice = ""
         self.initialized = False
+        self.colorBars = []
         
    
     def readVisc(self):
@@ -90,7 +91,15 @@ class stateVars():
         nusup = le[nusupi][1]
         self.supnu = nusup
         
-        return 0      
+        return 0   
+
+    def hideAll(self) -> None:
+        for cb in self.colorBars:
+            try:
+                HideScalarBarIfNotNeeded(cb, self.renderView1)   
+            except Exception as e:
+                logging.error('Error hiding color bar: '+str(e))
+        hideAll()
         
 def mksubdirs(folder:str) -> None:
     '''make the images and interfacePoints folders  '''

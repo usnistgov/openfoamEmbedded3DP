@@ -158,7 +158,7 @@ def positionCB(ColorBar) -> None:
     ColorBar.ComponentTitle = ''
 
 
-def uColorBar(renderView1, display, umax:float) -> None:
+def uColorBar(renderView1, display, umax:float=0.01, umin:float=0, name:str='|Velocity|') -> None:
     '''velocity magnitude color bar'''
     # set scalar coloring
     #ColorBy(display, ('POINTS', 'U', 'Magnitude'))
@@ -168,19 +168,49 @@ def uColorBar(renderView1, display, umax:float) -> None:
     uLUT = GetColorTransferFunction('U')
     uPWF = GetOpacityTransferFunction('U')
 
-    uLUT.RescaleTransferFunction(0.0, umax)
-    uPWF.RescaleTransferFunction(0.0, umax)
-    if umax>0.015:
+    uLUT.RescaleTransferFunction(umin, umax)
+    uPWF.RescaleTransferFunction(umin, umax)
+    if (umax-umin)>0.015:
         du = 0.005
-    else:
+    elif (umax-umin)>0.006:
         du = 0.002
+    elif (umax-umin)>0.003:
+        du = 0.001
+    else:
+        du = 0.0001
 
     uLUTColorBar = GetScalarBar(uLUT, renderView1)
     positionCB(uLUTColorBar)
-    uLUTColorBar.CustomLabels = np.arange(0, umax+du, du)
-    uLUTColorBar.Title = '|Velocity| (m/s)'
+    uLUTColorBar.CustomLabels = np.arange(umin, umax+du, du)
+    uLUTColorBar.Title = name+' (m/s)'
     uLUTColorBar.RangeLabelFormat = '%-#0.3f'
-    
+    return uLUTColorBar
+
+def pColorBar(renderView1, display, pmax:float=100, pmin:float=-100, name:str='p_rgh') -> None:
+    '''velocity magnitude color bar'''
+    # set scalar coloring
+    #ColorBy(display, ('POINTS', 'U', 'Magnitude'))
+
+    # show color bar/color legend
+    display.SetScalarBarVisibility(renderView1, True)
+    pLUT = GetColorTransferFunction(name)
+    pPWF = GetOpacityTransferFunction(name)
+
+    pLUT.RescaleTransferFunction(pmin, pmax)
+    pPWF.RescaleTransferFunction(pmin, pmax)
+    if pmax==100 and pmin==-100:
+        dp = 50
+    else:
+        dp = round((pmax-pmin)/4)
+
+    pLUTColorBar = GetScalarBar(pLUT, renderView1)
+    positionCB(pLUTColorBar)
+    if name=='p_rgh':
+        pLUTColorBar.Title = 'Adjusted pressure (Pa)'
+    else:
+        pLUTColorBar.Title = 'Pressure (Pa)'
+    pLUTColorBar.CustomLabels = np.arange(pmin, pmax+dp, dp)
+    return pLUTColorBar
 
 def nuColorBar(renderView1, display, color) -> None:
     '''viscosity color bar'''
@@ -203,6 +233,7 @@ def nuColorBar(renderView1, display, color) -> None:
     uLUTColorBar.CustomLabels = [10**i for i in range(-6, 3)]
     uLUTColorBar.Title = 'Viscosity (m^2/s)' # if the density is 1000 kg/m^3, the viscosity is in  MPa.s
  #     uLUTColorBar.RangeLabelFormat = '%-#2.0e'
+    return uLUTColorBar
     
 
 def alphaColorBar(renderView1, display) -> None:
@@ -223,6 +254,7 @@ def alphaColorBar(renderView1, display) -> None:
     aLUTColorBar.CustomLabels = np.arange(0, 1.25, 0.25)
     aLUTColorBar.Title = 'Volume fraction ink'
     aLUTColorBar.RangeLabelFormat = '%-#0.2f'
+    return aLUTColorBar
 
 
 ################ types of surfaces #########################
@@ -230,22 +262,27 @@ def alphaColorBar(renderView1, display) -> None:
 
 def vol(sv:stateVars) -> None:
     '''filament surface with velocity coloring'''
-    hideAll()
+    sv.hideAll()
     alphasurface(sv, 'U')
 
 
 def plainalphasurface(sv:stateVars) -> None:
     '''filament surface with no coloring'''
-    hideAll()
+    sv.hideAll()
     alphasurface(sv, 'None')
     
-def setDisplayColor(display, color:str):
+def setDisplayColor(display, color:str, *args):
     '''Set the whole display to a single color'''
     try:
-        display.SetScaleArray = ['POINTS', color]
-        display.OpacityArray = ['POINTS', color]
-        ColorBy(display, ('POINTS', color))
-    except:
+        x = ['POINTS', color]
+        display.SetScaleArray = x
+        display.OpacityArray = x
+        if len(args)==0:
+            ColorBy(display, ('POINTS', color))
+        else:
+            ColorBy(display, ('POINTS', color, args[0]))
+    except Exception as e:
+        logging.error('setDisplayColor:'+str(e))
         pass
     
 def viscColor(display, visc:str) -> None:
@@ -272,6 +309,8 @@ def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
     '''Just clip out the ink portion and color it by viscosity or velocity. clipinput is the Paraview object that you're trying to clip, e.g. sv.caseVTMSeries. colVar is the variable being colored ('U', 'nu1', 'nu2', 'inknu', or 'supnu'). 'nu1' and 'nu2' use local viscosities measured for non-Newtonian fluids. 'inknu' and 'supnu' are constant viscosities collected from the legend, for Newtonian fluids. invert 0 to get ink, 1 to get support. A clipVal in kwargs allows you to custom set the alpha value where you want to clip.'''
     
     clip = Clip(Input=clipinput)
+
+    # clip out just the fluid we're looking at
     clip.Scalars = ['POINTS', 'alpha.ink']
     if colVar=='nu1' or colVar=='inknu':
         clip.Value = 0.9
@@ -290,10 +329,15 @@ def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
     
     if colVar=="U":
         setDisplayColor(clipDisplay, 'U')
-        
+    elif colVar[0]=='U':
+        setDisplayColor(clipDisplay, 'U', colVar[1])
+    elif colVar=='p_rgh':
+        setDisplayColor(clipDisplay, 'p_rgh')
+    elif colVar=='p':
+        setDisplayColor(clipDisplay, 'p')
     elif colVar=='nu1' or colVar=='nu2':
         setDisplayColor(clipDisplay, colVar) 
-        nuColorBar(sv.renderView1, clipDisplay, colVar)
+        sv.colorBars.append(nuColorBar(sv.renderView1, clipDisplay, colVar))
     elif colVar=='inknu' or colVar=='supnu':
         if colVar=='inknu':
             viscColor(clipDisplay, sv.inknu)
@@ -315,7 +359,7 @@ def alphasurface(sv:stateVars, colVar:str) -> None:
     '''filament surface
     colVar is the variable being colored ('U' or 'None')'''
     clipDisplay = inkClip(sv, sv.caseVTMSeries, colVar, 0)
-    uColorBar(sv.renderView1, clipDisplay, 0.01)
+    sv.colorBars.append(uColorBar(sv.renderView1, clipDisplay, umax=0.01))
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate('y', sv)
     sv.renderView1.Update()
@@ -330,7 +374,7 @@ def sliceMake(sv:stateVars, origin:List[float], normal:List[float]):
     slice1.SliceType.Origin = origin
     slice1.SliceType.Normal = normal # look down the y axis
     slice1Display = Show(slice1, sv.renderView1, 'GeometryRepresentation')
-    slice1Display.SetScaleArray = ['POINTS', 'U']
+    slice1Display.SetScaleArray = ['POINTS', 'U'] # this doesn't matter because we're going to recolor later
     slice1Display.OpacityArray = ['POINTS', 'U']
     Hide(sv.caseVTMSeries, sv.renderView1)
     return slice1
@@ -350,41 +394,77 @@ def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) ->
     
 def viscy(sv:stateVars) -> None:
     '''Viscosity map, looking down the y axis, at (0,0,0)'''
-    hideAll()
+    sv.hideAll()
     viscSlice(sv, [0,0,0], [0, -1, 0], 'y')
     
 def viscx(sv:stateVars) -> None:
     '''Viscosity map, looking down the x axis, at (-1,0,0) mm'''
-    hideAll()
+    sv.hideAll()
     viscSlice(sv, [-0.001, 0, 0], [1,0,0], 'x')
     
-def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) -> None:
-    '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='U', umin:float=0, umax:float=0.02) -> None:
+    '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. U, UX, UY, UZ'''
     slice1 = sliceMake(sv, origin, normal)
-    d1 = inkClip(sv, slice1, 'U', 0, clipVal = 0.9)
-    d2 = inkClip(sv, slice1, 'U', 1, clipVal = 0.1)
+    d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
+    d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
     for d in [d1, d2]:
-        uColorBar(sv.renderView1, d, 0.02)
+        if name=='U':
+            dispname = '|Velocity|'
+        else:
+            dispname = name[1]+' velocity'
+        sv.colorBars.append(uColorBar(sv.renderView1, d, umax=umax, umin=umin, name=dispname))
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate(view, sv)
     sv.renderView1.Update()
     
 def uslicey(sv:stateVars) -> None:
     '''Velocity map, looking down the y axis, at (0,0,0)'''
-    hideAll()
+    sv.hideAll()
     uSlice(sv, [0,0,0], [0, -1, 0], 'y')
     
 def uslicex(sv:stateVars) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
-    hideAll()
+    sv.hideAll()
     uSlice(sv, [-0.001, 0, 0], [1,0,0], 'x')  
+
+def uzslicey(sv:stateVars) -> None:
+    '''Velocity map, looking down the y axis, at (0,0,0)'''
+    sv.hideAll()
+    uSlice(sv, [0,0,0], [0, -1, 0], 'y', name='UZ', umin=-0.002, umax=0.002)
+    
+def uzslicex(sv:stateVars) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    uSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
+
+
+def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-100, pmax:float=100) -> None:
+    '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed'''
+    slice1 = sliceMake(sv, origin, normal)
+    d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
+    d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
+    for d in [d1, d2]:
+        sv.colorBars.append(pColorBar(sv.renderView1, d, pmax=pmax, pmin=pmin))
+    resetCam(sv, (sv.times[-1])) 
+    setAndUpdate(view, sv)
+    sv.renderView1.Update()
+    
+def pslicey(sv:stateVars) -> None:
+    '''Velocity map, looking down the y axis, at (0,0,0)'''
+    sv.hideAll()
+    pSlice(sv, [0,0,0], [0, -1, 0], 'y')
+    
+def pslicex(sv:stateVars) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    pSlice(sv, [-0.001, 0, 0], [1,0,0], 'x')
  
     
 
 
 def mesh(sv:stateVars) -> None:
     '''cross-section on the y=0 plane with mesh overlay and volume fraction coloring'''
-    hideAll()
+    sv.hideAll()
     slice1 = Slice(Input=sv.caseVTMSeries)
     slice1.SliceType = 'Plane'
     slice1.SliceOffsetValues = [0.0]
@@ -398,7 +478,7 @@ def mesh(sv:stateVars) -> None:
     # show mesh edges
     slice1Display.SetRepresentationType('Surface With Edges')
     setAndUpdate('y', sv)
-    alphaColorBar(sv.renderView1, slice1Display)    
+    sv.colorBars.append(alphaColorBar(sv.renderView1, slice1Display))   
     return 
  
 
@@ -446,12 +526,12 @@ def yarrows(slice2, sv):
     glyph1Display = Show(glyph1, sv.renderView1, 'GeometryRepresentation')
 
     # trace defaults for the display properties.
-    uColorBar(sv.renderView1, glyph1Display, 0.02)
+    sv.colorBars.append(uColorBar(sv.renderView1, glyph1Display, umax=0.02))
     setAndUpdate('y', sv)
     
 def sliceandyarrows(sv):
     '''Make a plain slice at the y=0 plane so you can see where the nozzle is, and add arrows for the velocity field'''
-    hideAll()
+    sv.hideAll()
     slice2 =  plainslice(sv)
     yarrows(slice2, sv)
     
@@ -488,14 +568,14 @@ def tube(sv):
     Hide(streamTracer1, sv.renderView1)
     sv.renderView1.Update()
 
-    uColorBar(sv.renderView1, tube1Display, 0.01)
+    sv.colorBars.append(uColorBar(sv.renderView1, tube1Display, umax=0.01))
 
     # update the view to ensure updated data information
     sv.renderView1.Update()
     
 def surfandtube(sv):
     '''Filament surface, with streamlines'''
-    hideAll()
+    sv.hideAll()
     plainalphasurface(sv)
     tube(sv)
     
@@ -550,6 +630,22 @@ class ssVars:
         elif tag=='uslicex':
             self.coloring = 'uslicex'
             self.function = uslicex
+            self.volList = ['x']
+        elif tag=='uzslicey':
+            self.coloring = 'uzslicey'
+            self.function = uzslicey
+            self.volList = ['y']
+        elif tag=='uzslicex':
+            self.coloring = 'uzslicex'
+            self.function = uzslicex
+            self.volList = ['x']
+        elif tag=='py':
+            self.coloring='py'
+            self.function=pslicey
+            self.volList = ['y']
+        elif tag=='px':
+            self.coloring = 'px'
+            self.function = pslicex
             self.volList = ['x']
         self.tlist = tlist
         self.tag = tag
@@ -611,10 +707,13 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
         logging.error(f'Create image exception in {sv.folder}: {e}')
         return sv
 
-    setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
+    if tlist2[0]==sv.times[-1]:
+        setTime(sv.times[0]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
+    else:
+        setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
     
     # iterate through times and take snapshots of the surfaces
-    
+
     for i,t in enumerate(tlist2):
         logging.info(f'--t {t/10}, view: {viewlist[i]}, file: {fnlist[i]}' )
         setTime(t/10, sv)
