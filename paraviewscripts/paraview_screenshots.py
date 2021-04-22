@@ -757,10 +757,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
         logging.error(f'Create image exception in {sv.folder}: {e}')
         return sv
 
-    if tlist2[0]==sv.times[-1]:
-        setTime(sv.times[0]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
-    else:
-        setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
+    setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
     
     # iterate through times and take snapshots of the surfaces
 
