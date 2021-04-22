@@ -38,6 +38,134 @@ FONT = 24
 ##############################################
 ######## SCREENSHOTS
 
+
+
+def getpfunc(f, kwargs:Dict):
+    '''Get the pressure function, given a function f and dict kwargs'''
+    kw = []
+    for s in ['pmin', 'pmax', 'name', 'x']:
+        if s in kwargs:
+            kw = kw+[s, kwargs[s]]
+    return lambda sv: f(sv, **dict(kw))
+        
+def getxfunc(f, kwargs:Dict):
+    '''Get the function for an x slice, given function f and dict kwargs'''
+    if 'x' in kwargs:
+        return lambda sv: f(sv, x=kwargs['x'])
+    else:
+        return f
+
+
+class ssVars:
+    '''Holds input variables that tell us what kind of images to generate.
+    tag is the type of image we want to collect. 
+        'volumes': in 3D, look at the interface between the ink and support
+            optional keyword variables:
+            'coloring': the variable on which to color the surface. default is 'umag', which uses 'U' coloring
+            'volViewList':List[str]: list of view angles. Allowed angles = 'x' (slice on x plane), 'y' (slice on y plane), 'a' (view at angle from above/downstream/side), 'b' (view at angle from above/upstream/side)
+        'meshes': take a slice out of the middle of the volume, at y=0, and show the mesh
+        'vectors': take a slice out of the middle of the volume, at y=0, and show the flow field with arrows
+        'tubes': in 3D, look at the interface between the ink and support, and add streamlines
+            optional keyword variables:
+            'tubeh': the absolute z position (in m) at which to collect streamlines. default is z=0.001 m
+            'volViewList':List[str]: list of view angles. Allowed angles = 'x' (slice on x plane), 'y' (slice on y plane), 'a' (view at angle from above/downstream/side), 'b' (view at angle from above/upstream/side)
+        'viscy', 'viscx': take a slice and show the viscosity.
+            optional keyword variables:
+            'x' (only for viscx): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+        'uslicey', 'uslicex': take a slice and show the velocity magnitude
+            optional keyword variables:
+            'x' (only for uslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+        'uzslicey', 'uzslicex': take a slice and show the z velocity
+            optional keyword variables:
+            'x' (only for uzslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+        'py', 'px': take a slice and show the adjusted pressure (pressure - hydrostatic pressure)
+            optional keyword variables:
+            'x' (only for px): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+            'pmin', 'pmax': min and max pressure on the legend
+            'name': 'p' if you want pressure or 'p_rgh' if you want adjusted pressur
+    tlist is the list of times. leave empty to get pictures for every time       
+    '''
+    
+    
+    def __init__(self, tag:str, tlist:List[float], **kwargs):
+        if tag=='volumes':
+            if 'volViewList' not in kwargs:
+                self.volList = ['y']
+            else:
+                self.volList = kwargs['volViewList']
+            if not 'coloring' in kwargs:
+                self.coloring = 'umag'
+                self.function = vol
+            else:
+                self.coloring = kwargs['coloring']
+                self.function = lambda sv: vol(sv, coloring=self.coloring)
+        elif tag=='meshes':
+            self.coloring = 'mesh'
+            self.function = mesh
+            self.volList = ['y']
+        elif tag=='vectors':
+            self.coloring = 'vecs'
+            self.function = sliceandyarrows
+            self.volList = ['y']
+        elif tag=='tubes':
+            if 'volViewList' not in kwargs:
+                self.volList = ['a']
+            else:
+                self.volList = kwargs['volViewList']
+            if 'tubeh' not in kwargs:
+                self.tubeh = 0.001
+            else:
+                self.tubeh = kwargs['tubeh']
+            self.coloring = 'stre'
+            self.function = surfandtube
+        elif tag=='viscy':
+            self.coloring='viscy'
+            self.function=viscy
+            self.volList = ['y']
+        elif tag=='viscx':
+            self.coloring = 'viscx'
+            self.function = getxfunc(viscx, kwargs)
+            self.volList = ['x']
+        elif tag=='uslicey':
+            self.coloring = 'uslicey'
+            self.function = uslicey
+            self.volList = ['y']
+        elif tag=='uslicex':
+            self.coloring = 'uslicex'
+            self.function = getxfunc(uslicex, kwargs)
+            self.volList = ['x']
+        elif tag=='uzslicey':
+            self.coloring = 'uzslicey'
+            self.function = uzslicey
+            self.volList = ['y']
+        elif tag=='uzslicex':
+            self.coloring = 'uzslicex'
+            self.function = getxfunc(uzslicex, kwargs)
+            self.volList = ['x']
+        elif tag=='py':
+            self.coloring='py'
+            self.function = getpfunc(pslicey, kwargs)
+            self.volList = ['y']
+        elif tag=='px':
+            self.coloring = 'px'
+            self.function = getpfunc(pslicex, kwargs)
+            self.volList = ['x']
+        self.tlist = tlist
+        self.tag = tag
+        
+    def prnt(self) -> str:
+        '''convert self to a string'''
+        if len(self.tlist)>0:
+            tprint = self.tlist
+        else:
+            tprint = 'all'
+        s = f'\t{self.tag}: times={tprint}'
+        if self.tag=='volumes':
+            s = s+f', views:{self.volList}, coloring:{self.coloring}'
+        elif self.tag=='tubes':
+            s = s+f', views:{self.volList}, tube position:{self.tubeh}'
+        return s
+
 ####### file operations ######
     
 
@@ -186,7 +314,7 @@ def uColorBar(renderView1, display, umax:float=0.01, umin:float=0, name:str='|Ve
     uLUTColorBar.RangeLabelFormat = '%-#0.3f'
     return uLUTColorBar
 
-def pColorBar(renderView1, display, pmax:float=100, pmin:float=-100, name:str='p_rgh') -> None:
+def pColorBar(renderView1, display, pmin:float=-50000, pmax:float=50000, name:str='p_rgh') -> None:
     '''velocity magnitude color bar'''
     # set scalar coloring
     #ColorBy(display, ('POINTS', 'U', 'Magnitude'))
@@ -198,6 +326,8 @@ def pColorBar(renderView1, display, pmax:float=100, pmin:float=-100, name:str='p
 
     pLUT.RescaleTransferFunction(pmin, pmax)
     pPWF.RescaleTransferFunction(pmin, pmax)
+    if pmax==50000 and pmin==-50000:
+        dp = 25000
     if pmax==100 and pmin==-100:
         dp = 50
     else:
@@ -260,10 +390,10 @@ def alphaColorBar(renderView1, display) -> None:
 ################ types of surfaces #########################
 
 
-def vol(sv:stateVars) -> None:
+def vol(sv:stateVars, coloring:str='U') -> None:
     '''filament surface with velocity coloring'''
     sv.hideAll()
-    alphasurface(sv, 'U')
+    alphasurface(sv, coloring)
 
 
 def plainalphasurface(sv:stateVars) -> None:
@@ -397,10 +527,10 @@ def viscy(sv:stateVars) -> None:
     sv.hideAll()
     viscSlice(sv, [0,0,0], [0, -1, 0], 'y')
     
-def viscx(sv:stateVars) -> None:
+def viscx(sv:stateVars, x:float=-0.001) -> None:
     '''Viscosity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    viscSlice(sv, [-0.001, 0, 0], [1,0,0], 'x')
+    viscSlice(sv, [x, 0, 0], [1,0,0], 'x')
     
 def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='U', umin:float=0, umax:float=0.02) -> None:
     '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. U, UX, UY, UZ'''
@@ -438,7 +568,7 @@ def uzslicex(sv:stateVars) -> None:
     uSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
 
 
-def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-100, pmax:float=100) -> None:
+def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-50000, pmax:float=50000) -> None:
     '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed'''
     slice1 = sliceMake(sv, origin, normal)
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
@@ -449,15 +579,15 @@ def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:
     setAndUpdate(view, sv)
     sv.renderView1.Update()
     
-def pslicey(sv:stateVars) -> None:
+def pslicey(sv:stateVars, **kwargs) -> None:
     '''Velocity map, looking down the y axis, at (0,0,0)'''
     sv.hideAll()
-    pSlice(sv, [0,0,0], [0, -1, 0], 'y')
+    pSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
     
-def pslicex(sv:stateVars) -> None:
+def pslicex(sv:stateVars, **kwargs) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    pSlice(sv, [-0.001, 0, 0], [1,0,0], 'x')
+    pSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)
  
     
 
@@ -582,86 +712,6 @@ def surfandtube(sv):
     
 ################ scripting #########################
 
-
-
-class ssVars:
-    '''Holds input variables that tell us what kind of images to generate'''
-    
-    
-    def __init__(self, tag, tlist, **kwargs):
-        if tag=='volumes':
-            if 'volViewList' not in kwargs:
-                self.volList = ['y']
-            else:
-                self.volList = kwargs['volViewList']
-            self.coloring = 'umag'
-            self.function = vol
-        elif tag=='meshes':
-            self.coloring = 'mesh'
-            self.function = mesh
-            self.volList = ['y']
-        elif tag=='vectors':
-            self.coloring = 'vecs'
-            self.function = sliceandyarrows
-            self.volList = ['y']
-        elif tag=='tubes':
-            if 'volViewList' not in kwargs:
-                self.volList = ['a']
-            else:
-                self.volList = kwargs['volViewList']
-            if 'tubeh' not in kwargs:
-                self.tubeh = 0.001
-            else:
-                self.tubeh = kwargs['tubeh']
-            self.coloring = 'stre'
-            self.function = surfandtube
-        elif tag=='viscy':
-            self.coloring='viscy'
-            self.function=viscy
-            self.volList = ['y']
-        elif tag=='viscx':
-            self.coloring = 'viscx'
-            self.function = viscx
-            self.volList = ['x']
-        elif tag=='uslicey':
-            self.coloring = 'uslicey'
-            self.function = uslicey
-            self.volList = ['y']
-        elif tag=='uslicex':
-            self.coloring = 'uslicex'
-            self.function = uslicex
-            self.volList = ['x']
-        elif tag=='uzslicey':
-            self.coloring = 'uzslicey'
-            self.function = uzslicey
-            self.volList = ['y']
-        elif tag=='uzslicex':
-            self.coloring = 'uzslicex'
-            self.function = uzslicex
-            self.volList = ['x']
-        elif tag=='py':
-            self.coloring='py'
-            self.function=pslicey
-            self.volList = ['y']
-        elif tag=='px':
-            self.coloring = 'px'
-            self.function = pslicex
-            self.volList = ['x']
-        self.tlist = tlist
-        self.tag = tag
-        
-    def prnt(self) -> str:
-        '''convert self to a string'''
-        if len(self.tlist)>0:
-            tprint = self.tlist
-        else:
-            tprint = 'all'
-        s = f'\t{self.tag}: times={tprint}'
-        if self.tag=='volumes':
-            s = s+f', views:{self.volList}, coloring:{self.coloring}'
-        elif self.tag=='tubes':
-            s = s+f', views:{self.volList}, tube position:{self.tubeh}'
-        return s
 
 def runThrough(v:ssVars, sv:stateVars) -> None:
     '''For a given folder, generate all the images'''

@@ -53,12 +53,16 @@ getCSVs = False
 
 
 # screenshots
+
+# for help, see ssVars in paraview_screenshots
+# first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
+
 runList = []
 # runList.append(ss.ssVars('volumes', [], volViewList=['a']))
 # runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
-# for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
-#     runList.append(ss.ssVars(s, [0.5, 1, 2.5]))
+for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
+    runList.append(ss.ssVars(s, [1, 2.5]))
 for s in ['py', 'uslicey', 'uzslicey']:
     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
