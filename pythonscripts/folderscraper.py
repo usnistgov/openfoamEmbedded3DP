@@ -5,6 +5,8 @@ import numpy as np
 import os
 import re
 from file_read_backwards import FileReadBackwards
+import matplotlib.pyplot as plt
+import pandas as pd
 import csv
 import shutil 
 import errno
@@ -495,7 +497,7 @@ def scrapeU(s:scrape) -> None:
             s.GEOinkv[1] = strs[5] # ink velocity: this will be reported in m/s
             return
     else:
-        logging.info('path ', bm, ' does not exist')
+        logging.info(f'path {bm} does not exist')
 
 
 def scrapeSHM(s:scrape) -> None:
@@ -535,7 +537,7 @@ def scrapeSHM(s:scrape) -> None:
             line = readLevel0('mergeTolerance', line, f, s.SHMmergeTolerance)
             return
     else:
-        logging.warning('path ', bm, ' does not exist')
+        logging.warning(f'path {bm} does not exist')
 
 
 def scrapeDMD(s:scrape) -> None:
@@ -549,7 +551,7 @@ def scrapeDMD(s:scrape) -> None:
             line = listLevel('dynamicRefineFvMeshCoeffs', '\tcorrectFluxes', line, f, s.DMDlist)
             return
     else:
-        logging.warning('path ', bm, ' does not exist')
+        logging.warning(f'path {bm} does not exist')
 
 
 def scrapeTP(s:scrape) -> None:
@@ -564,7 +566,7 @@ def scrapeTP(s:scrape) -> None:
             line = readLevel0('sigma', line, f, s.TPsigma)
             return
     else:
-        logging.warning('path ', bm, ' does not exist')
+        logging.warning(f'path {bm} does not exist')
         
 
 def scrapeCD(s:scrape) -> None:
@@ -577,7 +579,7 @@ def scrapeCD(s:scrape) -> None:
             line = listLevel('application', '//', line, f, s.controlDictList)
             return
     else:
-        logging.warning('path ', bm, ' does not exist')
+        logging.warning(f'path {bm} does not exist')
         
 
 
@@ -598,7 +600,7 @@ def scrapeFV(s:scrape) -> None:
             line = listLevel('PIMPLE', '\t}', line, f, s.fvSPIMPLElist)
             return
     else:
-        logging.warning('path ', bm, ' does not exist')
+        logging.warning(f'path {bm} does not exist')
 
 
 def scrapeGeo(s:scrape) -> None:
@@ -714,23 +716,30 @@ def populateList(liInit:List[str], exportFilename:str, repopulate:bool = False) 
 ###################################################
 
 
-class logEntry:
-    '''the logEntry class is used to store information scraped from log files'''
-    courantmin = 0
-    courantmax = 0
-    deltaT = 0
-    simTime = 0
-    ralpha = 0
-    rprgh = 0
-    realtime = 0
-    cells = 0
+def logEntry() -> Dict:
+    '''the logEntry dictionary is used to store information scraped from log files'''
+    return {'courantmin': 0, 'courantmax': 0, 'deltaT': 0, 'simTime': 0, 'ralpha': 0, 'rprgh': 0, 'realtime': 0, 'cells': 0}
 
 def interFile(folder:str) -> str:
     '''interFile finds the interFoam log
     folder can be a case folder or its parent'''
     cf = caseFolder(folder)
     fn = os.path.join(cf, 'log_interFoam')
+    if not os.path.exists(fn):
+        fn = os.path.join(os.path.dirname(cf), 'log_interFoam')
     return fn
+
+def selectIf(strs:List[str], i:int) -> float:
+    '''Get the float out of the list of strings, if the list of strings is long enough. otherwise, raise an error'''
+    if len(strs)>i:
+        try:
+            f = float(strs[i])
+        except Exception as e:
+            raise NameError
+        else:
+            return f
+    else:
+        raise NameError
 
 
 def logRead(folder:str) -> List[logEntry]:
@@ -742,48 +751,56 @@ def logRead(folder:str) -> List[logEntry]:
         with open(intf, 'r') as f:
             for i in range(50): # skip all the headers and startup output
                 line = f.readline()
-            lectr = -1 # line entry counter
             while line:
-                if line.startswith('Courant'): # we've hit a new time step
-                    li.append(logEntry()) # create a new object and store it in the list
-                    lectr+=1
-                    li[lectr].cells = li[lectr-1].cells 
-                        # copy the number of cells from the last step and only adjust if the log says the number changed
-                    strs = re.split('Courant Number mean: | max: |\n', line)
-                    li[lectr].courantmin = float(strs[1])
-                    li[lectr].courantmax = float(strs[2])
-                if lectr>=0:
+                try:
+                    if line.startswith('Courant'): # we've hit a new time step
+                        newEntry = logEntry()
+#                         li.append(logEntry()) # create a new object and store it in the list
+#                         lectr+=1
+                        if len(li)>0:
+                            newEntry['cells'] = li[-1]['cells'] 
+                            # copy the number of cells from the last step and only adjust if the log says the number changed
+                        strs = re.split('Courant Number mean: | max: |\n', line)
+                        newEntry['courantmin'] = selectIf(strs, 1)
+                        newEntry['courantmax'] = selectIf(strs, 2)
                     if line.startswith('deltaT'):
                         strs = re.split('deltaT = |\n', line)
-                        li[lectr].deltaT = float(strs[1])
-                    elif line.startswith('Time'):
+                        newEntry['deltaT'] = selectIf(strs, 1)
+                    elif line.startswith('Time = '):
                         strs = re.split('Time = |\n', line)
-                        li[lectr].simTime = float(strs[1])
+                        newEntry['simTime'] = selectIf(strs, 1)
+#                         if len(li)>0 and newEntry['simTime']<li[-1]['simTime']: # if the time is less than the previous time, restart the table
+#                             print('restarting, ', newEntry['simTime'], li[-1]['simTime'])
+# #                             li = []
                     elif line.startswith('Unrefined from '):
                         strs = re.split('Unrefined from | to | cells.\n', line)
-                        li[lectr].cells = float(strs[2])
-                        if li[lectr-1].cells==0:
-                            for i in range(lectr):
-                                li[i].cells = float(strs[1])
+                        newEntry['cells'] = selectIf(strs, 2)
+                        if len(li)>0 and li[-1]['cells']==0:
+                            for i in range(len(li)):
+                                li[i]['cells'] = float(strs[1])
                                 # the log never says the initial number of cells, 
                                 # but it says the previous number if it changes the number of cells, 
                                 # so to get the initial value, look for the first time the mesh is refined
                     elif line.startswith('smoothSolver'):
-                        strs = re.split('smoothSolver:  Solving for alpha.ink, Initial residual = |, Final', line)
-                        li[lectr].ralpha = float(strs[1])
-                    elif line.startswith('DICPCG:  Solving for p_rgh,') and li[lectr].rprgh==0:
-                        strs = re.split('DICPCG:  Solving for p_rgh, Initial residual = |, Final residual', line)
-                        li[lectr].rprgh = float(strs[1])
+                        strs = re.split('Final residual = |, No Iterations', line)
+                        newEntry['ralpha'] = selectIf(strs, 1)
+                    elif line.startswith('DICPCG:  Solving for p_rgh,'):
+                        strs = re.split('Final residual = |, No Iterations', line)
+                        newEntry['rprgh'] = selectIf(strs, 1)
                     elif line.startswith('ExecutionTime'):
                         strs = re.split('ExecutionTime = | s', line)
-                        li[lectr].realtime = float(strs[1])
+                        newEntry['realtime'] = selectIf(strs, 1)
+                        li.append(newEntry)
+                except Exception as e:
+                    # if we hit an error, skip this line
+                    print(f'error hit: {e}')
+                    pass
                 line = f.readline()
             li = li[1:]    
         #### plot 
         # plotAll(folder, li) 
         # rAlphaPlot(folder, li)
-        
-    return li
+    return pd.DataFrame(li)
 
 
 def la(li:List[Any], at:str) -> List[Any]:
@@ -793,49 +810,60 @@ def la(li:List[Any], at:str) -> List[Any]:
     return list(getattr(o, at) for o in li)
 
 #--------------------------------------------------
-# ARCHIVE
+# plots
 
-# # plot 4 plots that show the simulation metrics over time
-#     # folder can be a case folder or its parent
-#     # li is a list of logEntry objects
-# def plotAll(folder:str, li:List[logEntry]):
-#     fig, axs = plt.subplots(4)
-#     fig.suptitle = os.path.basename(folder)
-#     fig.set_size_inches(3, 9)
-#     fs = 12
-#     axs[0].plot(la(li, 'simTime'), la(li, 'ralpha'), 'maroon', label='Alpha') 
-#     axs[0].plot(la(li, 'simTime'), la(li, 'rprgh'), label='p_rgh') 
-#     axs[0].set_yscale("log")
+
+def plotConvergence(folder:str, li:Union[List, pd.DataFrame]):
+    '''plot 4 plots that show the simulation metrics over time
+    folder can be a case folder or its parent
+    li is a dataframe holding log values. Give empty list to automatically generate a list'''
+    if len(li)==0:
+        li = logRead(folder)
+    fig, axs = plt.subplots(4, sharex=True)
+    fig.suptitle = os.path.basename(folder)
+    fig.set_size_inches(3, 9)
+    fs = 12
+    axs[0].plot(li['simTime'], li['ralpha'], 'maroon', label='Alpha') 
+    axs[0].plot(li['simTime'], li['rprgh'], label='p_rgh') 
+    axs[0].set_yscale("log")
 #     axs[0].set_xlabel('Time in simulation (s)', fontsize=fs) 
-#     axs[0].set_ylabel('Residual', fontsize=fs)     
-#     axs[0].legend()
-#     axs[0].set_title(os.path.basename(folder), fontsize=fs)
+    axs[0].set_ylabel('Residual', fontsize=fs)     
+    axs[0].legend()
+    axs[0].set_title(os.path.basename(folder), fontsize=fs)
 
-#     axs[1].plot(la(li, 'simTime'), la(li, 'cells')) 
+    axs[1].plot(li['simTime'], li['cells']) 
 #     axs[1].set_xlabel('Time in simulation (s)', fontsize=fs) 
-#     axs[1].set_ylabel('Cells in mesh', fontsize=fs) 
+    axs[1].set_ylabel('Cells in mesh', fontsize=fs) 
 
-#     axs[2].plot(la(li, 'simTime'), la(li, 'courantmin'), 'maroon', label='Co min') 
-#     axs[2].plot(la(li, 'simTime'), la(li, 'courantmax'), label='Co max') 
+    axs[2].plot(li['simTime'], li['courantmin'], 'maroon', label='Co min') 
+    axs[2].plot(li['simTime'], li['courantmax'], label='Co max') 
 #     axs[2].set_xlabel('Time in simulation (s)', fontsize=fs) 
-#     axs[2].set_ylabel('Courant number', fontsize=fs)     
-#     axs[2].legend()
+    axs[2].set_ylabel('Courant number', fontsize=fs)     
+    axs[2].legend()
 
-#     axs[3].plot(la(li, 'simTime'), la(li, 'deltaT')) 
-#     axs[3].set_xlabel('Time in simulation (s)', fontsize=fs) 
-#     axs[3].set_ylabel('Delta t', fontsize=fs)
+    axs[3].plot(li['simTime'], li['deltaT']) 
+    axs[3].set_xlabel('Time in simulation (s)', fontsize=fs) 
+    axs[3].set_ylabel('Delta t', fontsize=fs)
+    
+    plt.close()
+    return fig
 
-# # plot just the alpha residual over time
-#     # folders ia a list of folders
-#     # lis is a list of lists of objects
-# def rAlphaPlot(folders:List[str], lis:List[Any]):
-#     fs = 12
 
-#     fig, axs = plt.subplots(1)
-#     fig.set_size_inches(8, 8)
-#     colors = ['firebrick', 'darkblue', 'burlywood', 'dodgerblue']
-#     for i, li in enumerate(lis):
-#         axs.plot(la(li, 'simTime'), la(li, 'ralpha'), colors[i], label=folders[i])
-#     axs.set_xlabel('Time in simulation (s)', fontsize=fs) 
-#     axs.set_ylabel('Alpha residual', fontsize=fs) 
-#     axs.legend()
+
+def rAlphaPlot(folders:List[str], lis:List[Any]):
+    '''plot just the alpha residual over time
+    folders ia a list of folders
+    lis is a list of lists of logEntry objects'''
+    if len(lis)==0:
+        lis = [logRead(folder) for folder in folders]
+    fs = 12
+    fig, axs = plt.subplots(1)
+    fig.set_size_inches(8, 8)
+    colors = ['firebrick', 'darkblue', 'burlywood', 'dodgerblue']
+    for i, li in enumerate(lis):
+        axs.plot(la(li, 'simTime'), la(li, 'ralpha'), colors[i], label=folders[i])
+    axs.set_xlabel('Time in simulation (s)', fontsize=fs) 
+    axs.set_ylabel('Alpha residual', fontsize=fs) 
+    axs.legend()
+    plt.close()
+    return fig

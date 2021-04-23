@@ -364,7 +364,8 @@ def metricPlot(folder:str, cp:comboPlot, time:float, xbehind:float, label:str) -
     cp is a comboPlot object
     time is the time since extrusion started in s
     xbehind is the distance behind the center of the nozzle in mm
-    label is the column label, e.g. 'maxz''''
+    label is the column label, e.g. 'maxz'.
+    '''
     
     try:
         rate = metricVals(folder, time, xbehind, [label])
@@ -381,7 +382,7 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     exportFolder is the folder to export plots to
     time is the time since extrusion started in s
     xbehind is the distance behind the center of the nozzle in mm
-    label is the column label, e.g. 'maxz''''
+    label is the column label, e.g. 'maxz' '''
     
     labeli = label+'_'+str(xbehind)+'_t_'+str(time)
     fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)

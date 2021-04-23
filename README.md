@@ -115,6 +115,9 @@ The files included in this publication use the following hierarchy:
 - **pythonscripts/**
     - python tools for generating and analyzing OpenFOAM files. These are written for python3.
 
+    - *convergence.ipynb*
+        - Jupyter notebook for tracking convergence over the solve.
+
     - *donescript.py*
         - Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments.
 
