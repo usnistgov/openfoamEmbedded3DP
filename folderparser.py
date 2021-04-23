@@ -46,9 +46,10 @@ def logFN(scriptFile:str) -> str:
         cfgbase = 'logs'
     logfolder = os.path.join(dirpath, cfgbase)
     if not os.path.exists(logfolder):
-        logfolder = os.path.join(os.path.dirname(dirpath), cfgbase)
-        if not os.path.exists(logfolder):
-            logfolder = dirpath
+        os.mkdir(logfolder)
+#         logfolder = os.path.join(os.path.dirname(dirpath), cfgbase)
+#         if not os.path.exists(logfolder):
+#             logfolder = dirpath
     return os.path.join(logfolder,f'{base}_{compname}.log')
 
 def openLog(f:str, LOGGERDEFINED:bool, level:str="INFO", exportLog:bool=True) -> bool:

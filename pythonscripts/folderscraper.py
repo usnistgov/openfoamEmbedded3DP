@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''Functions for generating legends for OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. Scrapes input files for input variables.'''
 
+# external packages
 import numpy as np
 import os
 import re
@@ -15,13 +16,19 @@ from datetime import datetime
 import time
 import logging, platform, socket, sys
 
+# local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
-
 from folderparser import *
 
+# logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+for s in ['matplotlib']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -813,12 +820,17 @@ def la(li:List[Any], at:str) -> List[Any]:
 # plots
 
 
-def plotConvergence(folder:str, li:Union[List, pd.DataFrame]):
+def plotConvergence(folder:str, li:Union[List, pd.DataFrame], export:bool=False):
     '''plot 4 plots that show the simulation metrics over time
     folder can be a case folder or its parent
     li is a dataframe holding log values. Give empty list to automatically generate a list'''
+    fn = os.path.join(folder, 'images', 'convergence.png')
+    if export and os.path.exists(fn): # if the file already exists, return
+        return
     if len(li)==0:
         li = logRead(folder)
+    if len(li)==0: # if there is no log, return
+        return
     fig, axs = plt.subplots(4, sharex=True)
     fig.suptitle = os.path.basename(folder)
     fig.set_size_inches(3, 9)
@@ -846,6 +858,9 @@ def plotConvergence(folder:str, li:Union[List, pd.DataFrame]):
     axs[3].set_ylabel('Delta t', fontsize=fs)
     
     plt.close()
+    if export:
+        fig.savefig(fn, bbox_inches='tight')
+        logging.info(f'{shortName(folder)}\images\convergence.png')
     return fig
 
 
