@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''Functions for plotting cross-sections'''
 
+# external packages
 import sys
 import os
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -11,17 +12,20 @@ import pandas as pd
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
 
+# local packages
 import interfacemetrics as intm
 from plot_general import *
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# plotting
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
 
-
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -66,6 +70,7 @@ def plotSlices(data:pd.DataFrame) -> plt.Figure:
 
 
 #### cross-section plots
+
 
 
 def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
@@ -126,6 +131,8 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, sigmalist=sigmalist0, **kwargs)
     cp.sigmalist = sigmalist0
     fs = intm.folderStats(cp.flist[0])
+    (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
+    
 
     xvalue = fs.ncx + x
     for folder in cp.flist:
@@ -138,4 +145,4 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     for ax in cp.axs:
         ax.grid(linestyle='-', linewidth='0.25', color='#949494')
         
-    intm.exportIm(fn, cp.fig)
+#     intm.exportIm(fn, cp.fig)
