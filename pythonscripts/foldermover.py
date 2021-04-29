@@ -98,7 +98,8 @@ def copyFilesInFolder(fromFolder:str, targetFolder:str) -> None:
 def toDoList(topfolder:str) -> List[str]:
     '''Simulations still to run'''
     with open (os.path.join(topfolder, 'runallfiles.sh'), "r") as f:
-        for i in range(3):
+        line = f.readline()
+        while not line.startswith('dirlist'):
             line = f.readline()
         lspl = re.split('\'| ', line)[1:-1]
     return lspl
@@ -111,6 +112,7 @@ def doneFolder(topfolder:str, tfinal:float) -> None:
     progress = []
     notstarted = []
     tdl = toDoList(topfolder)
+    logging.info(tdl)
     for f in caseFolders(topfolder):
         ct = currentTime(f)
         f0 = os.path.basename(f)
