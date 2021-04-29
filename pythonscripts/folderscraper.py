@@ -5,7 +5,6 @@
 import numpy as np
 import os
 import re
-from file_read_backwards import FileReadBackwards
 import matplotlib.pyplot as plt
 import pandas as pd
 import csv
@@ -15,6 +14,7 @@ from typing import List, Dict, Tuple, Union, Any, TextIO
 from datetime import datetime
 import time
 import logging, platform, socket, sys
+from backwardsRead import fileReadBackwards
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -354,15 +354,14 @@ def scrapeSHMLog(s:scrape) -> None:
     s is a scrape object'''
     shmlog = os.path.join(s.meshfold, 'log_snappyHexMesh')
     if os.path.exists(shmlog):
-        with FileReadBackwards(shmlog, encoding="utf-8") as BigFile: 
-            # it's useful to go backwards here because we're just looking for the time reported at the end of the file
-            for line in BigFile:
-                if line.startswith('Finished meshing'):
-                    strs = re.split('Finished meshing in = | s', line)
-                    shmtime = float(strs[1])
-                    s.shmtimes[1] = "%.2f" % shmtime
-                    s.shmtimem[1] = "%.2f" % (shmtime/60)
-                    return 
+        # it's useful to go backwards here because we're just looking for the time reported at the end of the file
+        for line in fileReadBackwards(shmlog):
+            if line.startswith('Finished meshing'):
+                strs = re.split('Finished meshing in = | s', line)
+                shmtime = float(strs[1])
+                s.shmtimes[1] = "%.2f" % shmtime
+                s.shmtimem[1] = "%.2f" % (shmtime/60)
+                return 
     
 
               
@@ -379,28 +378,27 @@ def scrapeIFLog(s:scrape) -> None:
     iftime = 0 # this variable adds up all the times for separate interFoam runs
     waitfortop = False # this variable tells us what to look for, so we only collect the last reported time from each run
     simtime = 0
-    with FileReadBackwards(ifLog, encoding="utf-8") as BigFile:
-        # it's useful to go backwards here because we're just looking for the time reported at the end of the run
-        for line in BigFile:
-            if simtime==0 and line.startswith('Time = '):
-                strs = re.split('Time = ', line)
-                simtime = float(strs[1])
-            if (waitfortop and line.startswith('fileModificationChecking')): 
-                # when we hit fileModificationChecking, it's the end of the run, so now we should look for the next reported time
-                waitfortop = False
-            if (not waitfortop and line.startswith('ExecutionTime')):
-                # read the last reported ExecutionTime
-                strs = re.split('ExecutionTime = | s', line)
-                iftime+=float(strs[1])
-                waitfortop = True # now that we've read the time, look for the next end of run
+    # it's useful to go backwards here because we're just looking for the time reported at the end of the run
+    for line in fileReadBackwards(ifLog):
+        if simtime==0 and line.startswith('Time = '):
+            strs = re.split('Time = ', line)
+            simtime = float(strs[1])
+        if (waitfortop and line.startswith('fileModificationChecking')): 
+            # when we hit fileModificationChecking, it's the end of the run, so now we should look for the next reported time
+            waitfortop = False
+        if (not waitfortop and line.startswith('ExecutionTime')):
+            # read the last reported ExecutionTime
+            strs = re.split('ExecutionTime = | s', line)
+            iftime+=float(strs[1])
+            waitfortop = True # now that we've read the time, look for the next end of run
     # store the time in the scrape object in seconds and hr
     s.iftimes[1] = "%.2f" % iftime 
     s.iftimehr[1] = "%.2f" % (iftime/60/60)
     if simtime==0:
-        simtime = float(s.simTime[1])
+        simtime = "%.2f" % float(s.simTime[1])
     if simtime>0:
         # if we've already measured a simulation time, calculate the simulation speed
-        s.simrate[1] = iftime/60/60/simtime
+        s.simrate[1] = "%.2f" % (iftime/60/60/simtime)
     return
 
 def scrapeRunTime(s:scrape) -> None:
