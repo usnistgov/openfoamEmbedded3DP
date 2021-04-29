@@ -102,6 +102,7 @@ def toDoList(topfolder:str) -> List[str]:
         while not line.startswith('dirlist'):
             line = f.readline()
         lspl = re.split('\'| ', line)[1:-1]
+        lspl.remove('')
     return lspl
 
 def doneFolder(topfolder:str, tfinal:float) -> None:
