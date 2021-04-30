@@ -174,7 +174,7 @@ def VTKFolder(folder:str) -> str:
         raise Exception('No VTK folder')
 
 
-def series(folder:str) -> str:
+def series(folder:str, loop:bool=True) -> str:
     '''Find the .vtm.series or .vtk.series file in the folder.
     Input folder should be a simulation folder, e.g. "C:\\...\\nb30"'''
     try:
@@ -186,8 +186,11 @@ def series(folder:str) -> str:
             if '.series' in file:
                 return os.path.join(vtkfolder, file)
         # if there is a vtk folder but no series file, generate one
-        redoVTKSeriesNoLog(folder)
-        return parseVTKSeries(folder)
+        if loop:
+            redoVTKSeriesNoLog(folder)
+            return series(folder, loop=False)
+        else:
+            return ''
     return ""
 
 
