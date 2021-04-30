@@ -11,7 +11,7 @@ import foldermover as fm
 import folderparser as fp
 
 LOGGERDEFINED = False
-LOGGERDEFINED = fp.openLog('folderparser.log', LOGGERDEFINED)
+LOGGERDEFINED = fp.openLog('donescript.log', LOGGERDEFINED)
 
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
@@ -24,4 +24,5 @@ __status__ = "Production"
 
 #-------------------------------------------------------------------------------------------------  
 
-fm.doneFolder(sys.argv[1], 2.5)
+fm.doneFolder(sys.argv[1], 2.5, loopTime=1)
+    
