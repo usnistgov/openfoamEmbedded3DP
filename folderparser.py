@@ -331,14 +331,19 @@ def readVTM(file:str) -> Tuple[str, str]:
     return folderlabel, time
     
 
-def generateVTKSeries(tlist:List[str], flist:List[str], cf:str, ending:str) -> None:
+def generateVTKSeries(tlist:List[str], flist:List[str], cf:str, ending:str, lastTime:float=0) -> None:
     '''This creates a new .vtk.series or .vtm.series file
     tlist is a list of times
     flist is a list of folders. The times and folders don't need to be sorted ahead of time
     cf is the casefolder, e.g. 'C:\\...\\nb64'
-    ending is the file extension, either '.vtm' or '.vtk' '''
-    seriesfile = series(cf)
+    ending is the file extension, either '.vtm' or '.vtk' 
+    lastTime is the time at which the most recent vtm or vtk file was updated'''
+    seriesfile = series(cf, loop=False)
     if os.path.exists(seriesfile):
+        seriestime = os.path.getmtime(seriesfile)
+        if seriesTime>lastTime:
+            # the series file is up to date
+            return
         cfbasename = os.path.basename(seriesfile).replace(ending+'.series', '') # e.g. 'case'
     else:
         cfbasename = os.path.basename(cf) # e.g. 'case' or 'nb64'
@@ -376,9 +381,13 @@ def redoVTKSeriesNoLog(folder:str) -> None:
     flist = [] # folder numbers
     tlist = [] # times
     ending = '.vtm'
+    lastTime = 0
     if os.path.exists(vtkfolder):
         for file in os.listdir(vtkfolder):
             if file.endswith('.vtm'):
+                updatedTime = os.path.getmtime(file)
+                if updatedTime>lastTime:
+                    lastTime=updatedTime
                 flabel, time = readVTM(os.path.join(vtkfolder, file))
                 if len(flabel)>0 and len(time)>0:
                     flist.append(flabel)
@@ -395,7 +404,7 @@ def redoVTKSeriesNoLog(folder:str) -> None:
             flist.sort()
             flist = [str(f) for f in flist]
             tlist = ['{:1.1f}'.format(t) for t in tlist]
-        generateVTKSeries(tlist, flist, cf, ending)
+        generateVTKSeries(tlist, flist, cf, ending, lastTime=lastTime)
     return
 
 #-------------------------------------------------------------------------------------------------  
