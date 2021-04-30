@@ -200,15 +200,16 @@ def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
 
         if len(notstarted)==0 and len(plog)==0:
             finished=True
+            abort=True
+        else:
+            finished=False
             if loopTime>0:
+                abort=False
                 printCurrentTime()
                 logging.info(f'Waiting {loopTime} hours\n\n\n')
                 time.sleep(60*60*loopTime)
             else:
                 abort=True
-        else:
-            abort=True
-            finished=False
     return finished
     
 
