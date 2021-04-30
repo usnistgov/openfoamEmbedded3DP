@@ -392,11 +392,14 @@ def scrapeIFLog(s:scrape) -> None:
     # store the time in the scrape object in seconds and hr
     s.iftimes[1] = "%.2f" % iftime 
     s.iftimehr[1] = "%.2f" % (iftime/60/60)
-    if simtime==0:
-        simtime = "%.2f" % float(s.simTime[1])
-    if simtime>0:
-        # if we've already measured a simulation time, calculate the simulation speed
-        s.simrate[1] = "%.2f" % (iftime/60/60/simtime)
+    try:
+        if simtime==0:
+            simtime = "%.2f" % float(s.simTime[1])
+        if simtime>0:
+            # if we've already measured a simulation time, calculate the simulation speed
+            s.simrate[1] = "%.2f" % (iftime/60/60/simtime)
+    except:
+        pass
     return
 
 def scrapeRunTime(s:scrape) -> None:
