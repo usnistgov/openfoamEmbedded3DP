@@ -342,6 +342,8 @@ def generateVTKSeries(tlist:List[str], flist:List[str], cf:str, ending:str) -> N
         cfbasename = os.path.basename(seriesfile).replace(ending+'.series', '') # e.g. 'case'
     else:
         cfbasename = os.path.basename(cf) # e.g. 'case' or 'nb64'
+    if len(tlist)==0 or len(flist)==0 or not len(tlist)==len(flist):
+        return
     l = (np.array([tlist, flist])).transpose() # this creates a combined time and folder name table
     l = l[np.argsort(l[:,0])]    # this sorts the time and folder name table by time
 
