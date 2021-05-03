@@ -2,6 +2,7 @@
 '''Functions to generate OpenFOAM input files for a nozzle in a 3D bath'''
 
 
+# external packages
 import os
 from stl import mesh
 import matplotlib.pyplot as plt
@@ -13,12 +14,15 @@ import functools
 from typing import List, Dict, Tuple, Union, Any, TextIO, Callable
 import numpy as np
 import logging
+
+# local packages
+import folderscraper as fs
+from config import cfg
+
+# logging
 logging.basicConfig(level=logging.INFO)
 
-import folderscraper as fs
-
-
-
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -110,7 +114,7 @@ class DictList:
 class FileGroup:
     '''This holds all of the strings that get outputted to text files and the meshes used to generate stls'''
 
-    def __init__(self, folder:str, exportMesh:bool=False, onlyMesh:bool=False):
+    def __init__(self, folder:str, exportMesh:bool=False, onlyMesh:bool=False, **kwargs):
         '''Input is the folder that all of these files will go into'''
         
         self.exportMesh = exportMesh
@@ -147,6 +151,10 @@ class FileGroup:
         self.snappyHexMeshDict = ""
         self.surfaceFeatureExtractDict = ""
 
+        if 'slurmFolder' in kwargs:
+            self.slurmFolder = kwargs['slurmFolder']
+        else:
+            self.slurmFolder = cfg.path.slurmFolder
 
         self.plot = ""
 
@@ -1591,7 +1599,7 @@ def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=
     '''gets the text for most of the files in the folder
     exportMesh is true if we want to create a mesh folder'''
     
-    fg = FileGroup(folder, exportMesh=exportMesh, onlyMesh=onlyMesh)
+    fg = FileGroup(folder, exportMesh=exportMesh, onlyMesh=onlyMesh, **kwargs)
     fg.geofile = geometryFile(geo)
     
     #system
