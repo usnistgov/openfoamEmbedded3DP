@@ -340,7 +340,7 @@ def generateVTKSeries(tlist:List[str], flist:List[str], cf:str, ending:str, last
     lastTime is the time at which the most recent vtm or vtk file was updated'''
     seriesfile = series(cf, loop=False)
     if os.path.exists(seriesfile):
-        seriestime = os.path.getmtime(seriesfile)
+        seriesTime = os.path.getmtime(seriesfile)
         if seriesTime>lastTime:
             # the series file is up to date
             return
