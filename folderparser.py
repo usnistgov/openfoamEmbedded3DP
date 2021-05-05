@@ -54,9 +54,13 @@ def logFN(scriptFile:str) -> str:
 
 def openLog(f:str, LOGGERDEFINED:bool, level:str="INFO", exportLog:bool=True) -> bool:
     '''this code lets you create log files, so you can track when you've moved files. f is the file name of the script calling the openLog function'''
+
     if not LOGGERDEFINED:
         loglevel = getattr(logging,level)
         root = logging.getLogger()
+        if len(root.handlers)>0:
+            # if handlers are already set up, don't set them up again
+            return True
         root.setLevel(loglevel)
 
         # send messages to file

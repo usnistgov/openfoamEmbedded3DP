@@ -24,5 +24,10 @@ __status__ = "Production"
 
 #-------------------------------------------------------------------------------------------------  
 
-fm.doneFolder(sys.argv[1], 2.5, loopTime=1)
+if len(sys.argv)>1:
+    loopTime = float(sys.argv[2])
+else:
+    loopTime = 1
+
+fm.doneFolder(sys.argv[1], 2.5, loopTime=loopTime)
     
