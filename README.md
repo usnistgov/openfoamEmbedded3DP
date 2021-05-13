@@ -70,6 +70,8 @@ python -m virtualenv ./env
 .\env\scripts\activate
 FOR /F "delims=~" %f in (requirements.txt) DO pip install "%f" || conda install --yes "%f"
 deactivate
+```
+
 ---
 
 # Data Overview
