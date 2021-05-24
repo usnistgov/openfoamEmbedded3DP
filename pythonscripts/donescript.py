@@ -24,7 +24,7 @@ __status__ = "Production"
 
 #-------------------------------------------------------------------------------------------------  
 
-if len(sys.argv)>1:
+if len(sys.argv)>2:
     loopTime = float(sys.argv[2])
 else:
     loopTime = 1
