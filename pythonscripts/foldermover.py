@@ -98,101 +98,120 @@ def copyFilesInFolder(fromFolder:str, targetFolder:str) -> None:
 def toDoList(topfolder:str) -> List[str]:
     '''Simulations still to run'''
     with open (os.path.join(topfolder, 'runallfiles.sh'), "r") as f:
-        for i in range(3):
+        line = f.readline()
+        while not line.startswith('dirlist'):
             line = f.readline()
         lspl = re.split('\'| ', line)[1:-1]
+    lspl = [x for x in lspl if len(x)>0]
+    lspl.sort()    
     return lspl
 
-def doneFolder(topfolder:str, tfinal:float) -> None:
-    '''Go through files in the folder and determine which are done, in progress, and aborted, and abort any simulations that are too slow'''
-    done = []
-    aborted = []
-    aborted1 = []
-    progress = []
-    notstarted = []
-    tdl = toDoList(topfolder)
-    for f in caseFolders(topfolder):
-        ct = currentTime(f)
-        f0 = os.path.basename(f)
-        if ct==0:
-            if os.path.exists(os.path.join(f, 'log_interFoam')) or os.path.exists(os.path.join(f, 'case', 'log_interFoam')):
+def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
+    '''Go through files in the folder and determine which are done, in progress, and aborted, and abort any simulations that are too slow. Returns true if all simulations are done, false if not done.'''
+    abort = False
+    while not abort:
+        done = []
+        aborted = []
+        aborted1 = []
+        progress = []
+        notstarted = []
+        tdl = toDoList(topfolder)
+        for f in caseFolders(topfolder):
+            ct = currentTime(f)
+            f0 = os.path.basename(f)
+            if ct==0:
+                if os.path.exists(os.path.join(f, 'log_interFoam')) or os.path.exists(os.path.join(f, 'case', 'log_interFoam')):
+                    if f0 in tdl:
+                        progress.append(f0)
+                    else:
+                        aborted.append(f0)
+                else:
+                    notstarted.append(f0)
+            elif ct>=tfinal:
+                done.append(f0)
+            else:
                 if f0 in tdl:
                     progress.append(f0)
                 else:
-                    aborted.append(f0)
-            else:
-                notstarted.append(f0)
-        elif ct>=tfinal:
-            done.append(f0)
-        else:
-            if f0 in tdl:
-                progress.append(f0)
-            else:
-                if ct>=1:
-                    aborted1.append(f0)
-                else:
-                    aborted.append(f0)
-    plog = []
-    
-    print('Populating legends')
-    
-    for p in progress:
-        o = 0
-        endtime = 2.5
-        abort = '     '
-        f = os.path.join(topfolder, p)
-        t = populate(f)
-        t = importIf(f)
-        runtime = t[5][1]
-        ct = t[6][1]
-        rate = t[7][1]
-        if len(rate)>0:
-            try:
-                rate = float(rate)
-                ct = float(ct) # ct = current time in simulation
-                runtime = float(runtime) # actual time in real life (hr)
-            except:
-                pass
-            else:
-                if rate>120 and runtime>1:
-                    if ct<0.8:
-                        #logging.info('Modifying controldict to 0 for '+f)
-                        endtime = 0.0
-                        abort = 'ABORT'
+                    if ct>=1:
+                        aborted1.append(f0)
                     else:
+                        aborted.append(f0)
+        plog = []
+
+        print('Populating legends')
+
+        for p in progress:
+            o = 0
+            endtime = 2.5
+            abort = '     '
+            f = os.path.join(topfolder, p)
+            t = populate(f)
+            t = importIf(f)
+            runtime = t[5][1]
+            ct = t[6][1]
+            rate = t[7][1]
+            if len(rate)>0:
+                try:
+                    rate = float(rate)
+                    ct = float(ct) # ct = current time in simulation
+                    runtime = float(runtime) # actual time in real life (hr)
+                except:
+                    pass
+                else:
+                    if rate>120 and runtime>1:
+                        if ct<0.8:
+                            #logging.info('Modifying controldict to 0 for '+f)
+                            endtime = 0.0
+                            abort = 'ABORT'
+                        else:
+                            #logging.info('Modifying controldict to 1 for '+f)
+                            endtime = 1.0
+                    elif rate>60:
                         #logging.info('Modifying controldict to 1 for '+f)
                         endtime = 1.0
-                elif rate>60:
-                    #logging.info('Modifying controldict to 1 for '+f)
-                    endtime = 1.0
-                    if 2.1>=ct>=1:
-                        abort = 'ABORT'
-                elif rate<60:
-                    endtime = 2.5
-                o = modifyControlDict(f, endtime)
-        if o==1 and endtime<=ct:
-            # if the controlDict was already modified
-            if ct>=1:
-                aborted1.append(os.path.basename(f))
+                        if 2.1>=ct>=1:
+                            abort = 'ABORT'
+                    elif rate<60:
+                        endtime = 2.5
+                    o = modifyControlDict(f, endtime)
+            if o==1 and endtime<=ct:
+                # if the controlDict was already modified
+                if ct>=1:
+                    aborted1.append(os.path.basename(f))
+                else:
+                    aborted.append(os.path.basename(f))
             else:
-                aborted.append(os.path.basename(f))
+                if type(ct) is float:
+                    ct = '{:.1f}'.format(ct)
+                if type(rate) is float:
+                    rate = '{:.2f}'.format(rate)
+                plog.append('{!s}\t{!s}\t{!s}\t\t{:1.1f}\t{!s}'.format(p, ct, rate, endtime, abort))
+
+        aborted.sort()
+        logging.info('###### done: '+', '.join(done))
+        logging.info('###### not started: '+', '.join(notstarted))
+        logging.info('###### aborted at 1: '+', '.join(aborted1))
+        logging.info('###### aborted before 1: '+', '.join(aborted))
+        logging.info('###### in progress:')
+        logging.info('folder\ttime\trate (hr/s)\tendtime(s)')
+        for p in plog:
+            logging.info(p)
+        logging.info('')
+
+        if len(notstarted)==0 and len(plog)==0:
+            finished=True
+            abort=True
         else:
-            if type(ct) is float:
-                ct = '{:.1f}'.format(ct)
-            if type(rate) is float:
-                rate = '{:.2f}'.format(rate)
-            plog.append('{!s}\t{!s}\t{!s}\t\t{:1.1f}\t{!s}'.format(p, ct, rate, endtime, abort))
-     
-    aborted.sort()
-    logging.info('###### done: '+', '.join(done))
-    logging.info('###### not started: '+', '.join(notstarted))
-    logging.info('###### aborted at 1: '+', '.join(aborted1))
-    logging.info('###### aborted before 1: '+', '.join(aborted))
-    logging.info('###### in progress:')
-    logging.info('folder\ttime\trate (hr/s)\tendtime(s)')
-    for p in plog:
-        logging.info(p)
-    logging.info('')
+            finished=False
+            if loopTime>0:
+                abort=False
+                printCurrentTime()
+                logging.info(f'Waiting {loopTime} hours\n\n\n')
+                time.sleep(60*60*loopTime)
+            else:
+                abort=True
+    return finished
     
 
 

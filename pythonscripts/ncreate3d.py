@@ -2,6 +2,7 @@
 '''Functions to generate OpenFOAM input files for a nozzle in a 3D bath'''
 
 
+# external packages
 import os
 from stl import mesh
 import matplotlib.pyplot as plt
@@ -13,12 +14,15 @@ import functools
 from typing import List, Dict, Tuple, Union, Any, TextIO, Callable
 import numpy as np
 import logging
+
+# local packages
+import folderscraper as fs
+from config import cfg
+
+# logging
 logging.basicConfig(level=logging.INFO)
 
-import folderscraper as fs
-
-
-
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -110,7 +114,7 @@ class DictList:
 class FileGroup:
     '''This holds all of the strings that get outputted to text files and the meshes used to generate stls'''
 
-    def __init__(self, folder:str, exportMesh:bool=False, onlyMesh:bool=False):
+    def __init__(self, folder:str, exportMesh:bool=False, onlyMesh:bool=False, **kwargs):
         '''Input is the folder that all of these files will go into'''
         
         self.exportMesh = exportMesh
@@ -147,6 +151,11 @@ class FileGroup:
         self.snappyHexMeshDict = ""
         self.surfaceFeatureExtractDict = ""
 
+        if 'slurmFolder' in kwargs:
+            self.slurmFolder = kwargs['slurmFolder']
+        else:
+            self.slurmFolder = cfg.path.slurmFolder
+
         self.plot = ""
 
         self.meshes = []
@@ -181,7 +190,7 @@ class FileGroup:
         if not self.onlyMesh:
             exportFile(casef, "Allclean", self.allclean) 
             exportFile(casef, "Allrun", self.allrun) 
-            exportFile(casef, "Continue", self.cont) 
+#             exportFile(casef, "Continue", self.cont) 
             exportFile(f0, "alpha.ink.orig", self.alphainkorig) 
             exportFile(f0, "alpha.ink", self.alphainkorig) 
             exportFile(f0, "p_rgh", self.prgh) 
@@ -269,34 +278,61 @@ def compileAllAllRun() -> str:
     s = ("./mesh/Allrun; ./case/Allrun")
     return s
 
-def fListLoop(s:str, functionlist:List[str], folder:str) -> str:
-    '''Write a bash script to go through multiple functions'''
+def fListLoop(s:str, functionlist:List[str], folder:str, ifstarted:bool=False) -> str:
+    '''Write a bash script to go through multiple functions. ifstarted True if you do not want to run this function if the sim has started'''
     for f in functionlist:
-        s = s + 'echo \"running ' + f + ' in ' + folder + '\"; '
-        s = s + f + ">>log_" + f + "; "
+        s1 = 'echo \"running ' + f + ' in ' + folder + '\";\n' + f + ">>log_" + f
+        if ifstarted:
+            s = s + '[ ! d \"0.1\"] && ('+s1+'); '
+        else:
+            s = s + s1 + ';\n'
     return s
 
+
+# def compileAllRun(folder:str, solver:str) -> str:
+#     '''this is the allrun bash script for the case folder'''
+#     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " \
+#          + "echo \""+folder+"\"; "
+#           + "cd \"${0%/*}\" || exit; ")
+#     s = (s + '[ ! d \"0.1\"] && ('\
+#          + "cp -r ../../mesh/constant/polyMesh constant; " 
+#          + "cp 0/alpha.ink.orig 0/alpha.ink); " )
+#     s = fListLoop(s, ["setFields"], folder, ifstarted=True)
+#     s = s = fListLoop(s, [solver, "foamToVTK"], folder, ifstarted=False)
+#     return s
 
 def compileAllRun(folder:str, solver:str) -> str:
     '''this is the allrun bash script for the case folder'''
-    s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " \
-         + "echo \""+folder+"\"; "
-          + "cd \"${0%/*}\" || exit; "
-         + "cp -r ../../mesh/constant/polyMesh constant; " 
-         + "cp 0/alpha.ink.orig 0/alpha.ink; " )
-    functionlist = ["setFields", solver, "foamToVTK"]
-    s = fListLoop(s, functionlist, folder)
+    f = os.path.basename(folder)
+    s = '#!/bin/bash\n\n'
+    s = s + '. $WM_PROJECT_DIR/bin/tools/RunFunctions;\n'
+    s = s + 'echo '+f+'\n'
+    s = s + 'cd \"$(dirname \"$0\")\"\n'
+    s = s + 'if [ ! -d "0.1" ]; then\n'
+    s = s + '\tcp -r ../../mesh/constant/polyMesh constant;\n'
+    s = s + '\tcp 0/alpha.ink.orig 0/alpha.ink;\n'
+    s = s + '\techo \"running setFields in '+f+'\";\n'
+    s = s + '\tsetFields>>log_setFields;\n'
+    s = s + 'fi \n'
+    s = fListLoop(s, [solver, "foamToVTK"], f, ifstarted=False)
+    return s
+
+def compileSlurm(folder:str, parentdir:str) -> str:
+    '''this is the slurm script for the case folder'''
+    workdir = (os.path.join(parentdir, os.path.basename(folder), 'case')).replace("\\","/")
+    s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={folder}\n#SBATCH --workdir={workdir}\n\n'
+    s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash Allrun.sh'
     return s
 
 
-def compileContinue(folder:str, solver:str) -> str:
-    '''this script picks up in the middle of a solve and keeps solving'''
-    s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
-          + "cd \"${0%/*}\" || exit; "
-         )
-    functionlist = [solver, "foamToVTK"]
-    s = fListLoop(s, functionlist, folder)
-    return s
+# def compileContinue(folder:str, solver:str) -> str:
+#     '''this script picks up in the middle of a solve and keeps solving'''
+#     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
+#           + "cd \"${0%/*}\" || exit; "
+#          )
+#     functionlist = [solver, "foamToVTK"]
+#     s = fListLoop(s, functionlist, folder)
+#     return s
 
 
 def compileAllRunMesh(folder:str) -> str:
@@ -1220,7 +1256,7 @@ class FVSolGrp:
     def __init__(self, st:str, solver:str):
         '''Inputs: st, solver
         st is a string that tells us what variable is being solved for, e.g. 'alphaink', 'pcorr', 'prgh', 'prghfinal', or 'U'
-        solver is the type of solver being used: 'interFoam' or 'interIsoFoam''''
+        solver is the type of solver being used: 'interFoam' or 'interIsoFoam'. '''
         
         self.badcharlist = []
                      
@@ -1290,7 +1326,7 @@ class FVVars:
     
 
     def __init__(self, solver:str) -> None:
-        '''Input: solver is the type of solver being used: 'interFoam' or 'interIsoFoam''''
+        '''Input: solver is the type of solver being used: 'interFoam' or 'interIsoFoam' '''
         self.solver = solver
         
         # FVSchemes
@@ -1416,11 +1452,12 @@ def compileSolverFiles(cdv:CDVars, fvv:FVVars, out:FileGroup) -> FileGroup:
     '''generates the text for the controlDict, FVsolution, FVschemes, and bash scripts'''
     out.controlDict = compileControlDict(cdv)
     out = compileFV(fvv, out)
+    out.slurm = compileSlurm(out.folder, out.slurmFolder)
     out.allallrun = compileAllAllRun()
     out.allclean = compileAllClean()
     out.allrunmesh = compileAllRunMesh(out.folder)
     out.allrun = compileAllRun(out.folder, cdv.application)
-    out.cont = compileContinue(out.folder, cdv.application)
+#     out.cont = compileContinue(out.folder, cdv.application)
     cdv.application = "icoFoam"
     out.controlDictMesh = compileControlDict(cdv)
     return out
@@ -1516,7 +1553,7 @@ def saveStls(folder:str, bl:List[BoundaryInput]) -> None:
         me2.save(title)
 
 
-def exportFile(folder:str, file:str, text:str) -> None:
+def exportFile(folder:str, file:str, text:str, linux:bool=False) -> None:
     '''exports text files
     folder is a full path name
     file is a basename
@@ -1526,6 +1563,21 @@ def exportFile(folder:str, file:str, text:str) -> None:
     File_object.write(text)
     File_object.close()
     logging.debug("Exported %s" % fn)
+    if linux:
+        replaceCR(fn)
+    
+def replaceCR(file:str) -> None:
+    '''replace windows carriage return with linux carriage return. Otherwise bash scripts will throw error. From https://stackoverflow.com/questions/36422107/how-to-convert-crlf-to-lf-on-a-windows-machine-in-python'''
+    WINDOWS_LINE_ENDING = b'\r\n'
+    UNIX_LINE_ENDING = b'\n'
+
+    with open(file, 'rb') as open_file:
+        content = open_file.read()
+    
+    content = content.replace(WINDOWS_LINE_ENDING, UNIX_LINE_ENDING)
+
+    with open(file, 'wb') as open_file:
+        open_file.write(content)
     
 
 def mkdirif(path:str) -> int:
@@ -1543,11 +1595,11 @@ def mkdirif(path:str) -> int:
 #-------------------------------------------------
 
 
-def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=False, onlyMesh:bool=False) -> FileGroup:
+def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=False, onlyMesh:bool=False, **kwargs) -> FileGroup:
     '''gets the text for most of the files in the folder
     exportMesh is true if we want to create a mesh folder'''
     
-    fg = FileGroup(folder, exportMesh=exportMesh, onlyMesh=onlyMesh)
+    fg = FileGroup(folder, exportMesh=exportMesh, onlyMesh=onlyMesh, **kwargs)
     fg.geofile = geometryFile(geo)
     
     #system
@@ -1630,7 +1682,7 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
 
     geo = NozVars(**kwargs)
     mv = MeshVars()
-    out = createNozzleBlockFile(geo, mv, folder, exportMesh, onlyMesh)
+    out = createNozzleBlockFile(geo, mv, folder, exportMesh, onlyMesh, **kwargs)
 
     cdv, fvv = solverObjects(startTime, endTime, dt, writeDt, solver)
     out = compileSolverFiles(cdv, fvv, out)
