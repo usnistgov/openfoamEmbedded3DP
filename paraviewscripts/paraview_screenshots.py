@@ -47,6 +47,14 @@ def getpfunc(f, kwargs:Dict):
         if s in kwargs:
             kw = kw+[s, kwargs[s]]
     return lambda sv: f(sv, **dict(kw))
+
+def getShearRatefunc(f, kwargs:Dict):
+    '''Get the pressure function, given a function f and dict kwargs'''
+    kw = []
+    for s in ['rmin', 'rmax', 'x']:
+        if s in kwargs:
+            kw = kw+[s, kwargs[s]]
+    return lambda sv: f(sv, **dict(kw))
         
 def getxfunc(f, kwargs:Dict):
     '''Get the function for an x slice, given function f and dict kwargs'''
@@ -150,6 +158,14 @@ class ssVars:
             self.coloring = 'px'
             self.function = getpfunc(pslicex, kwargs)
             self.volList = ['x']
+        elif tag=='shearRatex':
+            self.coloring='shearRatex'
+            self.function = getShearRatefunc(shearRateSlicex, kwargs)
+            self.volList = ['x']
+        elif tag=='shearRatey':
+            self.coloring='shearRatey'
+            self.function = getShearRatefunc(shearRateSlicey, kwargs)
+            self.volList = ['y']
         self.tlist = tlist
         self.tag = tag
         
@@ -364,6 +380,29 @@ def nuColorBar(renderView1, display, color) -> None:
     uLUTColorBar.Title = 'Viscosity (m^2/s)' # if the density is 1000 kg/m^3, the viscosity is in  MPa.s
  #     uLUTColorBar.RangeLabelFormat = '%-#2.0e'
     return uLUTColorBar
+
+def shearRateColorBar(renderView1, display, rmin:float=0.1, rmax:float=1000, name:str='VectorGradient') -> None:
+    '''shear rate color bar'''
+    # show color bar/color legend
+    display.SetScalarBarVisibility(renderView1, True)
+    gLUT = GetColorTransferFunction(name)
+    gPWF = GetOpacityTransferFunction(name)
+
+    # rescale to full range of newt, HB experiments
+    gLUT.RescaleTransferFunction(rmin, rmax)
+    gPWF.RescaleTransferFunction(rmin, rmax)
+    
+    # convert to log space. If we've already converted to log space during creation of another image, skip this
+    if not gLUT.UseLogScale==1:
+        gLUT.MapControlPointsToLogSpace()
+        gLUT.UseLogScale = 1
+
+    gLUTColorBar = GetScalarBar(gLUT, renderView1)
+    positionCB(gLUTColorBar)
+    gLUTColorBar.CustomLabels = [10**i for i in range(int(np.ceil(np.log10(rmin))), int(np.floor(np.log10(rmax))))]
+    gLUTColorBar.Title = 'Shear rate (1/s)' # if the density is 1000 kg/m^3, the viscosity is in  MPa.s
+    gLUTColorBar.RangeLabelFormat = '%-#2.0e'
+    return gLUTColorBar
     
 
 def alphaColorBar(renderView1, display) -> None:
@@ -414,6 +453,7 @@ def setDisplayColor(display, color:str, *args):
     except Exception as e:
         logging.error('setDisplayColor:'+str(e))
         pass
+
     
 def viscColor(display, visc:str) -> None:
     '''This is a preset list of colors for viscosity, where the kinematic viscosity range is [10**i for i in range(-6, 3)] m^2/s'''
@@ -473,6 +513,8 @@ def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
             viscColor(clipDisplay, sv.inknu)
         else:
             viscColor(clipDisplay, sv.supnu)
+    elif colVar=='shearRate':
+        ColorBy(clipDisplay, ('CELLS', 'VectorGradient', 'Magnitude'))
     else:
 #         clipDisplay.SetScaleArray = 'None'
 #         ColorBy(clipDisplay, None)
@@ -495,9 +537,12 @@ def alphasurface(sv:stateVars, colVar:str) -> None:
     sv.renderView1.Update()
     return 
 
-def sliceMake(sv:stateVars, origin:List[float], normal:List[float]):
+def sliceMake(sv:stateVars, origin:List[float], normal:List[float], **kwargs):
     '''Get the slice object, to be further manipulated'''
-    slice1 = Slice(Input=sv.caseVTMSeries)
+    if 'sinput' in kwargs:
+        slice1 = Slice(Input=kwargs['sinput'])
+    else:
+        slice1 = Slice(Input=sv.caseVTMSeries)
     slice1.SliceType = 'Plane'
     slice1.SliceOffsetValues = [0.0]
     Hide3DWidgets(proxy=slice1.SliceType)
@@ -508,6 +553,8 @@ def sliceMake(sv:stateVars, origin:List[float], normal:List[float]):
     slice1Display.OpacityArray = ['POINTS', 'U']
     Hide(sv.caseVTMSeries, sv.renderView1)
     return slice1
+    
+#--------------------------
 
 def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) -> None:
     '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
@@ -517,7 +564,7 @@ def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) ->
     slice1 = sliceMake(sv, origin, normal)
     inkClip(sv, slice1, sv.inkfunc, 0)
     inkClip(sv, slice1, sv.supfunc, 1)
-
+    # color bar added in inkClip
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate(view, sv)
     sv.renderView1.Update()
@@ -532,6 +579,8 @@ def viscx(sv:stateVars, x:float=-0.001) -> None:
     sv.hideAll()
     viscSlice(sv, [x, 0, 0], [1,0,0], 'x')
     
+#--------------------------
+
 def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='U', umin:float=0, umax:float=0.02) -> None:
     '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. U, UX, UY, UZ'''
     slice1 = sliceMake(sv, origin, normal)
@@ -566,7 +615,8 @@ def uzslicex(sv:stateVars) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
     uSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
-
+    
+#--------------------------
 
 def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-50000, pmax:float=50000) -> None:
     '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed'''
@@ -588,9 +638,43 @@ def pslicex(sv:stateVars, **kwargs) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
     pSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)
- 
     
+#--------------------------
+    
+def computeShearRate(sv:stateVars) -> None:
+    '''get an object that represents the shear rate'''
+    computeDerivatives = ComputeDerivatives(Input=sv.caseVTMSeries)
+    computeDerivatives.Scalars = ['POINTS', 'alpha.ink']
+    computeDerivatives.Vectors = ['POINTS', 'U']
+    computeDerivatives.OutputVectorType = 'Nothing'
+    # show data in view
+    # computeDerivativesDisplay = Show(computeDerivatives, renderView1, 'GeometryRepresentation')
+    return computeDerivatives
 
+    
+def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000) -> None:
+    '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+    shearRate = computeShearRate(sv) # calculate shear rate
+    slice1 = sliceMake(sv, origin, normal, sinput=shearRate) # take slice from shear rate map
+    d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
+    d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
+    for d in [d1, d2]:
+        sv.colorBars.append(shearRateColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
+    resetCam(sv, (sv.times[-1])) 
+    setAndUpdate(view, sv)
+    sv.renderView1.Update()
+
+def shearRateSlicey(sv:stateVars, **kwargs) -> None:
+    '''Velocity map, looking down the y axis, at (0,0,0)'''
+    sv.hideAll()
+    shearRateSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
+    
+def shearRateSlicex(sv:stateVars, **kwargs) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    shearRateSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)   
+
+#--------------------------
 
 def mesh(sv:stateVars) -> None:
     '''cross-section on the y=0 plane with mesh overlay and volume fraction coloring'''
