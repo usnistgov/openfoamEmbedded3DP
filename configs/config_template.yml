@@ -6,3 +6,6 @@ path:
     e: "E:/afolder/afolder/mykingdomforafolder"
     server: "//server.location/myfolder/myfolder"
     fig: "C:/myfolder/storeFiguresHere"
+timing:
+    abort1: 120
+    abort2: 60

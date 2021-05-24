@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''Functions for moving folders between computers, servers, for OpenFOAM simulations of embedded 3D printing of single filaments. '''
 
+# external packages
 import os
 import re
 import shutil 
@@ -8,12 +9,15 @@ from typing import List, Dict, Tuple, Union, Any, TextIO
 import time
 import logging, platform, socket, sys
 
+# local packages
 from folderscraper import populate
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 from folderparser import *
+from config import cfg
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -159,7 +163,7 @@ def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
                 except:
                     pass
                 else:
-                    if rate>120 and runtime>1:
+                    if rate>cfg.timing.abort1 and runtime>1:
                         if ct<0.8:
                             #logging.info('Modifying controldict to 0 for '+f)
                             endtime = 0.0
@@ -167,12 +171,12 @@ def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
                         else:
                             #logging.info('Modifying controldict to 1 for '+f)
                             endtime = 1.0
-                    elif rate>60:
+                    elif rate>cfg.timing.abort2:
                         #logging.info('Modifying controldict to 1 for '+f)
                         endtime = 1.0
                         if 2.1>=ct>=1:
                             abort = 'ABORT'
-                    elif rate<60:
+                    elif rate<cfg.timing.abort1:
                         endtime = 2.5
                     o = modifyControlDict(f, endtime)
             if o==1 and endtime<=ct:

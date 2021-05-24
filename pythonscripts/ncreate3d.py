@@ -1672,6 +1672,9 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
     solver could be interFoam or interIsoFoam
     Additional keyword vars are passed into NozVars. Examples are bathWidth=16, vink=10
     '''
+    if not os.path.exists(topFolder):
+        raise Exception(f'Folder {topFolder} does not exist')
+    
     if onlyMesh:
         folder = topFolder
     else:
@@ -1695,6 +1698,8 @@ class Fluid:
     def __init__(self, units:str='kinematic', **kwargs):
         if 'rho' in kwargs:
             self.rho = kwargs['rho']
+            if self.rho<500:
+                logging.warning('Density is very low. Density should be given in kg/m^3')
         else:
             self.rho = 1000
             
