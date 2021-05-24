@@ -45,7 +45,7 @@ if not os.path.exists(configdir):
 with open(os.path.join(configdir, "config.yml"), "r") as ymlfile:
     y = yaml.safe_load(ymlfile)
     if nobox:
-        cfg = Struct(**cfg)
+        cfg = Struct(**y)
     else:
         cfg = Box(y)
     
