@@ -213,3 +213,14 @@ def initializeP(sv:stateVars) -> stateVars:
     sv.renderView1.CameraParallelProjection = 1
         # turn off perspective
     return sv
+
+
+def computeShearRate(sv:stateVars):
+    '''get an object that represents the shear rate'''
+    computeDerivatives = ComputeDerivatives(Input=sv.caseVTMSeries)
+    computeDerivatives.Scalars = ['POINTS', 'alpha.ink']
+    computeDerivatives.Vectors = ['POINTS', 'U']
+    computeDerivatives.OutputVectorType = 'Nothing'
+    # show data in view
+    # computeDerivativesDisplay = Show(computeDerivatives, renderView1, 'GeometryRepresentation')
+    return computeDerivatives

@@ -48,10 +48,11 @@ xlist = [-0.001]      # positions at which to collect the trace
 forceOverwrite = False # True to overwrite existing files
 
 folders = []
-nlist = range(0, 1000)   # list of nb folder numbers that we will search
+nlist = range(1000,2000)   # list of nb folder numbers that we will search
 
 SERVERFOLDER = cfg.path.server
-topfolders = [os.path.join(SERVERFOLDER,'viscositysweep', s) for s in ['newtnewtsweep', 'HBnewtsweep', 'newtHBsweep', 'HBHBsweep']]
+topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
+topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('nb'):

@@ -38,7 +38,11 @@ def addUnits(csvfile:str):
         except:
             return
         if 'interfacePoints' in csvfile or 'line' in csvfile:
-            headerdict = {'alpha.ink':'alpha', 'Points:0':'x', 'Points:1':'y', 'Points:2':'z', 'U:0':'vx', 'U:1':'vy', 'U:2':'vz', 'Time':'time', 'nu1':'nu_ink', 'nu2':'nu_sup'}
+            headerdict = {'alpha.ink':'alpha', 'Points:0':'x', 'Points:1':'y', 'Points:2':'z',\
+                          'U:0':'vx', 'U:1':'vy', 'U:2':'vz', 'Time':'time', 'nu1':'nu_ink', 'nu2':'nu_sup',\
+                          'VectorGradient:0':'shearrate0','VectorGradient:1':'shearrate1','VectorGradient:2':'shearrate2',\
+                          'VectorGradient:3':'shearrate3','VectorGradient:4':'shearrate4','VectorGradient:5':'shearrate5',\
+                          'VectorGradient:6':'shearrate6','VectorGradient:7':'shearrate7','VectorGradient:8':'shearrate8' }
             header = [headerdict.get(h, h) for h in line1]
             if header==line1:
                 canreturn = True
@@ -52,7 +56,14 @@ def addUnits(csvfile:str):
             return
         
         if 'interfacePoints' in csvfile or 'line' in csvfile:
-            unitdict = {'time':'s', 'x':'m', 'y':'m', 'z':'m', 'vx':'m/s', 'vy':'m/s', 'vz':'m/s', 'alpha':'', 'nu1':'m^2/s', 'nu2':'m^2/s', 'nu_ink':'m^2/s', 'nu_sup':'m^2/s', 'p':'kg/(m*s^2)', 'p_rgh':'kg/(m*s^2)', 'rAU':'m^3*s/kg', 'arc_length':'m'}
+            unitdict = {'time':'s', 'x':'m', 'y':'m', 'z':'m', \
+                        'vx':'m/s', 'vy':'m/s', 'vz':'m/s', 'alpha':'',\
+                        'nu1':'m^2/s', 'nu2':'m^2/s', 'nu_ink':'m^2/s', 'nu_sup':'m^2/s',\
+                        'p':'kg/(m*s^2)', 'p_rgh':'kg/(m*s^2)', 'rAU':'m^3*s/kg', 'arc_length':'m',\
+                       'shearrate0':'1/s','shearrate1':'1/s','shearrate2':'1/s',\
+                        'shearrate3':'1/s','shearrate4':'1/s','shearrate5':'1/s',\
+                        'shearrate6':'1/s','shearrate7':'1/s','shearrate8':'1/s'
+                       }
         if 'sliceSummaries' in csvfile:
             xu = 'mm'
             unitdict = {'x':xu, 'xbehind':xu, 'time':'s', 'centery':xu, 'centerz':xu, 'area':xu+'^2', 'maxheight':xu, 'maxwidth':xu, 'centeryn':'', 'centerzn':'', 'arean':'', 'maxheightn':'', 'maxwidthn':'', 'vertdisp':xu, 'vertdispn':'', 'aspectratio':'', 'speed':'mm/s', 'speeddecay':''}
