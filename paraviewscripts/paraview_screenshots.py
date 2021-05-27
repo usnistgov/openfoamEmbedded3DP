@@ -641,15 +641,7 @@ def pslicex(sv:stateVars, **kwargs) -> None:
     
 #--------------------------
     
-def computeShearRate(sv:stateVars) -> None:
-    '''get an object that represents the shear rate'''
-    computeDerivatives = ComputeDerivatives(Input=sv.caseVTMSeries)
-    computeDerivatives.Scalars = ['POINTS', 'alpha.ink']
-    computeDerivatives.Vectors = ['POINTS', 'U']
-    computeDerivatives.OutputVectorType = 'Nothing'
-    # show data in view
-    # computeDerivativesDisplay = Show(computeDerivatives, renderView1, 'GeometryRepresentation')
-    return computeDerivatives
+
 
     
 def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000) -> None:

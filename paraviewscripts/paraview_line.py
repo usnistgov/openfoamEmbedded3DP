@@ -46,8 +46,10 @@ def initializeAll(folder, xpos):
 def initSeries(sv:stateVars, xpos:float) -> stateVars:
     '''Initialize the series file and get a line trace'''
     caseVTMSeries = initSeries0(sv)
+    sv.caseVTMSeries = caseVTMSeries
     # sv.times = caseVTMSeries.TimestepValues
-    plotOverLine2 = PlotOverLine(Input=caseVTMSeries, Source='High Resolution Line Source')
+    shearRate = computeShearRate(sv)
+    plotOverLine2 = PlotOverLine(Input=shearRate, Source='High Resolution Line Source')
     # plotOverLine2.Source.Point1 = [0.002588, 0, 0.0021104998886585236]
     # plotOverLine2.Source.Point2 = [0.002588, 0, -0.0021104998886585236]
     
