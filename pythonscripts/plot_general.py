@@ -192,6 +192,7 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
     if len(le)==0:
         raise Exception('No values in legend')
     i0 = le[le['title']=='transportProperties'].index[0] # find the index where the transport properties start
+    inklabel = le.loc[i0+1, 'val']
     # express viscosities as a dynamic viscosity 
     # (multiply it by 1000 because all of our simulations were done with a density of 1000)
     inkmode = le.loc[i0+2, 'val']
@@ -214,7 +215,7 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
     # iterate through rows until we find the support transportmodel
     while not le.loc[nusupi, 'title']=='transportModel':
         nusupi+=1
-        
+    suplabel = le.loc[nusupi-1, 'val']
     if le.loc[nusupi, 'val']=='Newtonian':
         nusupi = nusupi+1
         getHB = False
@@ -231,7 +232,7 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
         
     # convert surface tension to mJ/m^2
     sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
-    return {'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma}
+    return {'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma}
 
 #---
 

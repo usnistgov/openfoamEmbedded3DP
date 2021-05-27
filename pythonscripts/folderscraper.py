@@ -160,21 +160,24 @@ class scrape:
     #-------------------------
     def initTransport(self):
         '''initial values for transport model'''
-        self.TPinklist = [['transportModel', ''],\
+        self.TPinklist = [['ink', ''],\
+                        ['transportModel', ''],\
                           ['nu', ''], \
                           ['nu0', ''], \
                           ['tau0', ''], \
                           ['k', ''],\
                           ['n', ''], \
                           ['rho', '']]
-        self.TPsuplist = [['transportModel', ''],\
+        self.TPsuplist = [['sup', ''],\
+                        ['transportModel', ''],\
                           ['nu', ''], \
                           ['nu0', ''], \
                           ['tau0', ''], \
                           ['k', ''], \
                           ['n', ''], \
                           ['rho', '']]  
-        
+        self.inkLabel = ''
+        self.supLabel = ''
         self.TPsigma = ['sigma', '']
     
     #-------------------------
@@ -253,8 +256,8 @@ class scrape:
         col.append(self.SHMmergeTolerance)
         ca(col, ['', 'blockMeshDict'], [self.blocksdims])
         ca(col, ['', 'case', 'CONSTANT', 'dynamicMeshDict'], self.DMDlist)
-        ca(col, ['', 'transportProperties', 'ink'], self.TPinklist)
-        ca(col, ['sup'], self.TPsuplist)
+        ca(col, ['', 'transportProperties'], self.TPinklist)
+        ca(col, [], self.TPsuplist)
         col.append(self.TPsigma)
         ca(col, ['', 'SYSTEM', 'controlDict'], self.controlDictList)
         ca(col, ['', 'fvSolution', 'alpha.ink'], self.fvSailist)
@@ -574,6 +577,16 @@ def scrapeTP(s:scrape) -> None:
     else:
         logging.warning(f'path {bm} does not exist')
         
+def scrapeLabels(s:scrape) -> None:
+    '''scrape the labels.csv document'''
+    bm = os.path.join(s.fold, 'labels.csv')
+    if os.path.exists(bm):
+        with open(bm, "r") as f:
+            data = list(csv.reader(f))
+            print(data)
+            s.TPinklist[0][1]=data[0][1]
+            s.TPsuplist[0][1]=data[1][1]
+        
 
 def scrapeCD(s:scrape) -> None:
     '''scrape controlDict
@@ -665,6 +678,7 @@ def populate(folder:str) -> List[List[str]]:
         scrapeSHM(s)
         scrapeDMD(s)
         scrapeTP(s)
+        scrapeLabels(s)
         scrapeCD(s)
         scrapeFV(s)
         t = s.table() # generate a table from all the data we scraped

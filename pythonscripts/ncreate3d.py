@@ -188,8 +188,11 @@ class FileGroup:
         
         
         if not self.onlyMesh:
+            exportFile(f, 'labels.csv', self.labels)
             exportFile(casef, "Allclean", self.allclean) 
-            exportFile(casef, "Allrun", self.allrun) 
+#             exportFile(casef, "Allrun", self.allrun)
+            exportFile(casef, 'Allrun.sh', self.allrun)
+            exportFile(casef, 'run.slurm', self.slurm)
 #             exportFile(casef, "Continue", self.cont) 
             exportFile(f0, "alpha.ink.orig", self.alphainkorig) 
             exportFile(f0, "alpha.ink", self.alphainkorig) 
@@ -320,7 +323,7 @@ def compileAllRun(folder:str, solver:str) -> str:
 def compileSlurm(folder:str, parentdir:str) -> str:
     '''this is the slurm script for the case folder'''
     workdir = (os.path.join(parentdir, os.path.basename(folder), 'case')).replace("\\","/")
-    s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={folder}\n#SBATCH --workdir={workdir}\n\n'
+    s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --workdir={workdir}\n\n'
     s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash Allrun.sh'
     return s
 
@@ -390,7 +393,7 @@ class BoundaryInput:
 class NozVars:
     '''this is where the geometry of the nozzle is defined'''
     
-    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152):
+    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, **kwargs):
         ''' Allowed input variables:
             bathWidth: (default=16) bath width in nozzle inner diameters
             bathHeight: (default=7) bath height in nozzle inner diameters
@@ -1731,7 +1734,9 @@ class Fluid:
         elif self.model=='HerschelBulkley':
             return transportGroupHB(name, self.nu0, self.tau0, self.k, self.n, self.rho)
 
-
+def labels(ink:Fluid, sup:Fluid) -> str:
+    '''get a file that stores the ink and support labels'''
+    return f'ink,{ink.label}\nsup,{sup.label}'
 
 def genericExport(ii:Union[int,str], sup:Fluid, ink:Fluid, sigma:float, topFolder:str, exportMesh:bool=False, **kwargs) -> None:
     ''' Export a folder, given a support fluid, ink fluid, and surface tension. 
@@ -1742,6 +1747,7 @@ def genericExport(ii:Union[int,str], sup:Fluid, ink:Fluid, sigma:float, topFolde
         topFolder is the folder to save this new folder in
         exportMesh true to export geometry folders into this folder'''
     out = allButTransport(ii, topFolder, exportMesh=exportMesh, **kwargs)
+    out.labels = labels(ink, sup)
     out.transportProperties = compileTransportProperties(ink.transportGroup('ink'), sup.transportGroup('sup'), sigma)
     out.exportAllFiles() 
 
