@@ -190,7 +190,7 @@ def steadyPlots(topFolder:str, imsize:int, exportFolder:str, sigmalist:List[floa
         # going across the columns
         gp.axs[-1][j].set_xlabel('Time (s)')
  
-    intm.exportIm(fn, gp.fig)
+    intm.exportIm(fn, gp.fig, **kwargs)
     
     
 #-------------------------------------------------------------------
@@ -230,7 +230,7 @@ def adjustStabilityPlot(ax:plt.Axes, numx:float, xlabel:str, xlist:List[float], 
     ax.axhline(y=0, color='k')
 
 
-def stabilityPlot(folder:str, exportFolder:str, tconst:float, xconst:float, export:bool=True) -> None:
+def stabilityPlot(folder:str, exportFolder:str, tconst:float, xconst:float, export:bool=True, **kwargs) -> None:
     '''a stability plot plots cross-sections across time and space and a region plot of the steady regions
     the cross-section plot section will have two rows: one for a constant time but shifting position
     another for a constant position but shifting time
@@ -288,5 +288,5 @@ def stabilityPlot(folder:str, exportFolder:str, tconst:float, xconst:float, expo
     if export:
         fbase = os.path.basename(folder)
         fname = 'stability_'+fbase+'_t_'+str(tconst)+'_x_'+str(xconst)
-        intm.exportIm(os.path.join(exportFolder, fname), fig)
+        intm.exportIm(os.path.join(exportFolder, fname), fig, **kwargs)
         

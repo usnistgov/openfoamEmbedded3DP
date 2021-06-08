@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 '''Functions for plotting overall metrics, such as simulation time, folder name, simulation rate, cross-sectional area...'''
 
+# external packages
 import sys
 import os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -14,17 +12,24 @@ import math
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
 
+# local packages
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import folderparser as fp
 import interfacemetrics as intm
 from plot_general import *
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# plots
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -108,6 +113,8 @@ def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
     if not overwrite and os.path.exists(fn+'.png'):
         return
     cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, **kwargs)
+    if len(cp.flist)==0:
+        return
     if cp.split:
         dt = 0
     else:
@@ -117,8 +124,7 @@ def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
         txtPlot(folder, cp, dt)
     cp.figtitle = 'Folder names'
     cp.clean()
-
-    intm.exportIm(fn, cp.fig)
+    intm.exportIm(fn, cp.fig, **kwargs)
 
 #------------------------------------------   
 # run time plot: how long the simulation ran in simulation seconds
@@ -151,12 +157,14 @@ def runtimePlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwarg
     if not overwrite and os.path.exists(fn+'.png'):
         return
     cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, **kwargs)
+    if len(cp.flist)==0:
+        return
     dt = 0.2
     for folder in cp.flist:
         runtimePlot(folder, cp, dt)
     cp.figtitle = 'Run times'
     cp.clean()
-    intm.exportIm(fn, cp.fig)
+    intm.exportIm(fn, cp.fig, **kwargs)
     
  #------------------------------------------   
 #### generic value plots
@@ -246,7 +254,7 @@ def folderToPlotVals(folder:str, cp, rate) -> Dict:
     rate is a value to plot'''
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp) # find the position of this plot within the big plot
-    except:
+    except Exception as e:
         raise ValueError
     return {'color':color, 'x0':x0, 'y0':y0, 'rate':rate, 'sigmapos':sigmapos}
 
@@ -260,7 +268,6 @@ def plotAllFolderVals(function, cp:comboPlot, tminmode:int, timeplot:bool=False)
     for f in cp.flist:
         try:
             row = function(f, cp)
-            #row = metricPlot(f, cp, time, xbehind, label)
         except NameError as n:
             raise n
         except Exception as e:
@@ -274,7 +281,14 @@ def plotAllFolderVals(function, cp:comboPlot, tminmode:int, timeplot:bool=False)
 def valueLegend(cp:comboPlot, vpout:Dict) -> None:
     '''Put a color legend for the gradient plot on the bottom'''
     if cp.split:
-        cbaxes = cp.fig.add_axes([0.2, 0.1, 0.6, 0.05])
+        ylim = cp.axs[0].get_ylim()
+        if ylim[1]-ylim[0]>2.5:
+            y = -0.15
+        elif ylim[1]-ylim[0]>1.3:
+            y = 0
+        else:
+            y = 0.1
+        cbaxes = cp.fig.add_axes([0.2, y, 0.6, 0.05])
         nm = plt.Normalize(vmin=vpout['tmin'], vmax=vpout['tmax'])
         sm = plt.cm.ScalarMappable(cmap=vpout['cmap'], norm=nm)
         plt.colorbar(sm, cax=cbaxes, orientation="horizontal")
@@ -307,6 +321,8 @@ def timePlots(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
         return
     
     cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, **kwargs)  # create a plot
+    if len(cp.flist)==0:
+        return
     lfunc = lambda folder, cp: timePlot(folder,cp)                      # we are going to run timePlot on every folder
     try:
         vpout = plotAllFolderVals(lfunc, cp, 0, timeplot=True)          # plot all the files
@@ -315,7 +331,7 @@ def timePlots(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
     cp.figtitle = 'Simulation time (real hr/simulation s)'
     cp.clean()                  # clean up the plot
     valueLegend(cp, vpout)      # add a color legend
-    intm.exportIm(fn, cp.fig)   # export figure
+    intm.exportIm(fn, cp.fig, **kwargs)   # export figure
 
 
 #------------------------------------------  
@@ -328,32 +344,32 @@ def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> Dict:
     time is the time of the slice
     xbehind is the position of the slice, relative to the center of the nozzle
     labels is a list of metrics to collect, e.g. ['area', 'centery']'''
-    
     if not os.path.exists(folder):
-        raise ValueError
+        raise ValueError(f"Path {folder} does not exist")
 
     le, units = intm.importSS(folder)
         # get slice summaries
     if len(le)<2:
-        raise ValueError
-    xreal = intm.closest(le['xbehind'], xbehind) 
+        raise ValueError(f"Slice summaries too short: {folder}")
+    try:
+        xreal = intm.closest(list(le['xbehind'].unique()), xbehind) 
         # this is the actual x value that we measured that's 
         # closest to the one we're asking for
-        
+    except Exception as e:
+        raise e
     if abs(xreal-xbehind)>0.2:
         # if the x value is too far away, abort
-        raise ValueError
-        
+        raise ValueError(f"No valid x value: {folder}")
     row = le[(le['xbehind']==xreal) & (le['time']==time)] 
         # select the slice summary at the position and time we asked for
     if not len(row)==1:
-        raise ValueError
+        raise ValueError(f"Not enough rows: {folder}, {xreal}, {xbehind}, {time}")
     try:
         rates = {label:row.iloc[0][label] for label in labels}
         # find the value of the metric we're looking for
     except:
         logging.debug(folder)
-        raise NameError
+        raise NameError(f'Error collecting metric value: {folder}')
     return rates
 
 
@@ -390,8 +406,9 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
         return
     
     cp = comboPlot(topFolder, [-0.6, 0.6], [-0.6, 0.6], 6.5, gridlines=False, **kwargs)
+    if len(cp.flist)==0:
+        return
     lfunc = lambda f, cp: metricPlot(f, cp, time, xbehind, label)
-    
     try:
         vpout = plotAllFolderVals(lfunc, cp, 1) # use tminmode 1 so the min of the color map is the min of the metric
     except Exception as e:
@@ -400,4 +417,4 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     cp.figtitle = label+', '+str(xbehind)+' mm behind nozzle, t = '+str(time)+' s'
     cp.clean()
     valueLegend(cp, vpout)
-    intm.exportIm(fn, cp.fig)
+    intm.exportIm(fn, cp.fig, **kwargs)

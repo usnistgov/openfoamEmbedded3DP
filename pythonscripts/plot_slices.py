@@ -145,4 +145,4 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     for ax in cp.axs:
         ax.grid(linestyle='-', linewidth='0.25', color='#949494')
         
-#     intm.exportIm(fn, cp.fig)
+    intm.exportIm(fn, cp.fig, **kwargs)

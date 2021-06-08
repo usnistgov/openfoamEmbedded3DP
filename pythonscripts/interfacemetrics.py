@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''Analyzing simulated single filaments'''
 
+# external packages
 import sys
 import os
 import csv
@@ -11,17 +12,18 @@ import re
 from typing import List, Dict, Tuple, Union, Any
 import logging
 
+# local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
-
 import folderparser as fp
 from pvCleanup import addUnits
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -85,14 +87,18 @@ def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any
     '''import a csv to a pandas dataframe. ic is the index column. Int if there is an index column, False if there is none'''
     if os.path.exists(file):
         try:
-            d = pd.read_csv(file, index_col=ic)
-            d.columns = map(str.lower, d.columns)
-            row1 = list(d.iloc[0])
+            toprows = pd.read_csv(file, index_col=ic, nrows=2)
+            row1 = list(toprows.iloc[0])
             if type(row1[0]) is str and ('m' in row1 or 's' in row1):
-                unitdict = dict(d.iloc[0])
-                d = d.drop(0)
+                # this file has units
+                unitdict = dict(toprows.iloc[0])
+                skiprows=[1]
             else:
-                unitdict = dict([[s,'undefined'] for s in d])
+                unitdict = dict([[s,'undefined'] for s in toprows])
+                skiprows = []
+            
+            d = pd.read_csv(file, index_col=ic, dtype=float, skiprows=skiprows)
+            d.columns = map(str.lower, d.columns)
         except:
             return [],{}
         return d, unitdict
@@ -170,12 +176,13 @@ def importSS(folder:str) -> pd.DataFrame:
     file = os.path.join(folder, 'sliceSummaries.csv')
     d, units = plainIm(file, 0)
     if len(d)==0:
-        return []
+        return [], []
     try:
         for s in d:
             d[s] = pd.to_numeric(d[s], errors='coerce') # remove non-numeric times
     except Exception as e:
         pass
+    d = d.dropna() # drop NA values
     return d, units
 
 def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
@@ -183,7 +190,7 @@ def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
     bn = os.path.basename(topfolder)
     s = ''
     for k in kwargs:
-        if not k in ['nuinklist', 'nusuplist', 'adjustBounds']:
+        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split'] and 'list' not in k:
             s = s + k + '_'+str(kwargs[k])+'_'
     s = s[0:-1]
     s = s.replace('*', 'x')
@@ -191,11 +198,17 @@ def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
     return os.path.join(exportfolder, bn, label+'_'+bn+'_'+s)
 
 
-def exportIm(fn:str, fig) -> None:
+def exportIm(fn:str, fig, svg:bool=True, png:bool=True, **kwargs) -> None:
     '''export an image. fn is a full path name, without the extension. fig is a matplotlib figure'''
-    for s in ['.svg', '.png']:
+    if svg:
+        slist = ['.svg']
+    else:
+        slist = []
+    if png:
+        slist.append('.png')
+    for s in slist:
         fig.savefig(fn+s, bbox_inches='tight', dpi=300)
-    print('Exported ', fn)
+    logging.info(f'Exported {fn}')
 
 
 
@@ -276,7 +289,7 @@ def sliceSummary(fs:folderStats, sli:pd.DataFrame) -> Dict[str, float]:
         # speeddecay is normalized by the bath speed
     rv['x'] = sli.iloc[0]['x']
     rv['xbehind'] = rv['x']-fs.ncx
-    rv['time'] = sli.iloc[0]['time']
+    rv['time'] = np.float64(sli.iloc[0]['time'])
     
     if len(sli)<10:
         #logging.error('Not enough points')
@@ -343,7 +356,8 @@ def summarizeSlices(fs: folderStats) -> pd.DataFrame:
                         pass
                     else:
                         s.append(ss1)
-    sliceSummaries = pd.DataFrame(s)
+    sliceSummaries = pd.DataFrame(s, dtype=np.float64)
+    sliceSummaries = sliceSummaries.dropna()
     return sliceSummaries, units
 
 
