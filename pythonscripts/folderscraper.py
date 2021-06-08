@@ -2,7 +2,6 @@
 '''Functions for generating legends for OpenFOAM simulations of embedded 3D printing of single filaments. Written for OpenFOAM v1912 and OpenFOAM 8. Scrapes input files for input variables.'''
 
 # external packages
-import numpy as np
 import os
 import re
 import csv
@@ -583,7 +582,6 @@ def scrapeLabels(s:scrape) -> None:
     if os.path.exists(bm):
         with open(bm, "r") as f:
             data = list(csv.reader(f))
-            print(data)
             s.TPinklist[0][1]=data[0][1]
             s.TPsuplist[0][1]=data[1][1]
         
@@ -653,15 +651,22 @@ def scrapeGeo(s:scrape) -> None:
 
 #----------------------------------------------------------------------------
 
-def populate(folder:str) -> List[List[str]]:
+def populate(folder:str, *varargin) -> List[List[str]]:
     '''populate scrapes all the data from the folder and exports it to a table called legend.csv
-    folder is a full path name'''
+    folder is a full path name
+    can also add strings that evaluate specific functions, e.g. scrapeTP, so that you can just scrape the transportproperties if there is already a legend'''
     if not isSimFolder(folder):
         raise Exception("Not a simulation folder")
     s = scrape(folder)   # create an object to store variables
     fn = os.path.join(folder, 'legend.csv')     # export file name
     scrapeLogs(s)   # scrape the logs
     if os.path.exists(fn):
+        for func in varargin:
+            try:
+                eval(func+'(s)')
+            except Exception as e:
+                print(e)
+                pass
         # if a legend file already exists, keep that 
         # legend file and just replace the processing times
         # all of the other variables are set at the folder generation and don't change
@@ -669,6 +674,12 @@ def populate(folder:str) -> List[List[str]]:
             t = list(csv.reader(f))
             t2 = s.table()
             t[2:8] = t2[2:8]
+            
+            # keep any collected variables
+            if len(varargin)>0:
+                for i in range(len(t)):
+                    if not t[i][1]==t2[i][1] and not t2[i][1]=='' :
+                        t[i]=t2[i]
     else:
         # if there is no legend file, we have to go through all the files and scrape data
         scrapeGeo(s)
