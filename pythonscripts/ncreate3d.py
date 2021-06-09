@@ -189,10 +189,10 @@ class FileGroup:
         
         if not self.onlyMesh:
             exportFile(f, 'labels.csv', self.labels)
-            exportFile(casef, "Allclean", self.allclean) 
+            exportFile(casef, "Allclean", self.allclean, linux=True) 
 #             exportFile(casef, "Allrun", self.allrun)
-            exportFile(casef, 'Allrun.sh', self.allrun)
-            exportFile(casef, 'run.slurm', self.slurm)
+            exportFile(casef, 'Allrun.sh', self.allrun, linux=True)
+            exportFile(casef, 'run.slurm', self.slurm, linux=True)
 #             exportFile(casef, "Continue", self.cont) 
             exportFile(f0, "alpha.ink.orig", self.alphainkorig) 
             exportFile(f0, "alpha.ink", self.alphainkorig) 
@@ -209,10 +209,10 @@ class FileGroup:
 
         if self.exportMesh:
             if not self.onlyMesh:
-                exportFile(f, "Allrun", self.allallrun)
+                exportFile(f, "Allrun", self.allallrun, linux=True)
                 exportFile(f, "geometry.csv", self.geofile)
-            exportFile(fmesh, "Allclean", self.allclean) 
-            exportFile(fmesh, "Allrun", self.allrunmesh)
+            exportFile(fmesh, "Allclean", self.allclean, linux=True) 
+            exportFile(fmesh, "Allrun", self.allrunmesh, linux=True)
             exportFile(fmesh0, "pointLevel", self.pointLevel)
             exportFile(fmesh0, "cellLevel", self.cellLevel)
             exportFile(fmeshsys, "blockMeshDict", self.blockMeshDict) 
