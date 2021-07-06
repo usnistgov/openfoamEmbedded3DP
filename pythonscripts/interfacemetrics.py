@@ -337,6 +337,8 @@ def summarizeSlices(fs: folderStats) -> pd.DataFrame:
     if not os.path.exists(ipfolder):
         raise Exception('No interface points')
     ipfiles = os.listdir(ipfolder)
+    if len(ipfiles)==0:
+        return [], {}
     s = []
     for f in ipfiles:
         data, units = importPointsFile(os.path.join(ipfolder, f))

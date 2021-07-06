@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 '''Functions for plotting steady state metrics'''
 
-
+# external packages
 import sys
 import os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -14,17 +11,25 @@ import seaborn as sns
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
 
+# local packages
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import interfacemetrics as intm
 from plot_general import *
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
+# plotting
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
 
-
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]

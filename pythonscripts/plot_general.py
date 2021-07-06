@@ -28,6 +28,8 @@ plt.rcParams['font.size'] = 10
 # logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
 # info
 __author__ = "Leanne Friedrich"
@@ -293,7 +295,7 @@ def folderToFunc(folder:str, func) -> float:
     func is the function to apply to transport properties to get one value
     used by unqListFolders'''
     tp = extractTP(folder)
-    return func(tp)
+    return round(func(tp), 15)
 
 def tpCombos(tplists:Dict) -> List:
     '''List of combinations of transportProperties values. tplists comes from listTPvalues
@@ -407,13 +409,16 @@ class folderPlots:
         
     def convertFunc(self, var):
         '''Convert a variable name or expression, e.g. 'nuink' or 'nusup/nuink' into a lambda function to be used on transport properties dict'''
+        strs = self.strings.copy()
+        strs.remove('sup')
+        strs.remove('ink')
         if len(var)>0:
-            if var in self.strings:
+            if var in strs:
                 # just one variable, can just pick the variable from transport properties
                 func = lambda tp: tpFunc(tp, var)
                 return func
             else:
-                for s in self.strings:
+                for s in strs:
                     var = var.replace(s, "tp[\'"+s+"\']")
                 func = lambda tp: eval(var)
                 return func
@@ -481,7 +486,8 @@ class folderPlots:
             self.xlistreal = []
             self.ylistreal = []
             self.legendList()
-        except:
+        except Exception as e:
+            print(e)
             raise ValueError('Failed to identify x and y variables')
         return self
     

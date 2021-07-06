@@ -23,6 +23,8 @@ from plot_general import *
 # logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
 # plots
 plt.rcParams['font.family'] = 'sans-serif'

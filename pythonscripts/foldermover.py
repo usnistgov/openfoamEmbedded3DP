@@ -479,7 +479,7 @@ def moveCtoServer(CFolder:str, serverFolder:str, Efolder:str='') -> None:
     else:
         s = os.path.basename(CFolder)
         try:
-            print(CFolder, serverFolder)
+            logging.info(f'C:{CFolder}, server:{serverFolder}')
             doneFolder(CFolder, 2.5)
             if os.path.exists(Efolder):
                 copyToE(CFolder, Efolder, False)

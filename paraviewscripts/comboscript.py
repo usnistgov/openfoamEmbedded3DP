@@ -48,8 +48,8 @@ loopTime = 6 #hours
 
 ## csv
 
-forceOverwrite = False
-getCSVs = True
+forceOverwrite = False 
+getCSVs = False
 
 
 # screenshots
@@ -59,14 +59,14 @@ getCSVs = True
 
 runList = []
 # runList.append(ss.ssVars('volumes', [], volViewList=['a']))
-# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 # runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
-# for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
-#     runList.append(ss.ssVars(s, [1, 2.5]))
+for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
+    runList.append(ss.ssVars(s, [1, 2.5]))
 # for s in ['py', 'uslicey', 'uzslicey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
-for s in ['shearRatex', 'shearRatey']:
-    runList.append(ss.ssVars(s, [1.0, 2.5]))
+# for s in ['shearRatex', 'shearRatey']:
+#     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
 # runlist.append(ss.ssVars('vectors', [2.5]))
 # runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
@@ -74,7 +74,7 @@ for s in ['shearRatex', 'shearRatey']:
 # folders
 folders = []
 
-nlist = [1020]
+nlist = ['1149v4']
 # nlist=range(0, 1000)
 # nlist = [455]
 
@@ -86,8 +86,8 @@ if not os.path.exists(SERVERFOLDER):
 
 # topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep',  s) for s in ['newtHBsweep', 'newtnewtsweep', 'HBHBsweep', 'HBnewtsweep']]
 
-topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
-topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
+# topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
+topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRDTall')]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('nb'):
