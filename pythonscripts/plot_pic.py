@@ -1,27 +1,34 @@
 #!/usr/bin/env python
 '''Functions for plotting images of filaments and baths'''
 
+# external packages
 import sys
 import os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
 
+# local packages
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import interfacemetrics as intm
 from plot_general import *
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
+# plotting
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -90,10 +97,13 @@ def picPlotLegend(folder:str, cp:comboPlot, t:float, tag):
         im = im.crop((130, 1085, 1080, 1180)) # RG
     except:
         return
-#     x0 = np.mean(cp.xlistreal)
-#     y0 = max(cp.ylistreal)+cp.dy
+
     dx = cp.dx*2 # image size RG
-    width, height = im.size
+    # x0 = np.mean(cp.xmlist)
+    # y0 = max(cp.ymlist)+cp.dy
+    # dx = cp.dx
+    width, height = im.size 
+
     dy = dx*(height/width)
     x0 = cp.xmlist[-1]/2 # center the legend RG
     y0 = -0.55 # put the legend at the bottom of the plot RG
@@ -137,8 +147,9 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
     
     dx = 0.7
     cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, gridlines=False, sigmalist=[sigma], **kwargs)
+    if len(cp.flist)==0:
+        return
     cp.legendList()
-    cp.addLegend()
     if tag.startswith('y'):
         cropx = 60 # RG
         cropy = 120
@@ -153,5 +164,6 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
     picPlots(flist, cp, time, dx, cropx, cropy, tag=tag)
     
 #     display(cp.fig)
-    intm.exportIm(fn, cp.fig)
+    cp.addLegend()
+    intm.exportIm(fn, cp.fig, **kwargs)
     

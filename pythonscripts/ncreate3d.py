@@ -811,6 +811,8 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
         else:
             at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
                            axisFace(walsel(geo, "x+"))])
+#         at.meshi = combineMeshes([axisFace(walsel(geo, "z+")), \
+#                            axisFace(walsel(geo, "x+"))])
     
     fw = BoundaryInput("fixedWalls", "")
     fw.alphalist = DictList(fw.label, 0, [["type", "zeroGradient"]])
@@ -823,6 +825,7 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     fw.reflev = 4 # RG
     
     return [bf, inkf, at, fw]
+#     return [bf, at]
     
 
 def boundarycpp(bl:List[BoundaryInput]) -> str: 
@@ -1814,7 +1817,7 @@ def genericExport(ii:Union[int,str], sup:Fluid, ink:Fluid, sigma:float, topFolde
         ii is for the folder label. If you want it to be labeled nb#, input a number. Otherwise, input a string.
         sup is a fluid object that holds info about the support transport properties
         ink is a fluid object that holds info about the ink transport properties
-        sigma is in microJ/m^2 (e.g. 0.04)
+        sigma is in J/m^2 (e.g. 0.04)
         topFolder is the folder to save this new folder in
         exportMesh true to export geometry folders into this folder'''
     out = allButTransport(ii, topFolder, exportMesh=exportMesh, **kwargs)

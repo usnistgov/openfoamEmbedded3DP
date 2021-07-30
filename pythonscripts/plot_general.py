@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 '''Plotting tools for analyzing OpenFOAM single filaments'''
 
+# external packages
 import sys
 import os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -15,16 +13,25 @@ import itertools
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
 
+# local packages
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
 import interfacemetrics as intm
 import folderparser as fp
 
+# plotting
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['font.size'] = 10
 
+# logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
+    logging.getLogger(s).setLevel(logging.WARNING)
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
 __credits__ = ["Leanne Friedrich"]
@@ -47,15 +54,32 @@ def kinToDyn(v:Union[List[float], float], density:float=1000) -> Union[List[floa
         for vi in v:
             v2.append(kinToDyn(vi))
         return v2
+    elif type(v) is str:
+        try:
+            v2 = float(v)*density
+        except:
+            return ''
+        else:
+            if v2>=1:
+                v2 = round(v2)
+                return v2
     else:
         v2 = v*density
         if v2>=1:
-            v2 = int(round(v2))
+            v2 = round(v2)
         return v2
 
 def expFormat(x:float) -> str:
     '''display a number in exponential format'''
-    return r'$10^{{{}}}$'.format(int(round(np.log10(x))))
+    try:
+        p0 = np.log10(x)
+        p = round(p0)
+        if abs(p-p0)<10**-8:
+            return r'$10^{{{}}}$'.format(int(p))
+        else:
+            return x
+    except:
+        return x
 
 
 def decideFormat(x:float) -> Union[float, str]:
@@ -63,7 +87,10 @@ def decideFormat(x:float) -> Union[float, str]:
     might return float or string'''
     if x==0:
         return x
-    l = np.log10(x)
+    try:
+        l = np.log10(x)
+    except:
+        return x
     if not l==round(l):
         return x
     else:
@@ -213,7 +240,7 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
     nusupi = nuinki
     
     # iterate through rows until we find the support transportmodel
-    while not le.loc[nusupi, 'title']=='transportModel':
+    while not le.loc[nusupi, 'title']=='transportModel' and nusupi<len(le):
         nusupi+=1
     suplabel = le.loc[nusupi-1, 'val']
     if le.loc[nusupi, 'val']=='Newtonian':
@@ -227,16 +254,20 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
     # likewise we need to find the row where the surface tension is stored 
     # because we don't know if the legend contains HB rows or not
     sigmai = nusupi
-    while not le.loc[nusupi, 'title']=='sigma':
+    while not le.loc[nusupi, 'title']=='sigma' and nusupi<len(le):
         nusupi+=1
+        
+
         
     # convert surface tension to mJ/m^2
     sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
     
     i = le[le['title']=='mesh'].index[0] # find the index where the mesh properties start RG
     nozzleAngle = int(le.loc[i+16, 'val']) # RG
+
+    retval = {'folder':folder, 'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma, 'nozzleAngle':nozzleAngle}
     
-    return {'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma, 'nozzleAngle':nozzleAngle}
+    return retval
 
 #---
 
@@ -247,42 +278,18 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
         If we use kwargs to say we only want files with, e.g. nuink=10, then it will only return those files.
         The dictionary lists all of the values in the list of files for each transport property variable. e.g. {'nuinklist':[10,100], 'tau0inklist':[0], 'kinklist':[0], ...}
     '''
-    flist2 = flist
-    ap0 = False # ap0 tells us if we should automatically include or exclude files
-    tp = extractTP(flist[0]) # this gives us an initial list of strings that extractTP pulls out
-    lists = dict([[s+'list', []] for s in tp])
-    
-    # if we've already defined sup viscosity, ink viscosity, or surface tension list, only use the files in that list
-    for l in lists:
-        if l in kwargs:
-            flist2 = []
-            ap0 = True 
-            lists[l] = kwargs[l]
 
-    # for each folder, extract transport properties and add to lists
-    for folder in flist:
-        tp = extractTP(folder)
-        append = ap0
-        
-        for s in tp:
-            l = s+'list'
-            if l in kwargs:
-                # if we've already designated a list, don't include this file if it's not in the list
-                if not tp[s] in lists[l]:
-                    append = False
-            else:
-                # if we haven't designated a list, include this file
-                if not tp[s] in lists[l]:
-                    lists[l].append(tp[s])
-        
-        if append:
-            flist2.append(folder)
+    tab = [extractTP(folder) for folder in flist]
+    tab = pd.DataFrame(tab)
     
-    # sort all of the lists
-    for l in lists:
-        lists[l].sort()
-        
+    for k in tab.keys():
+        if k+'list' in kwargs:
+            tab = tab[tab[k].isin(kwargs[k+'list'])]
+            
+    flist2 = list(tab['folder'])
+    lists = dict([[k+'list', sorted(list(tab[k].unique()))] for k in tab.keys()[1:]])
     return flist2, lists
+
 
 #---------------------------------------
 # using transport properties to decide how to plot
@@ -292,7 +299,7 @@ def folderToFunc(folder:str, func) -> float:
     func is the function to apply to transport properties to get one value
     used by unqListFolders'''
     tp = extractTP(folder)
-    return func(tp)
+    return round(func(tp), 15)
 
 def tpCombos(tplists:Dict) -> List:
     '''List of combinations of transportProperties values. tplists comes from listTPvalues
@@ -302,8 +309,8 @@ def tpCombos(tplists:Dict) -> List:
         vallist = [[l[0:-4],i] for i in tplists[l]] # e.g. [['nuink', 10^5], ['nuink', 10^6]]
         vallists.append(vallist)
     l0 = list(itertools.product(*vallists))
-    l0 = [dict(l) for l in l0]
     return l0
+
 
 
 def unqList(f, tplists:Dict) -> List[float]:
@@ -328,6 +335,7 @@ def unqListFolders(folders:List[str], func) -> List[float]:
         val = folderToFunc(f, func)
         if val not in funcvals:
             funcvals.append(val)
+    funcvals.sort()
     return funcvals
 
 
@@ -406,12 +414,16 @@ class folderPlots:
         
     def convertFunc(self, var):
         '''Convert a variable name or expression, e.g. 'nuink' or 'nusup/nuink' into a lambda function to be used on transport properties dict'''
+        strs = self.strings.copy()
+        strs.remove('sup')
+        strs.remove('ink')
         if len(var)>0:
-            if var in self.strings:
+            if var in strs:
+                # just one variable, can just pick the variable from transport properties
                 func = lambda tp: tpFunc(tp, var)
                 return func
             else:
-                for s in self.strings:
+                for s in strs:
                     var = var.replace(s, "tp[\'"+s+"\']")
                 func = lambda tp: eval(var)
                 return func
@@ -422,8 +434,13 @@ class folderPlots:
         self.flist = fp.caseFolders(self.topFolder) # list of all folders in the top folder
         self.flist, self.tplists = listTPvalues(self.flist, **kwargs) # list of transport property lists
         self.cfunc = sigfuncc
-        
         self.strings = [s[0:-4] for s in list(self.tplists.keys())]
+        
+        if self.split:
+            ncol = len(self.tplists['sigmalist'])
+        else:
+            ncol = 1
+        self.ncol = ncol
         
         # get the variables or expressions we want to operate on
         if 'xvar' in kwargs and 'yvar' in kwargs:
@@ -467,22 +484,22 @@ class folderPlots:
         # convert those variables into functions that we can use on transport properties dicts
         self.xfunc = self.convertFunc(self.xvar)
         self.yfunc = self.convertFunc(self.yvar)
-        
         try:
             # find lists of unique x values and y values
-            self.xlist = unqList(self.xfunc, self.tplists)
-            self.ylist = unqList(self.yfunc, self.tplists)
+            self.xlist = unqListFolders(self.flist, self.xfunc)
+            self.ylist = unqListFolders(self.flist, self.yfunc)
             self.xlistreal = []
             self.ylistreal = []
             self.legendList()
-        except:
+        except Exception as e:
+            print(e)
             raise ValueError('Failed to identify x and y variables')
         return self
     
     
     def legendList(self):
         '''Make a legend from the list of sigma values and store it for later'''
-        if not self.split:
+        if self.ncol==1:
             sigmalist = self.tplists['sigmalist']
             plist = [mpatches.Patch(color=sigmaColor(sigmalist[i]), label=sigmalist[i]) for i in range(len(sigmalist))]
             ph = [plt.plot([],marker="", ls="", label='\u03C3 (mJ/m$^2$)')[0]]; # Canvas
@@ -657,16 +674,12 @@ class comboPlot(folderPlots):
         self.ymlist = [yr[0]+(i+1/2)*self.dy for i in range(len(self.ylist))] # y displacement list
 
         # if split, make a row of 3 plots. If not split, make one plot
-        if self.split:
-            ncol = len(self.tplists['sigmalist'])
-        else:
-            ncol = 1
-        self.ncol = ncol
+        
         self.imsize = imsize
-        fig, axs = plt.subplots(nrows=1, ncols=ncol, figsize=(imsize,imsize*len(self.ylist)/len(self.xlist)), sharey=True)
+        fig, axs = plt.subplots(nrows=1, ncols=self.ncol, figsize=(imsize,imsize*len(self.ylist)/len(self.xlist)), sharey=True)
         fig.subplots_adjust(wspace=0)
         
-        if not self.split:
+        if self.ncol==1:
             axs = [axs]
         
         # vert/horizontal grid
@@ -674,11 +687,7 @@ class comboPlot(folderPlots):
             for ax in axs:
                 ax.grid(linestyle='-', linewidth='0.25', color='#949494')
 
-        # set position of titley
-        if not self.split:
-            self.titley = 1
-        else:
-            self.titley = 0.8
+
         # store variables
         self.axs = axs
         self.fig = fig
@@ -687,7 +696,7 @@ class comboPlot(folderPlots):
         
     def addLegend(self):
         '''Add a surface tension legend'''
-        if not self.split and not self.xvar=='nozzleAngle': # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
+        if not self.ncol==1 and not self.xvar=='nozzleAngle': # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
             self.axs[0].legend(handles=self.plist, loc='upper center', ncol=4, bbox_to_anchor=(0.5, self.titley+0.1))
         
     def clean(self):
@@ -707,7 +716,6 @@ class comboPlot(folderPlots):
         else:
             self.xrtot[1] = self.xrtot[1]-self.dx
             self.yrtot[1] = self.yrtot[1]-self.dy
-        
         
         # put x labels on all plots
         for ax in self.axs:
@@ -735,7 +743,7 @@ class comboPlot(folderPlots):
             # make each section of the plot square
             ax.set_aspect('equal', adjustable='box')
             
-        if self.split:
+        if self.ncol>1:
             sigmalist = self.tplists['sigmalist']
             for i in range(len(sigmalist)):
                 self.axs[i].set_title('\u03C3='+str(sigmalist[i])+' mJ/m$^2$', fontname="Arial", fontsize=10)
@@ -746,18 +754,26 @@ class comboPlot(folderPlots):
         self.axs[0].set_yticklabels(yticklabels, fontname="Arial", fontsize=10)
         
         # reset the figure size so the title is in the right place
-        if self.ab and len(self.xlistreal)>0 and len(self.ylistreal)>0:
+        if len(self.xlistreal)>0 and len(self.ylistreal)>0:
             width = self.imsize
             height = width*len(self.ylistreal)/(len(self.xlistreal)*len(self.axs))
             self.fig.set_size_inches(width, height)
        
+        # set position of titley
+        ylim = self.axs[0].get_ylim()
+        if ylim[1]-ylim[0]>2.5:
+            self.titley = 1.1
+        elif ylim[1]-ylim[0]>1.3:
+            self.titley = 0.9
+        else:
+            self.titley = 0.8
         self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
-        
+
         if self.xvar=='nozzleAngle': # since there is only one variable, remove y information RG
             ax.set_ylabel("")
             ax.set_yticks([])
             ax.set_xticklabels(self.xlist, fontname="Arial", fontsize=10) # 10 degree angle should not be 10^1
-            
+
 #         self.fig.tight_layout()
         
         return

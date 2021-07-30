@@ -53,8 +53,19 @@ def get_length(filename:str) -> float:
     return duration
 
 def get_time(filename:str) -> float:
-    '''Get the time of the simulation timepoint'''
-    return float(re.split('t|_', os.path.basename(filename))[1])/10
+    '''Get the time of the simulation timepoint. if there is a decimal, this time is already in seconds. Otherwise, it is in deciseconds.'''
+#     f = re.split('t|_', os.path.basename(filename))[1]
+    spl = re.split('_', os.path.basename(filename))
+    f = spl.pop(0)
+    while not f[0]=='t' and len(spl)>0:
+        f = spl.pop(0)
+    if len(spl)==0:
+        raise NameError(f'No time in file {filename}')
+    f = f[1:]
+    if '.' in f:
+        return float(f)
+    else:
+        return float(f)/10
 
 def saveVid(folder:str, s:str, p:str, diag:bool=True) -> None:
     '''compile images into a video, where images contain the string {s}_{p}.png'''
@@ -77,22 +88,40 @@ def saveVid(folder:str, s:str, p:str, diag:bool=True) -> None:
                 mp4writer.append_data(image)
             mp4writer.close()
             
-def saveFramesToWriter(mp4writer, folder:str, s:str, p:str) -> None:
+def saveFramesToWriter(mp4writer, folder:str, tags:List[str], subfolder:str='images', debug:bool=False) -> None:
     '''For a given folder, given an angle s (e.g. 'y', 'a') and a coloring (e.g. 'umag') to an imageio writer'''
-    zfiles = glob.glob(os.path.join(folder,'images', '*'+s+'_'+p+'.png'))
+    zfiles = []
+    if len(subfolder)>0:
+        searchFolder = os.path.join(folder, subfolder)
+    else:
+        searchFolder = folder
+    for file in os.listdir(searchFolder):
+        if 'png' in file:
+            append = True
+            for s in tags:
+                if not s in file:
+                    append = False
+                    break
+            if append:
+                zfiles.append(os.path.join(searchFolder, file))
     times = [get_time(f) for f in zfiles]
     for i, filename in enumerate(zfiles):
         if i==0 or round(times[i]-times[i-1],3)==0.1:
             image = imageio.imread(filename)[:,:,:3] # ignore alpha channel
             mp4writer.append_data(image)
             
-def saveTitleCardToWriter(mp4writer, folder:str, n:int) -> None:
+def saveTitleCardToWriter(mp4writer, folder:str, n:int, subfolder:str='images') -> None:
     '''For a given folder, save the title card to the videowriter. n is number of frames of the title card to add'''
-    file = os.path.join(folder, 'images', 'titleCard.png')
+    if len(subfolder)>0:
+        file = os.path.join(folder, 'images', 'titleCard.png')
+    else:
+        file = os.path.join(folder,  'titleCard.png')
     if os.path.exists(file):
         image = imageio.imread(file)[:,:,:3] # ignore alpha channel
         for i in range(n):
             mp4writer.append_data(image)
+    else:
+        raise NameError(f'No title card in {folder}')
             
 def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=True) -> None:
     '''Compile all of the time series for all of the simulations into one big video. folderList is a list of the folders to include. filename is the name of the video to save. titleLength is the time that the title cards are up, in s'''
@@ -104,13 +133,34 @@ def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=Tr
                 logging.info(f'Writing {fp.shortName(folder)}')
             saveTitleCardToWriter(mp4writer, folder, int(round(titleLength*fps)))
             for s in ['y', 'a']:
-                saveFramesToWriter(mp4writer, folder, s, 'umag')
+                saveFramesToWriter(mp4writer, folder, [s+'_umag'])
     except Exception as e:
         mp4writer.close()
         raise e
         
     if diag:
         logging.info('Done creating big video')
+    
+    mp4writer.close()
+    
+    
+def saveFigureVideo(topfolderList:str, filename:str, tags:List[List[str]], titleLength:float=1, diag:bool=True) -> None:
+    '''Compile a time series of the combined picture plots for all of the simulations into one big video. folderList is a list of the topfolders to include. filename is the name of the video to save. tags should be a list for each folder, and within each list, a list of tags that should be in every file. For example, to get all sigma=0 and then all sigma=40, tags could be [['sigma_0', 'y_umag'],['sigma_40', 'y_umag']]. titleLength is the time that the title cards are up, in s'''
+    fps = 10
+    mp4writer = imageio.get_writer(filename, fps=fps)
+    try:
+        for folder in topfolderList:
+            if diag:
+                logging.info(f'Writing {fp.shortName(folder)}')
+            saveTitleCardToWriter(mp4writer, folder, int(round(titleLength*fps)), subfolder='')
+            for tag in tags:
+                saveFramesToWriter(mp4writer, folder, tag, subfolder='', debug=diag)
+    except Exception as e:
+        mp4writer.close()
+        raise e
+        
+    if diag:
+        logging.info(f'Done creating video {filename}')
     
     mp4writer.close()
     
