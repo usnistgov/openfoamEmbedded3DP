@@ -235,7 +235,7 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     t1.set_fontsize(12)
     t1.auto_set_column_width(col=[0])
     t1.scale(1, 1)
-    fig.set_size_inches(1216/mydpi, 1216/mydpi)
+    fig.set_size_inches(1216/mydpi, 1181/mydpi) # to account for a smaller monitor, was 1216 1216 RG
     fig.tight_layout()
     fig.savefig(fname, dpi=mydpi)
     plt.close()

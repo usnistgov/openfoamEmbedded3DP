@@ -72,7 +72,6 @@ def picPlot(folder:str, cp:comboPlot, t:float, dx:float, cropx:int, cropy:int, t
         im = im.crop((cropx, cropy, width-cropx, height-cropy))
     except:
         return
-    width, height = im.size 
     dy = dx*(height/width)
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
@@ -88,14 +87,16 @@ def picPlotLegend(folder:str, cp:comboPlot, t:float, tag):
     t is the time for the picture to use'''
     try:
         im = picFromFolder(folder, t, tag=tag)
-        im = im.crop((100, 1100, 1100, 1200))
+        im = im.crop((130, 1085, 1080, 1180)) # RG
     except:
         return
-    x0 = np.mean(cp.xlistreal)
-    y0 = max(cp.ylistreal)+cp.dy
-    dx = cp.dx
-    width, height = im.size 
+#     x0 = np.mean(cp.xlistreal)
+#     y0 = max(cp.ylistreal)+cp.dy
+    dx = cp.dx*2 # image size RG
+    width, height = im.size
     dy = dx*(height/width)
+    x0 = cp.xmlist[-1]/2 # center the legend RG
+    y0 = -0.55 # put the legend at the bottom of the plot RG
     cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2])
 
 
@@ -139,16 +140,18 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
     cp.legendList()
     cp.addLegend()
     if tag.startswith('y'):
-        cropx = 100
+        cropx = 60 # RG
         cropy = 120
         dx = dx*2
     elif tag.startswith('x'):
-        cropx = 375
+        cropx = 350 # RG
         cropy = 375
         dx = dx*2
     else:
         cropx = 100
         cropy = 120
     picPlots(flist, cp, time, dx, cropx, cropy, tag=tag)
+    
+#     display(cp.fig)
     intm.exportIm(fn, cp.fig)
     

@@ -36,7 +36,7 @@ __status__ = "Production"
 FONT = 24
 
 ##############################################
-######## SCREENSHOTS
+######## SCREENSHOTS #########################
 
 
 
@@ -49,7 +49,15 @@ def getpfunc(f, kwargs:Dict):
     return lambda sv: f(sv, **dict(kw))
 
 def getShearRatefunc(f, kwargs:Dict):
-    '''Get the pressure function, given a function f and dict kwargs'''
+    '''Get the shear rate function, given a function f and dict kwargs'''
+    kw = []
+    for s in ['rmin', 'rmax', 'x']:
+        if s in kwargs:
+            kw = kw+[s, kwargs[s]]
+    return lambda sv: f(sv, **dict(kw))
+
+def getShearStressfunc(f, kwargs:Dict): # RG
+    '''Get the shear stress function, given a function f and dict kwargs'''
     kw = []
     for s in ['rmin', 'rmax', 'x']:
         if s in kwargs:
@@ -166,6 +174,14 @@ class ssVars:
             self.coloring='shearRatey'
             self.function = getShearRatefunc(shearRateSlicey, kwargs)
             self.volList = ['y']
+        elif tag=='shearStressx': # RG
+            self.coloring='shearStressx'
+            self.function = getShearStressfunc(shearStressSlicex, kwargs)
+            self.volList = ['x']
+        elif tag=='shearStressy': # RG
+            self.coloring='shearStressy'
+            self.function = getShearStressfunc(shearStressSlicey, kwargs)
+            self.volList = ['y']
         self.tlist = tlist
         self.tag = tag
         
@@ -229,7 +245,7 @@ def initializeSV(sv:stateVars) -> None:
 
 def initSeries(sv:stateVars) -> stateVars:
     '''Import the series file and set up the display'''
-    caseVTMSeries = initSeries0(sv)  
+    caseVTMSeries = initSeries0(sv)
     caseVTMSeriesDisplay = Show(caseVTMSeries, sv.renderView1, 'GeometryRepresentation')
     sv.renderView1.ResetCamera()
     sv.renderView1.Update()
@@ -381,7 +397,7 @@ def nuColorBar(renderView1, display, color) -> None:
  #     uLUTColorBar.RangeLabelFormat = '%-#2.0e'
     return uLUTColorBar
 
-def shearRateColorBar(renderView1, display, rmin:float=0.1, rmax:float=1000, name:str='VectorGradient') -> None:
+def shearRateColorBar(renderView1, display, rmin:float=0.1, rmax:float=1000, name:str='ScalarGradient') -> None:
     '''shear rate color bar'''
     # show color bar/color legend
     display.SetScalarBarVisibility(renderView1, True)
@@ -401,6 +417,29 @@ def shearRateColorBar(renderView1, display, rmin:float=0.1, rmax:float=1000, nam
     positionCB(gLUTColorBar)
     gLUTColorBar.CustomLabels = [10**i for i in range(int(np.ceil(np.log10(rmin))), int(np.floor(np.log10(rmax))))]
     gLUTColorBar.Title = 'Shear rate (1/s)' # if the density is 1000 kg/m^3, the viscosity is in  MPa.s
+    gLUTColorBar.RangeLabelFormat = '%-#2.0e'
+    return gLUTColorBar
+
+def shearStressColorBar(renderView1, display, rmin:float=2, rmax:float=200, name:str='shearStress') -> None: # RG
+    '''shear stress color bar'''
+    # show color bar/color legend
+    display.SetScalarBarVisibility(renderView1, True)
+    gLUT = GetColorTransferFunction(name)
+    gPWF = GetOpacityTransferFunction(name)
+
+    # rescale to full range of newt, HB experiments
+    gLUT.RescaleTransferFunction(rmin, rmax)
+    gPWF.RescaleTransferFunction(rmin, rmax)
+    
+    # convert to log space. If we've already converted to log space during creation of another image, skip this
+    if not gLUT.UseLogScale==1:
+        gLUT.MapControlPointsToLogSpace()
+        gLUT.UseLogScale = 1
+
+    gLUTColorBar = GetScalarBar(gLUT, renderView1)
+    positionCB(gLUTColorBar)
+    gLUTColorBar.CustomLabels = [10.0, 20.0, 100.0]
+    gLUTColorBar.Title = 'Shear stress (Pa)'
     gLUTColorBar.RangeLabelFormat = '%-#2.0e'
     return gLUTColorBar
     
@@ -514,7 +553,9 @@ def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
         else:
             viscColor(clipDisplay, sv.supnu)
     elif colVar=='shearRate':
-        ColorBy(clipDisplay, ('CELLS', 'VectorGradient', 'Magnitude'))
+        ColorBy(clipDisplay, ('CELLS', 'ScalarGradient', 'Magnitude'))
+    elif colVar=='shearStress': # RG
+        ColorBy(clipDisplay, ('POINTS', 'shearStress', 'Magnitude'))
     else:
 #         clipDisplay.SetScaleArray = 'None'
 #         ColorBy(clipDisplay, None)
@@ -547,7 +588,7 @@ def sliceMake(sv:stateVars, origin:List[float], normal:List[float], **kwargs):
     slice1.SliceOffsetValues = [0.0]
     Hide3DWidgets(proxy=slice1.SliceType)
     slice1.SliceType.Origin = origin
-    slice1.SliceType.Normal = normal # look down the y axis
+    slice1.SliceType.Normal = normal
     slice1Display = Show(slice1, sv.renderView1, 'GeometryRepresentation')
     slice1Display.SetScaleArray = ['POINTS', 'U'] # this doesn't matter because we're going to recolor later
     slice1Display.OpacityArray = ['POINTS', 'U']
@@ -641,30 +682,64 @@ def pslicex(sv:stateVars, **kwargs) -> None:
     
 #--------------------------
     
-
-
-    
 def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000) -> None:
     '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
-    shearRate = computeShearRate(sv) # calculate shear rate
+    shearRate = computeShearRate(sv) # in paraview_general
     slice1 = sliceMake(sv, origin, normal, sinput=shearRate) # take slice from shear rate map
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
     d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
     for d in [d1, d2]:
         sv.colorBars.append(shearRateColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
-    resetCam(sv, (sv.times[-1])) 
+    resetCam(sv, (sv.times[-1]))
     setAndUpdate(view, sv)
     sv.renderView1.Update()
 
 def shearRateSlicey(sv:stateVars, **kwargs) -> None:
-    '''Velocity map, looking down the y axis, at (0,0,0)'''
+    '''Shear rate map, looking down the y axis, at (0,0,0)'''
     sv.hideAll()
     shearRateSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
     
 def shearRateSlicex(sv:stateVars, **kwargs) -> None:
-    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    '''Shear rate map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
     shearRateSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)   
+
+#--------------------------
+
+def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', rmin:float=2, rmax:float=200) -> None: # RG
+    '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+    computeDerivatives = computeShearRate(sv) # calculate shear rate
+    cellDatatoPointData = CellDatatoPointData(Input=computeDerivatives)
+    cellDatatoPointData.CellDataArraytoprocess = ['ScalarGradient', 'U', 'VectorGradient', 'alpha.ink', 'cellID', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
+    
+    slice1 = sliceMake(sv, origin, normal, sinput=cellDatatoPointData)
+    
+    calculator = Calculator(Input=slice1)
+    calculator.ResultArrayName = 'shearStress'
+    calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
+    sv.hideAll()
+    
+    d1 = inkClip(sv, calculator, name, 0, clipVal = 0.9)
+    d2 = inkClip(sv, calculator, name, 1, clipVal = 0.1)
+    for d in [d1, d2]:
+        sv.colorBars.append(shearStressColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
+    resetCam(sv, (sv.times[-1]))
+    setAndUpdate(view, sv)
+    sv.renderView1.Update()
+    return calculator
+
+
+def shearStressSlicey(sv:stateVars, **kwargs) -> None: # RG
+    '''Shear stress map, looking down the y axis, at (0,0,0)'''
+    sv.hideAll()
+    shearStressSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
+    
+def shearStressSlicex(sv:stateVars, **kwargs) -> None: # RG
+    '''Shear stress map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    shearStressSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)  
+    
+    
 
 #--------------------------
 
@@ -744,9 +819,9 @@ def sliceandyarrows(sv):
 def tube(sv):
     '''Streamlines at the given z position tubeh'''
     
-    streamTracer1 = StreamTracer(Input=sv.caseVTMSeries, SeedType='High Resolution Line Source')
+    streamTracer1 = StreamTracer(Input=sv.caseVTMSeries, SeedType='Line') # RG
     streamTracer1.Vectors = ['POINTS', 'U']
-    streamTracer1.MaximumStreamlineLength = 0.006
+    streamTracer1.MaximumStreamlineLength = 0.01 # was 0.006 RG
     streamTracer1.SeedType.Point1 = [-0.003014999907463789, -0.0021104998886585236, sv.tubeh]
     streamTracer1.SeedType.Point2 = [0.003014999907463789, 0.0021104998886585236, sv.tubeh]
     streamTracer1.SeedType.Resolution = 50

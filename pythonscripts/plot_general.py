@@ -210,7 +210,7 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
     # find the support transport properties
     # in some legends, there are no Herschel Bulkley boxes, and in some there are
     # we need to find where the support section starts
-    nusupi = nuinki 
+    nusupi = nuinki
     
     # iterate through rows until we find the support transportmodel
     while not le.loc[nusupi, 'title']=='transportModel':
@@ -232,7 +232,11 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
         
     # convert surface tension to mJ/m^2
     sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
-    return {'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma}
+    
+    i = le[le['title']=='mesh'].index[0] # find the index where the mesh properties start RG
+    nozzleAngle = int(le.loc[i+16, 'val']) # RG
+    
+    return {'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma, 'nozzleAngle':nozzleAngle}
 
 #---
 
@@ -316,6 +320,7 @@ def unqList(f, tplists:Dict) -> List[float]:
     lout.sort()
     return lout
 
+
 def unqListFolders(folders:List[str], func) -> List[float]:
     '''given a folder of many simulations, find unique x or y positions in comboPlot or gridOfPlots'''
     funcvals = [] # outputs for the func
@@ -386,7 +391,7 @@ def vvplot(folder:str, xpv):
 #-------------------------------------------------
 
 class folderPlots:
-    '''A generic class used for plotting many folders at once. Subclasses are comboPlot, which puts everything on one plot, and gridOfPlots, which puts everythign in separate plots based on viscosity.'''
+    '''A generic class used for plotting many folders at once. Subclasses are comboPlot, which puts everything on one plot, and gridOfPlots, which puts everything in separate plots based on viscosity.'''
     
     def __init__(self, topFolder:str, imsize:float, split:bool=False, **kwargs):
         '''topFolder is the folder we're plotting
@@ -492,10 +497,10 @@ class folderPlots:
             func = self.xfunc
         else:
             func = self.yfunc
-         
+        #RG 
         namedefs = {'nuink':'Ink viscosity (Pa$\cdot$s)', 'tau0ink':'Ink yield stress (Pa)','kink':'Ink k (Pa*s^n)', 'nink':'Ink n',\
                     'nusup':'Support viscosity (Pa$\cdot$s)', 'tau0sup':'Support yield stress (Pa)', 'ksup':'Support k (Pa*s^n)', 'nsup':'Support n',\
-                    'sigma':'Surface tension (mJ/m$^2$)', 'product':'Support viscosity \u00d7 ink viscosity (Pa$^2\cdot$s$^2$)', 'ratio':'Support viscosity / ink viscosity'}
+                    'sigma':'Surface tension (mJ/m$^2$)', 'product':'Support viscosity \u00d7 ink viscosity (Pa$^2\cdot$s$^2$)', 'ratio':'Support viscosity / ink viscosity', 'nozzleAngle':'Nozzle angle (degrees)'} 
         
         # convert the function to a label
         if func==multfunc:
@@ -543,7 +548,7 @@ class gridOfPlots(folderPlots):
                  
         # store axes and figure in object
         self.axs = axs
-        self.fig = fig 
+        self.fig = fig
     
     
     def clean(self):
@@ -588,32 +593,40 @@ class gridOfPlots(folderPlots):
         # in the grid of plots, the row# is y, and the col# is x
         for j, xval in enumerate(self.xlistreal):
             # going across columns
-            strval = str(expFormat(xval)) # title
-            self.axs[0][j].set_title(strval, fontsize=fs) # put the title on top
+            if np.ndim(self.axs)!=1: # RG
+                strval = str(expFormat(xval)) # title
+                self.axs[0][j].set_title(strval, fontsize=fs) # put the title on top
+            else:
+                self.axs[j].set_title(xval, fontsize=fs) # put the title on top for 1D plot
         for i, yval in enumerate(self.ylistreal):
             # going down rows
             strval = str(expFormat(yval)) # title
-            self.axs[i][-1].text(5.1, 4, strval, verticalalignment='center', rotation=270, fontsize=fs)
-                # put the title on the right side
+            if np.ndim(self.axs)!=1: # RG
+                self.axs[i][-1].text(5.1, 4, strval, verticalalignment='center', rotation=270, fontsize=fs) # put the title on the right side
                 
         # reset figure size
      #   self.fig.set_size_inches(self.imsize*len(self.xlistreal), self.imsize*len(self.ylistreal))
         
         # top level axis labels
-        self.fig.suptitle(self.getLabel('x', False), y=0.92-(firsty/len(self.ylist)), fontsize=fs)
-        self.fig.text((lastx/len(self.xlist))-0.1, 0.5, self.getLabel('y', False),\
+        self.fig.suptitle(self.getLabel('x', False), y=1.25-(firsty/len(self.ylist)), fontsize=fs) # was 0.92 instead of 1.25 RG
+        if np.ndim(self.axs)!=1: # RG
+            self.fig.text((lastx/len(self.xlist))-0.2, 0.5, self.getLabel('y', False),\
                       verticalalignment='center', rotation=270, fontsize=fs)
         
         #### legends
-        midleftax = self.axs[-1][0]
-        midrightax = self.axs[-1][-1]
+        if np.ndim(self.axs)!=1: # RG
+            midleftax = self.axs[-1][0]
+            midrightax = self.axs[-1][-1]
+        else:
+            midleftax = self.axs[0]
+            midrightax = self.axs[-1]
         spcolor = '#940f0f'                 
         hatch1 = mpatches.Patch(facecolor=spcolor,alpha=0.5,hatch="\\\\\\",label='Steady in position')
         stcolor = '#356577'
         hatch2 = mpatches.Patch(facecolor=stcolor,alpha=0.2,label='Steady in time')
-        midleftax.legend(handles=[hatch1, hatch2], loc='center left', bbox_to_anchor=(0, -0.5))
+        midleftax.legend(handles=[hatch1, hatch2], loc='center left', bbox_to_anchor=(0, -0.6)) # was (0, -0.5) but overlapped times RG
 
-        midrightax.legend(handles=self.plist, loc='center right', bbox_to_anchor=(1, -0.5), ncol=4)
+        midrightax.legend(handles=self.plist, loc='center right', bbox_to_anchor=(1, -0.6), ncol=4) # was (0, -0.5) but overlapped times RG
         
 #         self.fig.tight_layout()
         
@@ -668,13 +681,13 @@ class comboPlot(folderPlots):
             self.titley = 0.8
         # store variables
         self.axs = axs
-        self.fig = fig 
+        self.fig = fig
         
         self.addLegend()
         
     def addLegend(self):
         '''Add a surface tension legend'''
-        if not self.split:
+        if not self.split and not self.xvar=='nozzleAngle': # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
             self.axs[0].legend(handles=self.plist, loc='upper center', ncol=4, bbox_to_anchor=(0.5, self.titley+0.1))
         
     def clean(self):
@@ -712,6 +725,7 @@ class comboPlot(folderPlots):
             ax.set_yticks(self.ymlist, minor=False)
             
             ax.set_xticklabels(expFormatList(self.xlist), fontname="Arial", fontsize=10)  
+            
             #emptyYLabels(ax)
             if len(self.xrtot)==2:
                 ax.set_xlim(self.xrtot) # set the limits to the whole bounds
@@ -739,6 +753,11 @@ class comboPlot(folderPlots):
        
         self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
         
+        if self.xvar=='nozzleAngle': # since there is only one variable, remove y information RG
+            ax.set_ylabel("")
+            ax.set_yticks([])
+            ax.set_xticklabels(self.xlist, fontname="Arial", fontsize=10) # 10 degree angle should not be 10^1
+            
 #         self.fig.tight_layout()
         
         return
@@ -815,11 +834,3 @@ def plotCircle(ax:plt.Axes, x0:float, y0:float, radius:float, caption:str, color
             
             
 #--------------------------------------
-
-
-
-        
-        
-
-    
-    

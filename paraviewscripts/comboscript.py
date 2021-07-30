@@ -48,9 +48,11 @@ loopTime = 6 #hours
 
 ## csv
 
-forceOverwrite = False
+forceOverwrite = True
 getCSVs = True
 
+# modes = ['nozzle', 'interface'] # CSVs to create
+modes = ['interface']
 
 # screenshots
 
@@ -60,43 +62,42 @@ getCSVs = True
 runList = []
 # runList.append(ss.ssVars('volumes', [], volViewList=['a']))
 # runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-# runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
-# for s in ['viscy', 'viscx', 'uslicey', 'uslicex']:
-#     runList.append(ss.ssVars(s, [1, 2.5]))
-# for s in ['py', 'uslicey', 'uzslicey']:
+# for s in ['viscy', 'viscx']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
-for s in ['shearRatex', 'shearRatey']:
-    runList.append(ss.ssVars(s, [1.0, 2.5]))
-# runlist.append(ss.ssVars('meshes', [2.5]))
-# runlist.append(ss.ssVars('vectors', [2.5]))
-# runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
+# runList.append(ss.ssVars('viscy', [2.5]))
+# runList.append(ss.ssVars('uslicex', [2.5]))
+# runList.append(ss.ssVars('shearRatey', [2.5]))
+# runList.append(ss.ssVars('meshes', [2.5]))
+# runList.append(ss.ssVars('vectors', [2.5]))
+# runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volViewList=['y']))
+
+# for s in ['viscx', 'viscy']:
+#     runList.append(ss.ssVars(s, [1.0, 2.5]))
+
+# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+# for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy', 'shearRatex', 'shearRatey']:
+#     runList.append(ss.ssVars(s, [1.0, 2.5]))
 
 # folders
 folders = []
 
-nlist = [1020]
-# nlist=range(0, 1000)
-# nlist = [455]
-
+# nlist = [0,5,10,15,20,25,30] # simulations to access
+nlist = [5]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-# topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep',  s) for s in ['newtHBsweep', 'newtnewtsweep', 'HBHBsweep', 'HBnewtsweep']]
-
-topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
-topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
-for topfolder in topfolders:
-    for f in os.listdir(topfolder):
-        if f.startswith('nb'):
-            try:
-                n1 = float(f[2:])
-            except:
-                n1 = f[2:]
-            if n1 in nlist:
-                folders.append(os.path.join(topfolder, f))
+topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle') # RG
+for f in os.listdir(topfolder):
+    if f.startswith('cn'):
+        try:
+            n1 = float(f[2:])
+        except:
+            n1 = f[2:]
+        if n1 in nlist:
+            folders.append(os.path.join(topfolder, f))
 
 
         
@@ -109,12 +110,13 @@ for r in runList:
     logging.info(r.prnt())
 logging.info(f'CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
 logging.info(f'Folders: {[os.path.basename(f) for f in folders]}')
+logging.info(f'Modes: {modes}')
 
 while True:
     for folder in folders:
         logging.debug('Checking '+folder)
         if getCSVs:
-            pc.csvFolder(folder, forceOverwrite) # create csvs
+            pc.csvFolder(folder, modes, forceOverwrite) # create csvs RG
         ss.folderScript(folder, runList)
     if not looping:
         break

@@ -89,7 +89,8 @@ def txtPlot(folder:str, cp:folderPlots, dt:float) -> None:
     except Exception as e:
         return
     xmid = x0
-    ymid = y0+dt*(sigmapos-1) # xmid and ymid are positions in the plot
+#     ymid = y0+dt*(sigmapos-1) # xmid and ymid are positions in the plot
+    ymid = y0+dt # xmid and ymid are positions in the plot
     b = os.path.basename(folder)
     if cp.split:
         axnum = sigmapos
@@ -134,7 +135,8 @@ def runtimePlot(folder:str, cp:folderPlots, dt:float) -> None:
     except:
         return
     xmid = x0
-    ymid = y0+dt*(sigmapos-1) # xmid and ymid are positions in the plot
+#     ymid = y0+dt*(sigmapos-1) # xmid and ymid are positions in the plot
+    ymid = y0+dt # xmid and ymid are positions in the plot
     b = fp.currentTime(folder)
     if cp.split:
         axnum = sigmapos
@@ -339,7 +341,6 @@ def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> Dict:
     xreal = intm.closest(le['xbehind'], xbehind) 
         # this is the actual x value that we measured that's 
         # closest to the one we're asking for
-        
     if abs(xreal-xbehind)>0.2:
         # if the x value is too far away, abort
         raise ValueError
@@ -401,3 +402,173 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     cp.clean()
     valueLegend(cp, vpout)
     intm.exportIm(fn, cp.fig)
+    
+    
+    
+def qualityPlots(rows:int, time:float, xbehind:float, xlist:List[int], matrix:List[List[int]], labels:List[str]): # RG
+    '''Plot points for all labels, one plot per label
+    rows is the number of labels
+    time is time in s
+    xbehind is the distance behind the nozzle to take the slice summaries
+    xlist is the angles to plot
+    matrix contains all slice summaries for all angles
+    labels is the slice summaries to extract'''
+    
+    yval = ['NA']*rows # list to put the labels in
+    for i, name in enumerate(labels): # allows the labels to be passed in any order
+        if name=='arean':
+            yval[i] = 'Normalized Area'
+        elif name=='vertdispn':
+            yval[i] = 'Normalized Vertical Displacement'
+        elif name=='aspectratio':
+            yval[i] = 'Aspect Ratio'
+        elif name=='speeddecay':
+            yval[i] = 'Speed Decay'
+    
+    fig, axs = plt.subplots(2, 2, sharex=True, constrained_layout=True)
+    fig.suptitle('Print Quality Metrics, '+str(xbehind)+' mm behind nozzle, t = '+str(time)+' s')
+    plt.xticks(ticks=[0,5,10,15,20,25,30])
+    
+    fig.text(0.54, -0.04, 'Nozzle angle (degrees)', ha='center') # x label, did not center when using fig.set_xlabel
+    fig.text(0.95, 0.95, '---- ideal', ha='center', color='#2b6cb3') # key for ideal horizontal lines
+    axs[0,0].set_title(" ") # so y axis names do not overlap title
+    colors = ['#32964d', '#27cae6', '#335862', '#38f0ac'] # colors to plot with
+    
+    nvd = yval.index('Normalized Vertical Displacement') # find location of nvd, necessary because it has an ideal of 0 not 1
+    
+    for r in range(2): # creates plots, sets labels, and adds ideal lines
+        for c in range(2):
+            axs[r,c].scatter(xlist, matrix[r*2+c][:], c=colors[r*2+c], marker='D')
+            axs[r,c].set_ylabel(yval[r*2+c])
+            if r*2+c==nvd:
+                axs[r,c].axhline(0, ls='--', c='#2b6cb3')
+            else:
+                axs[r,c].axhline(1, ls='--', c='#2b6cb3')
+    return fig
+
+    
+def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels:List[str], overwrite:bool=False, **kwargs) -> None: # RG
+    '''Plots slice summaries for against nozzle angles in scatter plots
+    topFolder is a full path name to the folder containing all the simulations
+    exportFolder is the folder to export plots to
+    time is the time since extrusion started in s
+    xbehind is the distance behind the center of the nozzle in mm
+    labels is the slice summaries to plot in order
+    overwrite is whether to overwrite if the file exists'''
+    
+    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
+    if not overwrite and os.path.exists(fn+'.png'):
+        return
+
+    folders = fp.caseFolders(topFolder) # names of folders to plot
+            
+    xlist = [] # list of nozzle angles
+    for theta in folders:
+        thetaValue = theta.split('cn')[1] # take only the angle from the folder path
+        xlist.append(thetaValue)
+        
+    xlist = [int(i) for i in xlist] # cast xlist to ints     
+    idx = np.argsort(xlist) # create indices for sorted xlist
+    xlist = [xlist[i] for i in idx] # sort xlist
+    folders = [folders[i] for i in idx] # sort folders so the matrix later is already sorted
+
+    ylist = [] # y values as a list of dicts containing all labels
+    for theta in folders:
+        value = metricVals(theta, time, xbehind, labels) # get slice summary values for each label
+        ylist.append(value)
+    
+    rows = len(labels) # a row for each label
+    cols = len(xlist) # a column for each nozzle angle
+    matrix = [[0 for x in range(cols)] for y in range(rows)] # a 2d list to hold y values for all labels
+    
+    for r in range(rows):
+        current = [sub[labels[r]] for sub in ylist] # get all of the values for the current label without their key
+        for c in range(cols):
+            matrix[r][c] = current[c] # add each value to its appropriate position in the 2d list
+            
+    fig = qualityPlots(rows, time, xbehind, xlist, matrix, labels) # plot values
+    intm.exportIm(fn, fig) # export figure
+
+
+def shearStressPlots(time:float, ss:List[float], alist:List[float]): # RG
+    '''Plot average shear stress over the nozzle
+    time is time in s
+    ss is the average shear stress of each nozzle down the nozzle length
+    alist is the angles to plot'''
+    
+#     xmin = 0.3015 # tip of nozzle
+#     xmax = 2.05623 # 3% below top of nozzle
+    xmin = 0 # 3% below top of nozzle
+        # xmin is 0 so that our frame of reference is of the ink ask it flows down the nozzle
+    xmax = 1.75473 # tip of nozzle, translated with reference
+    dx = 0.05
+    xlist = np.arange(xmin, xmax, dx) # evenly spaced values
+    
+    xvar = 'z position (mm)'
+    yvar = 'Shear Stress (Pa)'
+    
+    fig, ax = plt.subplots(constrained_layout=True)
+    fig.suptitle('Average shear stress along the nozzle')
+    cm = sns.color_palette('viridis', n_colors=7) # uses viridis color scheme
+
+    for i,name in enumerate(alist):
+        ax.plot(xlist, ss[i], label=str(name)+' degrees', c=cm[i]) # plot each shear stress by distance from top of nozzle and label by name
+      
+    ax.set_xlabel(xvar)
+    ax.set_ylabel(yvar)
+    ax.legend()
+    
+    return fig
+    
+
+def shearStressCalc(folder:str): # RG
+    '''Calculates mean shear stress across the length of the nozzle
+    folder is the folder to do calculations on'''
+    
+    df,units = intm.importPtsNoz(folder, 2.5) # get points in nozzle
+    vals = [] # average shear stress for current angle
+    realz = round(df['z'],5) # z values in CSV, rounded to avoid floating point error
+    delta = len(np.unique(realz)) # number of cross-sections
+    zlist = [round(0.3015+(delta-i-1)*0.05,5) for i in range(delta)] # z values expected, rounded to avoid floating point error
+
+    for i in range(delta): # go through each cross-section
+        mask = df[realz==zlist[i]] # extract only the cells at current z value Currently extracts nothing
+        ss = mask['shearstressmag'] # extract only shear stress magnitude
+        av = np.mean(ss) # average shear stress
+        vals.append(av) # add average to vals
+        
+    return vals
+
+
+def shearStressPlots0(topFolder:str, exportFolder, time:float, overwrite:bool=False, **kwargs) -> None: # RG
+    '''Plots average shear stress along the length of the nozzle
+    topFolder is a full path name to the folder containing all the simulations
+    exportFolder is the folder to export plots to
+    time is the time since extrusion started in s
+    overwrite is whether to overwrite if the file exists'''
+    
+    labels = ['shear_stress']
+    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
+    if not overwrite and os.path.exists(fn+'.png'):
+        return
+    
+    folders = fp.caseFolders(topFolder)
+            
+    alist = [] # a list of nozzle angles
+    for theta in folders:
+        thetaValue = theta.split('cn')[1]
+        alist.append(thetaValue)
+    
+    alist = [int(i) for i in alist] # cast xlist to ints     
+    idx = np.argsort(alist) # create indices for sorted xlist
+    alist = [alist[i] for i in idx] # sort xlist
+    folders = [folders[i] for i in idx] # sort folders to match sorted angles
+
+    allVals = [] # average shear stresses for all angles
+    for theta in folders: # for each folder
+        ss = shearStressCalc(theta) # calculate average shear stresses
+        allVals.append(ss)
+    
+    fig = shearStressPlots(time, allVals, alist) # create figure
+    intm.exportIm(fn, fig) # export figure
+    

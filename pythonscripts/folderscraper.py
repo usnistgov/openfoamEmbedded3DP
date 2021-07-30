@@ -96,6 +96,7 @@ class scrape:
         self.GEOnbc = ['nozzle bottom coord (mm)', ''] # z
         self.GEOncxc = ['nozzle center x coord (mm)', '']
         self.GEOncyc = ['nozzle center y coord (mm)', '']
+        self.GEOna = ['nozzle angle (degrees)', ''] # RG
         self.GEObathv = ['bath velocity (m/s)', '']
         self.GEOinkv = ['ink velocity (m/s)', '']
     
@@ -239,12 +240,12 @@ class scrape:
         for i in [self.folder, self.compareto, self.shmtimes, \
                   self.shmtimem, self.iftimes, self.iftimehr, \
                   self.simTime, self.simrate]:
-            col.append(i) 
+            col.append(i) # RG
         ca(col, ['', '', 'mesh','GEOMETRY'],\
            [self.GEOniw, self.GEOnt, self.GEObw, self.GEObd, \
             self.GEOnl, self.GEOblc, self.GEObrc, self.GEObfc,\
             self.GEObbackc, self.GEObbotc, self.GEObtc, self.GEOnbc,\
-            self.GEOncxc, self.GEOncyc, self.GEObathv, self.GEOinkv])
+            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEObathv, self.GEOinkv])
         ca(col, ['', 'SYSTEM'], [])    
         ca(col, ['snappyHexMeshDict'], self.SHMlist)
         ca(col, ['castellatedMeshControls'], self.CMClist)
@@ -470,6 +471,7 @@ def scrapeSetFieldsDict(s:scrape) -> None:
                 line = f.readline()
             # now we have reached the bottom point of the nozzle
             strs = re.split('\( | \)| ', line)
+#             strs = re.split('\(|\)| ', line) # RG
             s.GEOncxc[1] = str(1000*float(strs[2])) # nozzle center x
             s.GEOncyc[1] = str(1000*float(strs[3])) # nozzle center y
             s.GEOnbc[1] = (1000*float(strs[4])) # nozzle bottom 
@@ -644,8 +646,9 @@ def scrapeGeo(s:scrape) -> None:
             s.GEOnbc = data[11] # nozzle bottom coordinate
             s.GEOncxc = data[12] # nozzle center x coordinate
             s.GEOncyc = data[13] # nozzle center y coordinate
-            s.GEObathv = data[14] # bath velocity
-            s.GEOinkv = data[15]    # ink velocity
+            s.GEOna = data[14] # nozzle angle
+            s.GEObathv = data[15] # bath velocity
+            s.GEOinkv = data[16] # ink velocity
             return
     else:
         return
@@ -726,7 +729,3 @@ def populateList(liInit:List[str], exportFilename:str, repopulate:bool = False) 
     exportCSV(exportFilename, tbig) 
         # export the combined table
     return
-
-
-
-    

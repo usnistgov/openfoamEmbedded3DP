@@ -150,6 +150,7 @@ class FileGroup:
         self.meshQualityDict = ""
         self.snappyHexMeshDict = ""
         self.surfaceFeatureExtractDict = ""
+        self.surfaceFeaturesDict = ""
 
         if 'slurmFolder' in kwargs:
             self.slurmFolder = kwargs['slurmFolder']
@@ -186,13 +187,12 @@ class FileGroup:
         list(map(mkdirif, folderList)) # create folders
 
         
-        
         if not self.onlyMesh:
             exportFile(f, 'labels.csv', self.labels)
-            exportFile(casef, "Allclean", self.allclean) 
+            exportFile(casef, "Allclean", self.allclean, linux=True) 
 #             exportFile(casef, "Allrun", self.allrun)
-            exportFile(casef, 'Allrun.sh', self.allrun)
-            exportFile(casef, 'run.slurm', self.slurm)
+            exportFile(casef, 'Allrun.sh', self.allrun, linux=True)
+            exportFile(casef, 'run.slurm', self.slurm, linux=True)
 #             exportFile(casef, "Continue", self.cont) 
             exportFile(f0, "alpha.ink.orig", self.alphainkorig) 
             exportFile(f0, "alpha.ink", self.alphainkorig) 
@@ -209,10 +209,10 @@ class FileGroup:
 
         if self.exportMesh:
             if not self.onlyMesh:
-                exportFile(f, "Allrun", self.allallrun)
+                exportFile(f, "Allrun", self.allallrun, linux=True)
                 exportFile(f, "geometry.csv", self.geofile)
-            exportFile(fmesh, "Allclean", self.allclean) 
-            exportFile(fmesh, "Allrun", self.allrunmesh)
+            exportFile(fmesh, "Allclean", self.allclean, linux=True) 
+            exportFile(fmesh, "Allrun", self.allrunmesh, linux=True)
             exportFile(fmesh0, "pointLevel", self.pointLevel)
             exportFile(fmesh0, "cellLevel", self.cellLevel)
             exportFile(fmeshsys, "blockMeshDict", self.blockMeshDict) 
@@ -222,9 +222,11 @@ class FileGroup:
             exportFile(fmeshsys, "meshQualityDict", self.meshQualityDict)
             exportFile(fmeshsys, "snappyHexMeshDict", self.snappyHexMeshDict)
             exportFile(fmeshsys, "surfaceFeatureExtractDict", self.surfaceFeatureExtractDict)
+            exportFile(fmeshsys, "surfaceFeaturesDict", self.surfaceFeaturesDict)
             saveStls(fgeom, self.meshes)
             saveStls(fmeshconsttri, self.meshes)
 
+            
         try:
             fs.populate(f)
         except:
@@ -304,15 +306,14 @@ def fListLoop(s:str, functionlist:List[str], folder:str, ifstarted:bool=False) -
 #     s = s = fListLoop(s, [solver, "foamToVTK"], folder, ifstarted=False)
 #     return s
 
-def compileAllRun(folder:str, solver:str) -> str:
+def compileAllRun(folder:str, solver:str) -> str: # RG
     '''this is the allrun bash script for the case folder'''
     f = os.path.basename(folder)
     s = '#!/bin/bash\n\n'
     s = s + '. $WM_PROJECT_DIR/bin/tools/RunFunctions;\n'
     s = s + 'echo '+f+'\n'
-    s = s + 'cd \"$(dirname \"$0\")\"\n'
     s = s + 'if [ ! -d "0.1" ]; then\n'
-    s = s + '\tcp -r ../../mesh/constant/polyMesh constant;\n'
+    s = s + '\tcp -r ../mesh/constant/polyMesh constant;\n'
     s = s + '\tcp 0/alpha.ink.orig 0/alpha.ink;\n'
     s = s + '\techo \"running setFields in '+f+'\";\n'
     s = s + '\tsetFields>>log_setFields;\n'
@@ -393,34 +394,28 @@ class BoundaryInput:
 class NozVars:
     '''this is where the geometry of the nozzle is defined'''
     
-    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, **kwargs):
+    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, nozzleAngle:float=0, horizontal:bool=False, **kwargs):
         ''' Allowed input variables:
             bathWidth: (default=16) bath width in nozzle inner diameters
             bathHeight: (default=7) bath height in nozzle inner diameters
-            bathDepth: (default=7) bath depth  in nozzle inner diameters
-            frontWidth: (default=4) front of nozzle bath width  in nozzle inner diameters
+            bathDepth: (default=7) bath depth in nozzle inner diameters
+            frontWidth: (default=4) front of nozzle bath width in nozzle inner diameters
             vink: (default=10) ink extrusion speed in mm/s
             vbath: (default=10) bath translation speed in mm/s
             npts: (default=50) number of points in the circle used to define the nozzle
             nozzleInnerWidth: (default=0.603) inner diameter of the nozzle in mm
             nozzleThickness: (default=0.152) nozzle wall thickness in mm
+            nozzleAngle: (default=0) nozzle angle in degrees
+            horizontal: (default=False) whether to have the nozzle horizontal
         '''
         self.niw = nozzleInnerWidth # nozzle inner width
         self.nt = nozzleThickness # nozzle thickness
         self.bw = bathWidth*self.niw # bath width (x)
         self.bh = bathHeight*self.niw # bath height (y)
         self.bd = bathDepth*self.niw # bath depth (z)
-        self.nl = self.bd/2-self.niw/2
-        
-        self.ble = -self.bw/2 # bath left coord
-        self.bri = self.bw/2 # bath right
-        self.bfr = -self.bh/2 # bath front
-        self.bba = self.bh/2 # bath back
-        self.bbo = -self.bd/2 # bath bottom
-        self.bto = self.bd/2 # bath top
-        self.nbo = self.bto - self.nl # nozzle bottom coord
-        self.ncx = self.ble + frontWidth*self.niw # nozzle center bottom x coord
-        self.ncy = self.bfr + self.bh/2 # nozzle center bottom y coord
+        self.nl = self.bd/2-self.niw/2 # nozzle length
+        self.na = nozzleAngle # nozzle angle RG
+        self.hor = horizontal # vertical or horizontal RG
         
         # here, we define the geometry of the nozzle using four circles: 
         # the inner and outer edges of the inlet (top) and outlet (bottom) of the nozzle
@@ -434,9 +429,35 @@ class NozVars:
         # we also add the center point of the nozzle, which you need to create triangles for the inkFlow boundary
         # all of these lists of points are in x,y coords
         
+        bottomRadius = self.niw/2 # nozzle radius outlet RG
+        topRadius = bottomRadius+(self.nl*np.tan(np.deg2rad(self.na))) # nozzle radius inlet RG
         
-        bottomRadius = self.niw/2
-        topRadius = bottomRadius
+        if 2*topRadius>self.bh-4*self.niw: # resizes support bath for large nozzle angles RG
+            oldbh = self.bh
+            self.bh = 2*topRadius+4*self.niw
+            scale = self.bh/oldbh
+            self.bw = self.bw*scale
+            frontWidth = frontWidth*scale
+        
+        if self.hor:
+            temp = self.bw # flip x and z dimensions
+            self.bw = self.bd
+            self.bd = temp
+            
+        self.ble = -self.bw/2 # bath left coord
+        self.bri = self.bw/2 # bath right
+        self.bfr = -self.bh/2 # bath front
+        self.bba = self.bh/2 # bath back
+        self.bbo = -self.bd/2 # bath bottom
+        self.bto = self.bd/2 # bath top
+        self.nbo = self.bto - self.nl # nozzle bottom z coord
+        self.ncx = self.ble + frontWidth*self.niw # nozzle center bottom x coord
+        self.ncy = self.bfr + self.bh/2 # nozzle center bottom y coord
+        
+        if self.hor:
+            self.ncx = 0 # center nozzle
+        
+        npts = int(np.ceil(npts*topRadius/bottomRadius)) # RG
         
         self.inptsb = circlePoints(bottomRadius, npts)+[self.ncx, self.ncy] 
             # inner radius points at the bottom of the nozzle
@@ -448,7 +469,7 @@ class NozVars:
             # outer radius points at the top of the nozzle
 
         self.bv = vbath*SCALE # bath velocity
-        self.iv = vink*SCALE*bottomRadius/topRadius # ink velocity
+        self.iv = vink*SCALE*bottomRadius**2/topRadius**2 # initial ink velocity RG
 
         #--------------------------------------------------------------------------------------------------------
 
@@ -616,9 +637,9 @@ def setZ(pts2d:np.array, z:float) -> np.array:
 def arcFace(ina:np.array, outa:np.array) -> np.array:
     '''an arc face could be a donut on a plane (e.g. the bottom of the nozzle) if both lists have the same x,y,or z
     it could be a circle or cone (e.g. the nozzle inlet) if ina has length 1
-    it could be a cylinder or frustrum if the two lists have different x,y,and z
+    it could be a cylinder or frustum if the two lists have different x,y,and z
     ina is a list of points on the inner radius of the arc
-    outa is a list of points on the outer radius of the arc  '''
+    outa is a list of points on the outer radius of the arc'''
     data = np.zeros(2*len(ina), dtype = mesh.Mesh.dtype)
     if len(ina)==1:
         ina2 = np.ones([len(outa), 3])
@@ -664,7 +685,6 @@ def combineMeshes(meshList:List[List]) -> np.array:
             data[di] = mi
             di+=1
     return data
-
     
 
     
@@ -760,10 +780,16 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     exportMesh is true if we want to create a mesh folder'''
     bf = BoundaryInput("bathFlow", "")
     bf.alphalist = DictList(bf.label, 0, [["type", "fixedValue"], ["value", "uniform 0"]])
-    bf.Ulist = DictList(bf.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+    if geo.hor:
+        bf.Ulist = DictList(bf.label, 0, [["type", "fixedValue"], ["value", "uniform (0 0 -" + str(geo.bv) + ")"]]) # flow in -z RG
+    else:
+        bf.Ulist = DictList(bf.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
     bf.plist = DictList(bf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
     if exportMesh:
-        bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "y-", "y+", "z-"])))
+        if geo.hor:
+            bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "x+", "y-", "y+"]))) # side walls RG
+        else:
+            bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "y-", "y+", "z-"])))
     
     inkf = BoundaryInput("inkFlow", "")
     inkf.alphalist = DictList(inkf.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
@@ -771,13 +797,19 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     inkf.plist = DictList(inkf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
     if exportMesh:
         inkf.meshi = arcFace(setZ(np.zeros([len(geo.inptst), 2])+[geo.ncx, geo.ncy], geo.bto), setZ(geo.inptst, geo.bto))
+        
+    inkf.reflev = 2 # RG
     
     at = BoundaryInput("atmosphere", "")
     at.alphalist = DictList(at.label, 0, [["type", "inletOutlet"], ["value", "uniform 0"], ["inletValue", "uniform 0"]])
     at.Ulist = DictList(at.label, 0, [["type", "pressureInletOutletVelocity"], ["value", "uniform (0 0 0)"]])
     at.plist = DictList(at.label, 0, [["type", "totalPressure"], ["p0", "uniform 0"]])
     if exportMesh:
-        at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
+        if geo.hor:
+            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
+                           axisFace(walsel(geo, "z-"))]) # top and bottom walls RG
+        else:
+            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
                            axisFace(walsel(geo, "x+"))])
     
     fw = BoundaryInput("fixedWalls", "")
@@ -788,7 +820,7 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
         fw.meshi = combineMeshes([arcFace(setZ(geo.inptsb, geo.nbo), setZ(geo.outptsb, geo.nbo)),\
                             arcFace(setZ(geo.inptsb, geo.nbo), setZ(geo.inptst, geo.bto)),\
                             arcFace(setZ(geo.outptsb, geo.nbo), setZ(geo.outptst, geo.bto))])
-    fw.reflev = 2
+    fw.reflev = 4 # RG
     
     return [bf, inkf, at, fw]
     
@@ -841,6 +873,34 @@ def compileSurfaceFeatureExtractDict(bl:List[BoundaryInput]) -> str:
 
 
 
+#---------------------------------------------------
+#-----------------surfaceFeaturesDict--------------- RG
+
+def compileSurfaceFeaturesDict(bl:List[BoundaryInput]) -> str:
+    '''compile surfaceFeaturesDict'''
+    bnames = [o.label for o in bl]
+    s = header("dictionary", "surfaceFeaturesDict")
+    s = s + DictList("surfaces", 1, ['"' + b + '.stl"' for b in bnames]).prnt(0)
+    s = s + DictList("", 0, [["includedAngle", 180]]).prnt(-1)
+    s = s + DictList("", 0, [["writeObj", "yes"]]).prnt(-1)
+    s = s + CLOSELINE
+    return s
+
+
+#    bnames = [o.label for o in bl]
+#    s = header("dictionary", "surfaceFeaturesDict")
+#    s = s + "surfaces",\
+#                     "("
+#    s = s + DictList("", 0, \
+#                     list(map(lambda x: DictList(x+".stl", 0, \))).prnt(-1)
+#                     ");", \
+#                     DictList(["includedAngle", 180], \
+#                     ["writeObj", "yes"]),
+
+#    s = s + CLOSELINE
+#    return s
+
+
 
 #-------------------------------------------------   
 #----------------------0--------------------------
@@ -884,23 +944,30 @@ def compilePointLevel(bl:List[BoundaryInput]) -> str:
 #-------------------------------------------------
 #------------------setFieldsDict----------------------
 
-
-def compileSetFieldsDict(geo:NozVars) -> str:
+def compileSetFieldsDict(geo:NozVars) -> str: # fills the nozzle with ink at t=0 RG
     '''compile setFieldsDict'''
     s = header("dictionary", "setFieldsDict")
     s = s + DictList("defaultFieldValues", 1, ["volScalarFieldValue alpha.ink 0"]).prnt(0)
     r = DictList("regions", 1, [])                 
         # r is the region where the ink originally is
-    c2c = DictList("cylinderToCell", 0, [])         
-        # c2c is a cylinderToCell dictionary list
-    for i,z in enumerate([geo.nbo, geo.bto]):
-        c2c.proplist.append(["p" + str(i+1) + " ( " + str(geo.ncx*SCALE) + " " + str(geo.ncy*SCALE) + " " + str(z*SCALE) + " )"])
-                # top and bottom points of central cylinder axis
-    c2c.proplist.append(["radius " + str(str((geo.niw+geo.nt)/2*SCALE))])        
-                # radius of cylinder
-    c2c.proplist.append(DictList("fieldValues", 1, ["volScalarFieldValue alpha.ink 1"])) 
-                # value of alpha inside the cylinder is 1 because it is full of ink
-    r.proplist.append(c2c)
+        
+    if geo.na != 0:
+        delta = 0.9*geo.nt/np.tan(np.deg2rad(geo.na)) # length of cylinders
+    else:
+        delta = 1 # avoids divide by 0 error
+        
+    steps = max(np.ceil((geo.bto-geo.nbo)/delta).astype('int'),1) # number of cylinders to create
+    for x in range(steps): # creates thin enough cylinders of ink so that inside of the nozzle becomes fully ink but none of the bath becomes ink
+        c2c = DictList("cylinderToCell", 0, [])         
+            # c2c is a cylinderToCell dictionary list
+        c2c.proplist.append(["p1" + " (" + str(geo.ncx*SCALE) + " " + str(geo.ncy*SCALE) + " " + str(round((geo.nbo+(geo.bto-geo.nbo)*x/steps)*SCALE,8)) + ")"])
+        c2c.proplist.append(["p2" + " (" + str(geo.ncx*SCALE) + " " + str(geo.ncy*SCALE) + " " + str(round((geo.bto-(geo.bto-geo.nbo)*(steps-1-x)/steps)*SCALE,8)) + ")"])
+                    # top and bottom points of central cylinder axis
+        c2c.proplist.append(["radius " + str(str((geo.niw/2+(x+1)*geo.nl/steps*np.tan(np.deg2rad(geo.na)))*SCALE))])
+                    #radius of cylinder
+        c2c.proplist.append(DictList("fieldValues", 1, ["volScalarFieldValue alpha.ink 1"]))
+                    # value of alpha inside the cylinder is 1 because it is full of ink
+        r.proplist.append(c2c)
     s = s + r.prnt(0)
     s = s + CLOSELINE
     return s
@@ -922,6 +989,8 @@ def geometryFile(geo:NozVars) -> str:
          ['nozzle bottom coord (mm)', geo.nbo],\
          ['nozzle center x coord (mm)', geo.ncx],\
          ['nozzle center y coord (mm)', geo.ncy], \
+         ['nozzle angle (degrees)', geo.na], \
+         ['horizontal', geo.hor], \
          ['bath velocity (m/s)', geo.bv], \
          ['ink velocity (m/s)', geo.iv]]
     s = ""
@@ -946,7 +1015,8 @@ def geometryFile(geo:NozVars) -> str:
 class MeshVars:
     '''mesh variables'''
     
-    fwreflev = 2
+    fwreflev = 4 # RG
+    inkfreflev = 2 # RG
     nCellsBetweenLevels = 10
     meshsize = 0.2
     
@@ -959,13 +1029,13 @@ class MeshVars:
         # Allow the generation of free-standing zone faces
     locationInMesh = "(0 0 0)" 
         # Merge tolerance as fraction of bounding box of initial mesh
-    maxLocalCells = 100000 
+    maxLocalCells = 100000
         # Maximum number of cells per processor during refinement
-    maxGlobalCells = 2000000 
+    maxGlobalCells = 2000000
         # Overall cell limit during refinement (i.e. before removal)
     minRefinementCells = 0 
         # If ≥ number of cells to be refined, surface refinement stops
-    resolveFeatureAngle = 30 
+    resolveFeatureAngle = 30
         # Applies maximum level of refinement to cells
         # that can see intersections whose angle exceeds this
         
@@ -979,17 +1049,17 @@ class MeshVars:
         # Do the surface snapping stage?
     explicitFeatureSnap = "true" 
         # Use castellatedMeshControls features
-    implicitFeatureSnap = "false" 
+    implicitFeatureSnap = "false"
         # Detect (geometric only) features by sampling the surface
     multiRegionFeatureSnap = "true" 
         # Detect features between multiple surfaces when using the explicitFeatureSnap
-    nFeatureSnapIter = 10 
+    nFeatureSnapIter = 10
         # Number of feature edge snapping iterations
     nRelaxIter = 5
         # Maximum number of snapping relaxation iterations
-    nSmoothPatch = 3 
+    nSmoothPatch = 3
         # Number of patch smoothing iterations before finding correspondence to surface
-    nSolveIter = 100 
+    nSolveIter = 100
         # Number of mesh displacement relaxation iterations
     tolerance = 2.0    
         # Ratio of distance for points to be attracted by 
@@ -1001,40 +1071,40 @@ class MeshVars:
         return(self.varList(["nSmoothPatch", "tolerance", "nSolveIter", "nRelaxIter", "nFeatureSnapIter", "implicitFeatureSnap", "explicitFeatureSnap", "multiRegionFeatureSnap"]))
     
     # addLayersControls
-    addLayers = "false" 
+    addLayers = "true" 
         # Add surface layers?
-    expansionRatio = 1 
+    expansionRatio = 1
         # Expansion factor for layer mesh
-    featureAngle = 30 
+    featureAngle = 30
         # Angle above which surface is not extruded
-    finalLayerThickness = 0.3 
+    finalLayerThickness = 0.3
         # Thickness of layer furthest from the wall, 
         # either relative or absolute according to the relativeSizes entry
-    maxFaceThicknessRatio = 0.5 
+    maxFaceThicknessRatio = 0.5
         # Face thickness ratio above which surface is not extruded,
         # useful for warped cells
     maxThicknessToMedialRatio = 0.3 
         # Reduce layer growth where ratio thickness to medial distance is large
-    minMedianAxisAngle = 90 
+    minMedianAxisAngle = 90
         # Angle used to pick up medial axis points
-    minThickness = 0.25 
+    minThickness = 0.25
         # Minimum overall thickness of all layers, below which surface is not extruded
-    nBufferCellsNoExtrude = 0 
+    nBufferCellsNoExtrude = 0
         # Create buffer region for new layer terminations
-    nGrow = 0 
+    nGrow = 0
         # Number of layers of connected faces that are not grown 
         # if points are not extruded; helps convergence of 
         # layer addition close to features
-    nLayerIter = 50 
+    nLayerIter = 50
         # Overall max number of layer addition iterations
-    nRelaxIter = 5 
+    nRelaxIter = 5
         # Maximum number of snapping relaxation iterations
-    nRelaxedIter = 20 
+    nRelaxedIter = 20
         # Max number of iterations after which the controls in the 
         # relaxed sub dictionary of meshQuality are used
-    nSmoothNormals = 3 
+    nSmoothNormals = 15
         # Number of smoothing iterations of interior mesh movement direction
-    nSmoothSurfaceNormals = 1 
+    nSmoothSurfaceNormals = 10
         # Number of smoothing iterations of surface normals
     nSmoothThickness = 10
         # Smooth layer thickness over surface patches
@@ -1074,7 +1144,7 @@ class MeshVars:
         # number of layers around a refined cell
     maxRefinement = 4
         # max number of times cells can be refined
-    maxCells = maxGlobalCells
+    maxCells = maxGlobalCells*10 # RG
         # total number of cells in the mesh
     dumpLevel = "false"
         # writes the refinement level for each cell as a volScalarField
@@ -1120,7 +1190,7 @@ class MeshVars:
 def compileMeshQualityDict() -> str:
     '''compile meshQualityDict'''
     s = header("dictionary", "meshQualityDict")
-    s = s + "#includeEtc \"caseDicts/meshQualityDict\"\n\n"
+    s = s + "#includeEtc \"caseDicts/mesh/generation/meshQualityDict\"\n\n" # RG
     s = s + CLOSELINE
     return s
 
@@ -1474,7 +1544,7 @@ def compileSolverFiles(cdv:CDVars, fvv:FVVars, out:FileGroup) -> FileGroup:
 #-------------------------------------------------  
 
 #-------------------------------------------------
-#------------------------g------------------------
+#-----------------gravity-------------------------
 
 
 def compileG() -> str:
@@ -1638,6 +1708,7 @@ def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=
     if exportMesh:
         fg.snappyHexMeshDict = compileSnappyHexMeshDict(br, mv)
         fg.surfaceFeatureExtractDict = compileSurfaceFeatureExtractDict(br)
+        fg.surfaceFeaturesDict = compileSurfaceFeaturesDict(br)
         fg.meshQualityDict = compileMeshQualityDict()
         fg.cellLevel = compileCellLevel(br)
         fg.pointLevel = compilePointLevel(br)

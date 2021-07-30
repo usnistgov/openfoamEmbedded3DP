@@ -56,11 +56,15 @@ class folderStats:
         i0 = self.geo[self.geo['title']=='nozzle inner width (mm)'].index[0] # find the index where the nozzle inner width is
         self.niw = float(self.geo.loc[i0, 'val']) # nozzle inner width
         self.nt = float(self.geo.loc[i0+1, 'val']) # nozzle thickness
+        self.bd = float(self.geo.loc[i0+3, 'val']) # bath depth RG
+        self.nl = float(self.geo.loc[i0+4, 'val']) # nozzle length RG
         self.brx = float(self.geo.loc[i0+6, 'val']) # bath right x
         self.nbz = float(self.geo.loc[i0+11, 'val']) # nozzle bottom z
         self.ncx = float(self.geo.loc[i0+12, 'val']) # nozzle center x
-        self.bv = float(self.geo.loc[i0+14, 'val'])*1000 # bath velocity (mm/s)
-        self.iv = float(self.geo.loc[i0+15, 'val'])*1000 # ink velocity (mm/s)
+        self.ncy = float(self.geo.loc[i0+13, 'val']) # nozzle center y RG
+        self.na = float(self.geo.loc[i0+14, 'val']) # nozzle angle RG
+        self.bv = float(self.geo.loc[i0+15, 'val'])*1000 # bath velocity (mm/s)
+        self.iv = float(self.geo.loc[i0+16, 'val'])*1000 # ink velocity (mm/s)
         self.nre = self.ncx + self.niw/2 + self.nt # nozzle right edge
         self.behind = self.nre + self.niw # 1 inner diameter behind nozzle
         self.intentzcenter = self.nbz - self.niw/2
@@ -85,12 +89,12 @@ def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any
     '''import a csv to a pandas dataframe. ic is the index column. Int if there is an index column, False if there is none'''
     if os.path.exists(file):
         try:
-            d = pd.read_csv(file, index_col=ic)
+            d = pd.read_csv(file, index_col=ic, skiprows=[1], dtype=np.float64) # skiprows skips units, dtype defines as floats to save memory RG
             d.columns = map(str.lower, d.columns)
-            row1 = list(d.iloc[0])
+            u = pd.read_csv(file, nrows=1) # read the units seperately since they are not numbers RG
+            row1 = list(u.iloc[0])
             if type(row1[0]) is str and ('m' in row1 or 's' in row1):
-                unitdict = dict(d.iloc[0])
-                d = d.drop(0)
+                unitdict = dict(u.iloc[0])
             else:
                 unitdict = dict([[s,'undefined'] for s in d])
         except:
@@ -151,6 +155,11 @@ def importPoints(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]]
     file = os.path.join(folder, 'interfacePoints', 'interfacePoints_t_'+str(int(round(time*10)))+'.csv')
     return importPointsFile(file)
 
+def importPtsNoz(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]: # RG
+    '''import all points in the nozzle at a given time'''
+    file = os.path.join(folder, 'nozzlePoints', 'nozzlePoints_t_'+str(int(round(time*10)))+'.csv')
+    return importPointsFile(file)
+
 
 def importPtsSlice(folder:str, time:float, x:float) -> Union[pd.DataFrame, List[Any]]:
     '''import points just from one slice. folder is full path name, time is in s, x is absolute position in mm. Finds the closest position to the requested position and gives up if there is no x value within 0.2 mm'''
@@ -178,7 +187,7 @@ def importSS(folder:str) -> pd.DataFrame:
         pass
     return d, units
 
-def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
+def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
     '''Construct an image file name with no extension. Exportfolder is the folder to export to. Label is any given label. Topfolder is the folder this image refers to, e.g. HBHBsweep. Insert any extra values in kwargs as keywords'''
     bn = os.path.basename(topfolder)
     s = ''
@@ -188,7 +197,14 @@ def imFn(exportfolder:str, label:str, topfolder:str, **kwargs) -> str:
     s = s[0:-1]
     s = s.replace('*', 'x')
     s = s.replace('/', 'div')
-    return os.path.join(exportfolder, bn, label+'_'+bn+'_'+s)
+    
+    # RG
+    label = ''
+    labels = [labels] if isinstance(labels, str) else labels
+    for i in labels:
+        label += i+'_'
+    
+    return os.path.join(exportfolder, bn, label+bn+'_'+s) # RG
 
 
 def exportIm(fn:str, fig) -> None:
@@ -196,7 +212,6 @@ def exportIm(fn:str, fig) -> None:
     for s in ['.svg', '.png']:
         fig.savefig(fn+s, bbox_inches='tight', dpi=300)
     print('Exported ', fn)
-
 
 
 
@@ -248,9 +263,11 @@ def pdCentroid(xs:pd.DataFrame) -> Tuple[float, float, float]:
     return centroid(np.array(xs[['y', 'z']]))
 
  
-def closest(lst:List[float], K:float) -> float: 
-    '''find the closest value in a list to the float K   '''
-    return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))]   
+def closest(lst:List[float], K:float) -> float: # RG
+    '''find the closest value in a list to the float K'''
+    lst = np.asarray(lst)
+    idx = (np.abs(lst - K)).argmin()
+    return lst[idx]
 
 ############ CREATE FILES ############
 

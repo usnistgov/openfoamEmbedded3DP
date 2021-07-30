@@ -126,13 +126,13 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     fn = intm.imFn(exportFolder, label, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):
         return
-    
+
     dx = 0.7
     cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, sigmalist=sigmalist0, **kwargs)
     cp.sigmalist = sigmalist0
+    
     fs = intm.folderStats(cp.flist[0])
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
-    
 
     xvalue = fs.ncx + x
     for folder in cp.flist:
@@ -140,9 +140,10 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     cp.figtitle = 'Cross sections, '+str(x)+' mm behind nozzle, t = '+str(time)+' s'
     cp.clean()
     for ax in cp.axs:
-        ax.set_ylim([cp.yrtot[0], cp.yrtot[1]+1])
+        if len(cp.yrtot)>1: # RG
+            ax.set_ylim([cp.yrtot[0], cp.yrtot[1]+1])
     XSPlotIdeal(cp,fs)
     for ax in cp.axs:
         ax.grid(linestyle='-', linewidth='0.25', color='#949494')
         
-#     intm.exportIm(fn, cp.fig)
+    intm.exportIm(fn, cp.fig)

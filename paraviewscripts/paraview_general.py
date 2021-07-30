@@ -107,6 +107,7 @@ def mksubdirs(folder:str) -> None:
     # fp.mkdirif(os.path.join(folder, 'interfacePoints'))
     os.makedirs(os.path.join(folder, 'images'), exist_ok = True)
     os.makedirs(os.path.join(folder, 'interfacePoints'), exist_ok = True)
+    os.makedirs(os.path.join(folder, 'nozzlePoints'), exist_ok = True) # RG
 
 
 
@@ -185,8 +186,7 @@ def setTime(time:float, sv:stateVars) -> None:
                 logging.warning(f'time {time} is not in list {sv.times}')
                 sv.animationScene1.AnimationTime = sv.times[-1]
                 sv.timeKeeper1.Time = sv.times[-1]
-        
-        
+           
         
 
 def initializeP(sv:stateVars) -> stateVars:  
@@ -217,10 +217,15 @@ def initializeP(sv:stateVars) -> stateVars:
 
 def computeShearRate(sv:stateVars):
     '''get an object that represents the shear rate'''
-    computeDerivatives = ComputeDerivatives(Input=sv.caseVTMSeries)
-    computeDerivatives.Scalars = ['POINTS', 'alpha.ink']
+    calculator = Calculator(Input=sv.caseVTMSeries) # RG
+    calculator.ResultArrayName = 'magU'
+    calculator.Function = 'mag(U)'
+    
+    computeDerivatives = ComputeDerivatives(Input=calculator)
+    computeDerivatives.Scalars = ['POINTS', 'magU'] # RG
     computeDerivatives.Vectors = ['POINTS', 'U']
-    computeDerivatives.OutputVectorType = 'Nothing'
+    computeDerivatives.OutputVectorType = 'Scalar Gradient'
+    computeDerivatives.OutputTensorType = 'Vector Gradient'
     # show data in view
     # computeDerivativesDisplay = Show(computeDerivatives, renderView1, 'GeometryRepresentation')
     return computeDerivatives

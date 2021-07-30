@@ -48,17 +48,18 @@ xlist = [-0.001]      # positions at which to collect the trace
 forceOverwrite = False # True to overwrite existing files
 
 folders = []
-nlist = range(1000,2000)   # list of nb folder numbers that we will search
+nlist = [0,5,10,15,20,15,30]   # list of cn folder numbers that we will search
 
 SERVERFOLDER = cfg.path.server
-topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
-topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
-for topfolder in topfolders:
-    for f in os.listdir(topfolder):
-        if f.startswith('nb'):
+topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle') # RG
+for f in os.listdir(topfolder):
+    if f.startswith('cn'):
+        try:
             n1 = float(f[2:])
-            if n1 in nlist:
-                folders.append(os.path.join(topfolder, f))
+        except:
+            n1 = f[2:]
+        if n1 in nlist:
+            folders.append(os.path.join(topfolder, f))
                 
 logging.info(f'Exporting line traces.\nX positions: {[convertToRelative(x) for x in xlist]} mm behind nozzle.\nTime list: {tlist} s.\nFolders:{[os.path.basename(f) for f in folders]}')
                 
@@ -68,6 +69,3 @@ for folder in folders:
     for xpos in xlist:
         csvfolder(folder, xpos, tlist, forceOverwrite=forceOverwrite)
 print('Done exporting csv files')
- 
-
-
