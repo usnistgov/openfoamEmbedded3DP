@@ -469,7 +469,6 @@ def scrapeSetFieldsDict(s:scrape) -> None:
             while not line.startswith('\t\tp1'):
                 line = f.readline()
             # now we have reached the bottom point of the nozzle
-#             strs = re.split('\( | \)| ', line)
             strs = re.split('\(|\)| ', line) # RG
             s.GEOncxc[1] = str(1000*float(strs[2])) # nozzle center x
             s.GEOncyc[1] = str(1000*float(strs[3])) # nozzle center y

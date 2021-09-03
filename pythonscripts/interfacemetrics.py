@@ -11,6 +11,7 @@ from shapely.geometry import Polygon
 import re
 from typing import List, Dict, Tuple, Union, Any
 import logging
+import traceback
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -97,13 +98,14 @@ def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any
             row1 = list(u.iloc[0])
             if type(row1[0]) is str and ('m' in row1 or 's' in row1):
                 unitdict = dict(u.iloc[0])
+                skiprows = [1]
             else:
                 unitdict = dict([[s,'undefined'] for s in toprows])
                 skiprows = []
-            
             d = pd.read_csv(file, index_col=ic, dtype=float, skiprows=skiprows)
             d.columns = map(str.lower, d.columns)
         except:
+            traceback.print_exc()
             return [],{}
         return d, unitdict
     else:

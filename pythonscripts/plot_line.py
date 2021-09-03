@@ -125,3 +125,57 @@ def linePlots(folders:List[str], func, time:float, imsize:int, mode:str='vx', **
         if mode=='shearrate':
             ax.set_yscale('log')
     return fig
+
+
+
+#------------------------------
+
+
+def linePressure(folder:str) -> dict:
+    '''get the pressure differential across the nozzle'''
+    file = os.path.join(folder, 'line_t_10_z_0.5.csv')
+    if not os.path.exists(file):
+        return {}, {}
+    data, units = intm.importPointsFile(file) 
+    pUpstream = data[(data.x>-2.9)&(data.x<-2.87)].p.max() # upstream pressure
+    pDownstream = data[(data.x>-1.96)&(data.x<-1.9)].p.max() # downstream pressure
+    dp = pUpstream-pDownstream
+    pdict = {'pU':pUpstream, 'pD':pDownstream, 'dP':dp}
+    units = {'pU':units['p'], 'pD':units['p'], 'dP':units['p']}
+    meta, u = extractTP(folder, units=True)
+    retval = {**meta, **pdict}
+    units = {**u, **units}
+    return retval, units
+
+def linePressureRecursive(folder:str) -> dict:
+    '''find line pressures for all sims in folder, all the way down'''
+    if not os.path.isdir(folder):
+        return [], {}
+    r,u = linePressure(folder)
+    if len(r)>0:
+        return [r],u
+    else:
+        rlist = []
+        units = {}
+        for f in os.listdir(folder):
+            r,u = linePressureRecursive(os.path.join(folder, f))
+            if len(r)>0:
+                rlist = rlist+r
+                units = u
+        return rlist, units
+
+def linePressures(topfolder:str, exportFolder:str, filename:str) -> dict:
+    '''find line pressures for all sims in folder and export'''
+    rlist, units = linePressureRecursive(topfolder)
+    tt = pd.DataFrame(rlist)
+    if os.path.exists(exportFolder):
+        fn = os.path.join(exportFolder, filename)
+        col = pd.MultiIndex.from_tuples([(k,v) for k, v in units.items()])
+        data = np.array(tt)
+        df = pd.DataFrame(data, columns=col)       
+        df.to_csv(fn)
+        logging.info(f'Exported {fn}')
+    return tt,units
+
+    
+    

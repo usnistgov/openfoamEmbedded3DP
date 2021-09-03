@@ -211,7 +211,7 @@ def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
     return nu, tau0, k, n
 
 
-def extractTP(folder:str) -> Tuple[float, float, float]:
+def extractTP(folder:str, units:bool=False) -> Tuple[float, float, float]:
     '''extractTP gets the transport properties (viscosities and surface tension) for a folder
     folder is a full path name
     used by vvplot, listTPvalues, folderToFunc'''
@@ -263,11 +263,17 @@ def extractTP(folder:str) -> Tuple[float, float, float]:
     sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
     
     i = le[le['title']=='mesh'].index[0] # find the index where the mesh properties start RG
-    nozzleAngle = int(le.loc[i+16, 'val']) # RG
+    if 'nozzle angle' in le.loc[i+16, 'title']:
+        nozzleAngle = int(le.loc[i+16, 'val']) # RG
+    else:
+        nozzleAngle = 0
 
     retval = {'folder':folder, 'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma, 'nozzleAngle':nozzleAngle}
-    
-    return retval
+    u = {'folder':'', 'ink':'', 'nuink':'Pa*s', 'tau0ink':'Pa', 'kink':'Pa*s^n', 'nink':'', 'sup':'', 'nusup':'Pa*s', 'tau0sup':'Pa', 'ksup':'Pa*s^n', 'nsup':'', 'sigma':'mJ/m^2', 'nozzleAngle':'degree'}
+    if units:
+        return retval, u
+    else:
+        return retval
 
 #---
 
