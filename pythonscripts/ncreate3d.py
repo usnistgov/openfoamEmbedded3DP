@@ -189,10 +189,10 @@ class FileGroup:
         
         if not self.onlyMesh:
             exportFile(f, 'labels.csv', self.labels)
+            exportFile(f, 'run.slurm', self.slurm, linux=True)
             exportFile(casef, "Allclean", self.allclean, linux=True) 
 #             exportFile(casef, "Allrun", self.allrun)
             exportFile(casef, 'Allrun.sh', self.allrun, linux=True)
-            exportFile(casef, 'run.slurm', self.slurm, linux=True)
 #             exportFile(casef, "Continue", self.cont) 
             exportFile(f0, "alpha.ink.orig", self.alphainkorig) 
             exportFile(f0, "alpha.ink", self.alphainkorig) 
@@ -323,9 +323,9 @@ def compileAllRun(folder:str, solver:str) -> str: # RG
 
 def compileSlurm(folder:str, parentdir:str) -> str:
     '''this is the slurm script for the case folder'''
-    workdir = (os.path.join(parentdir, os.path.basename(folder), 'case')).replace("\\","/")
+    workdir = (os.path.join(parentdir, os.path.basename(folder))).replace("\\","/")
     s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --workdir={workdir}\n\n'
-    s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash Allrun.sh'
+    s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash mesh/Allrun.sh\nsrun bash case/Allrun.sh'
     return s
 
 
@@ -343,8 +343,12 @@ def compileAllRunMesh(folder:str) -> str:
     '''this script runs the meshing functions in the mesh folder'''
     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
         + "cd \"${0%/*}\" || exit; ")
-    functionlist = ["surfaceFeatureExtract", "blockMesh", "snappyHexMesh -overwrite", "foamToVTK"]
+    s = s + 'if [ ! -d "VTK" ]; then\n'
+    functionlist = ["surfaceFeatures", "blockMesh", "snappyHexMesh -overwrite", "foamToVTK"]
+        # use surfaceFeatures for OpenFOAM 8 and later
+        # use surfaceFeatureExtract otherwise
     s = fListLoop(s, functionlist, folder)
+    s = s + 'fi \n'
     return s
 
 CLOSELINE = "// ************************************************************************* //";
