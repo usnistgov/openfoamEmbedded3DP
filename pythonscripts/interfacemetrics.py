@@ -19,6 +19,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 import folderparser as fp
 from pvCleanup import addUnits
+from plainIm import *
 
 # logging
 logger = logging.getLogger(__name__)
@@ -88,28 +89,28 @@ def importLegend(folder:str) -> pd.DataFrame:
         raise Exception('No legend file')
     
 
-def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
-    '''import a csv to a pandas dataframe. ic is the index column. Int if there is an index column, False if there is none'''
-    if os.path.exists(file):
-        try:
-            d = pd.read_csv(file, index_col=ic, skiprows=[1], dtype=np.float64) # skiprows skips units, dtype defines as floats to save memory RG
-            d.columns = map(str.lower, d.columns)
-            u = pd.read_csv(file, nrows=1) # read the units seperately since they are not numbers RG
-            row1 = list(u.iloc[0])
-            if type(row1[0]) is str and ('m' in row1 or 's' in row1):
-                unitdict = dict(u.iloc[0])
-                skiprows = [1]
-            else:
-                unitdict = dict([[s,'undefined'] for s in toprows])
-                skiprows = []
-            d = pd.read_csv(file, index_col=ic, dtype=float, skiprows=skiprows)
-            d.columns = map(str.lower, d.columns)
-        except:
-            traceback.print_exc()
-            return [],{}
-        return d, unitdict
-    else:
-        return [], {}
+# def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
+#     '''import a csv to a pandas dataframe. ic is the index column. Int if there is an index column, False if there is none'''
+#     if os.path.exists(file):
+#         try:
+#             d = pd.read_csv(file, index_col=ic, skiprows=[1], dtype=np.float64) # skiprows skips units, dtype defines as floats to save memory RG
+#             d.columns = map(str.lower, d.columns)
+#             u = pd.read_csv(file, nrows=1) # read the units seperately since they are not numbers RG
+#             row1 = list(u.iloc[0])
+#             if type(row1[0]) is str and ('m' in row1 or 's' in row1):
+#                 unitdict = dict(u.iloc[0])
+#                 skiprows = [1]
+#             else:
+#                 unitdict = dict([[s,'undefined'] for s in toprows])
+#                 skiprows = []
+#             d = pd.read_csv(file, index_col=ic, dtype=float, skiprows=skiprows)
+#             d.columns = map(str.lower, d.columns)
+#         except:
+#             traceback.print_exc()
+#             return [],{}
+#         return d, unitdict
+#     else:
+#         return [], {}
 
 
 def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
@@ -437,6 +438,7 @@ def summarize(folder:str, overwrite:bool) -> int:
 
 
 
+
 ####### DETERMINING STEADY STATE FILAMENT SHAPE
 
 
@@ -454,14 +456,17 @@ def steadyList(folder:str, dother:float, vdcrit:float, col:str, mode:str) -> pd.
     except:
         raise Exception('Problem with summaries')
     
+    
     if mode=='xbehind': # mode is the variable that we use to split into groups
         other='time' # other is the variable that we scan across
         outlabel = ['x', 't0', 'tf']
-        flatlist = [[ssunits['xbehind'], ssunits['time'], ssunits['time']]]
+        if len(ssunits)>0:
+            flatlist = [[ssunits['xbehind'], ssunits['time'], ssunits['time']]]
     else:
         other='xbehind'
         outlabel = ['t', 'x0', 'xf']
-        flatlist = [[ssunits['time'], ssunits['xbehind'], ssunits['xbehind']]]
+        if len(ssunits)>0:
+            flatlist = [[ssunits['time'], ssunits['xbehind'], ssunits['xbehind']]]
         
     if len(ss)<2:
         return pd.DataFrame([], columns=outlabel)
@@ -535,6 +540,7 @@ def steadyMetric(folder:str, mode:int, overwrite:bool) -> int:
             tab = f(folder, 1, 0.01, 'vertdispn') # returns a table
         except Exception as e:
             logging.error(str(e))
+            traceback.print_exc()
             raise e
         tab.to_csv(fn)
         logging.info(f'    Exported {fn}')

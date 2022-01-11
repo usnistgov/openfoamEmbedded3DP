@@ -199,16 +199,21 @@ def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
         nui is the index of the viscosity
         getHB is true to get herschel-bulkley parameters
         used by extractTP'''
-    nu = kinToDyn(float(le.loc[nui, 'val'])) # get the actual viscosity in Pa s
+    nuj = nui
+    while not le.loc[nuj,'title']=='rho' and nuj<len(le):
+        nuj+=1
+    rho = float(le.loc[nuj, 'val']) # kg/m^3
+    nu = kinToDyn(float(le.loc[nui, 'val']), density=rho) # get the actual viscosity in Pa s
     if getHB:
-        tau0 = kinToDyn(float(le.loc[nui+1, 'val']))
-        k = kinToDyn(float(le.loc[nui+2, 'val']))
+        tau0 = kinToDyn(float(le.loc[nui+1, 'val']), density=rho)
+        k = kinToDyn(float(le.loc[nui+2, 'val']), density=rho)
         n = float(le.loc[nui+3, 'val'])
     else:
         tau0 = 0
         k = 0
         n = 0
-    return nu, tau0, k, n
+    return nu, tau0, k, n, rho
+
 
 
 def extractTP(folder:str, units:bool=False) -> Tuple[float, float, float]:
@@ -217,7 +222,22 @@ def extractTP(folder:str, units:bool=False) -> Tuple[float, float, float]:
     used by vvplot, listTPvalues, folderToFunc'''
     le = intm.importLegend(folder)
     if len(le)==0:
-        raise Exception('No values in legend')
+        raise Exception('No values in legend') 
+    di = float(le[le['title']=='nozzle inner width (mm)'].iloc[0]['val']) # inner diameter in mm
+    if len(le[le['title']=='nozzle angle (degrees)'])>0:
+        nozzleAngle = float(le[le['title']=='nozzle angle (degrees)'].iloc[0]['val'])
+    else:
+        nozzleAngle = 0
+    thickness = float(le[le['title']=='nozzle thickness (mm)'].iloc[0]['val'])
+    nl = float(le[le['title']=='nozzle length (mm)'].iloc[0]['val']) # nozzle length
+    bottomRadius = di/2
+    topRadius = bottomRadius+(nl*np.tan(nozzleAngle*np.pi/180))
+#     do = di + 2*np.tan(nozzleAngle*np.pi/180) + 2*thickness # outer diameter in mm, 1 mm above bottom of nozzle
+    do = 2*topRadius+2*thickness
+    vsup = float(le[le['title']=='bath velocity (m/s)'].iloc[0]['val'])*1000 # support velocity in mm/s
+    vink = float(le[le['title']=='ink velocity (m/s)'].iloc[0]['val'])*1000 # inlet ink velocity in mm/s
+    vink = vink/(bottomRadius**2/topRadius**2)   # ink velocity at nozzle exit
+    
     i0 = le[le['title']=='transportProperties'].index[0] # find the index where the transport properties start
     inklabel = le.loc[i0+1, 'val']
     # express viscosities as a dynamic viscosity 
@@ -232,7 +252,7 @@ def extractTP(folder:str, units:bool=False) -> Tuple[float, float, float]:
         # otherwise the zero shear viscosity is 4 rows below
         nuinki = i0+4
         getHB = True
-    nuink, tau0ink, kink, nink = extractTPfluid(le, nuinki, getHB)
+    nuink, tau0ink, kink, nink, rhoink = extractTPfluid(le, nuinki, getHB)
     
     # find the support transport properties
     # in some legends, there are no Herschel Bulkley boxes, and in some there are
@@ -249,27 +269,25 @@ def extractTP(folder:str, units:bool=False) -> Tuple[float, float, float]:
     else:
         nusupi = nusupi+2
         getHB = True
-    nusup, tau0sup, ksup, nsup = extractTPfluid(le, nusupi, getHB)    
+    nusup, tau0sup, ksup, nsup, rhosup = extractTPfluid(le, nusupi, getHB)    
     
     # likewise we need to find the row where the surface tension is stored 
     # because we don't know if the legend contains HB rows or not
     sigmai = nusupi
     while not le.loc[nusupi, 'title']=='sigma' and nusupi<len(le):
         nusupi+=1
-        
 
-        
     # convert surface tension to mJ/m^2
     sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
     
     i = le[le['title']=='mesh'].index[0] # find the index where the mesh properties start RG
-    if 'nozzle angle' in le.loc[i+16, 'title']:
-        nozzleAngle = int(le.loc[i+16, 'val']) # RG
-    else:
-        nozzleAngle = 0
+#     if 'nozzle angle' in le.loc[i+16, 'title']:
+#         nozzleAngle = int(le.loc[i+16, 'val']) # RG
+#     else:
+#         nozzleAngle = 0
 
-    retval = {'folder':folder, 'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'sigma':sigma, 'nozzleAngle':nozzleAngle}
-    u = {'folder':'', 'ink':'', 'nuink':'Pa*s', 'tau0ink':'Pa', 'kink':'Pa*s^n', 'nink':'', 'sup':'', 'nusup':'Pa*s', 'tau0sup':'Pa', 'ksup':'Pa*s^n', 'nsup':'', 'sigma':'mJ/m^2', 'nozzleAngle':'degree'}
+    retval = {'folder':folder, 'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'rhoink':rhoink/1000, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'rhosup':rhosup/1000, 'sigma':sigma, 'nozzleAngle':nozzleAngle, 'vink':vink, 'vsup':vsup, 'dsup':do, 'dink':di}
+    u = {'folder':'', 'ink':'', 'nuink':'Pa*s', 'tau0ink':'Pa', 'kink':'Pa*s^n', 'nink':'', 'rhoink':'g/mL', 'sup':'', 'nusup':'Pa*s', 'tau0sup':'Pa', 'ksup':'Pa*s^n', 'nsup':'', 'rhosup':'g/mL', 'sigma':'mJ/m^2', 'nozzleAngle':'degree', 'vink':'mm/s', 'vsup':'mm/s', 'dink':'mm', 'dsup':'mm'}
     if units:
         return retval, u
     else:

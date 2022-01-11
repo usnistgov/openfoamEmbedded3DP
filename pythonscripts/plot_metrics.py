@@ -19,6 +19,7 @@ sys.path.append(parentdir)
 import folderparser as fp
 import interfacemetrics as intm
 from plot_general import *
+from plainIm import *
 
 # logging
 logger = logging.getLogger(__name__)
@@ -341,8 +342,60 @@ def timePlots(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
 #------------------------------------------  
 # slice summary metrics plots
 
+def summaryRow(folder:str, time:float, xbehind:float) -> Tuple[dict,dict]:
+    '''turn the folder into a single row, for a given time and position'''
+    row, rowunits = metricVals(folder, time, xbehind, ['x', 'xbehind', 'time', 'centery', 'centerz', 'area','maxheight', 'maxwidth', 'centeryn', 'centerzn', 'arean', 'maxheightn', 'maxwidthn', 'vertdisp', 'vertdispn', 'aspectratio', 'speed', 'speeddecay'])
+    meta, u = extractTP(folder, units=True)
+    if not (u['dink']=='mm' and u['nuink']=='Pa*s' and u['rhoink']=='g/mL' and u['sigma']=='mJ/m^2' and u['vink']=='mm/s'):
+        raise ValueError('Units of extractTP do not match needed units for summaryRow')
 
-def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> Dict:
+    for s in ['ink', 'sup']:
+        meta['gdot_'+s] = meta['v'+s]/meta['d'+s] # 1/s
+        u['gdot_'+s] = '1/s'
+        if meta['k'+s]>0:
+            mu = meta['k'+s]*(abs(meta['gdot_'+s])**(meta['n'+s]-1)) + meta['tau0'+s]/abs(meta['gdot_'+s])
+            meta['visc0_'+s] = min(mu, meta['nu'+s])  # Pa*s
+        else:
+            meta['visc0_'+s] = meta['nu'+s]
+        u['visc0_'+s] = 'Pa*s'
+        meta['CaInv_'+s] = meta['sigma']/(meta['visc0_'+s]*meta['v'+s]) # capillary number ^-1 []
+        u['CaInv_'+s] = ''
+        meta['Re_'+s] = 10**3*(meta['rho'+s]*meta['v'+s]*meta['d'+s])/(meta['visc0_'+s]) # reynold's number
+        u['Re_'+s] = ''
+    
+    meta['viscRatio'] = meta['visc0_ink']/meta['visc0_sup']
+    u['viscRatio'] = ''
+    meta['ReRatio'] = meta['Re_ink']/meta['Re_sup']  
+    u['ReRatio'] = ''
+    
+    out = {**meta, **row}
+    units = {**u, **rowunits}
+    
+    return out, units
+
+def summaryTable(topfolders:str, time:float, xbehind:float, exportFolder:str, filename:str='summaryTable') -> Tuple[pd.DataFrame, dict]:
+    '''collect summary data for each topfolder and put it all into a table'''
+    t = []
+    u = []
+    for topfolder in topfolders:
+        logging.info(topfolder)
+        for cf in fp.caseFolders(topfolder):
+            try:
+                tt0,u0 = summaryRow(cf, time, xbehind)
+            except:
+                pass
+            else:
+                if len(tt0)>0:
+                    t = t+[tt0]
+                if len(u0)>len(u):
+                    u = u0
+    tt = pd.DataFrame(t)
+    if os.path.exists(exportFolder):
+        plainExp(os.path.join(exportFolder, f'{filename}_x_{xbehind}_t_{time}.csv'), tt, u)
+    return tt,u
+
+
+def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bool=False) -> Dict:
     '''Find the value of slice summary metrics for a single simulation.
     folder is the full path name to a simulation folder
     time is the time of the slice
@@ -374,7 +427,10 @@ def metricVals(folder:str, time:float, xbehind:float, labels:List[str]) -> Dict:
     except:
         logging.debug(folder)
         raise NameError(f'Error collecting metric value: {folder}')
-    return rates
+    if units:
+        return rates, dict([[i, units[i]] for i in labels])
+    else:
+        return rates
 
 
 
