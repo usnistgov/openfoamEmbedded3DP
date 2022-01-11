@@ -33,17 +33,20 @@ __status__ = "Production"
 
 #----------------------------------------------------------------
 
-def initializeAll(folder, xpos):
-    '''initialize all of paraview'''
+def initializeAll(folder:str, constDir:str, pos:float):
+    '''initialize all of paraview. constDir is direction that has const value ('x' or 'z'). pos is the value that stays constant, in x or z (e.g. -0.001)'''
     print('Folder ', folder)
     print(' Initializing paraview ')
     sv = stateVars(folder)        # make subdirectories
     sv =  initializeP(sv)        # initialize Paraview
-    sv =  initSeries(sv, xpos)        # import the vtk series files  
+    if constDir=='x':
+        sv = initSeries(sv, x0=pos, xf=pos)        # import the vtk series files  
+    elif constDir=='z':
+        sv = initSeries(sv, z0=pos, zf=pos)
     return sv
 
 
-def initSeries(sv:stateVars, xpos:float) -> stateVars:
+def initSeries(sv:stateVars, x0:float=-0.004, xf:float=0.004, z0:float=0.0021104998886585236, zf:float=-0.0021104998886585236) -> stateVars:
     '''Initialize the series file and get a line trace'''
     caseVTMSeries = initSeries0(sv)
     sv.caseVTMSeries = caseVTMSeries
@@ -53,8 +56,8 @@ def initSeries(sv:stateVars, xpos:float) -> stateVars:
     # plotOverLine2.Source.Point1 = [0.002588, 0, 0.0021104998886585236]
     # plotOverLine2.Source.Point2 = [0.002588, 0, -0.0021104998886585236]
     
-    plotOverLine2.Source.Point1 = [xpos, 0, 0.0021104998886585236]
-    plotOverLine2.Source.Point2 = [xpos, 0, -0.0021104998886585236]
+    plotOverLine2.Source.Point1 = [x0, 0, z0]
+    plotOverLine2.Source.Point2 = [xf, 0, zf]
 
     # show data in view
     plotOverLine1Display = Show(plotOverLine2, sv.renderView1, 'GeometryRepresentation')
@@ -107,9 +110,10 @@ def convertToRelative(x:float) -> float:
     '''convert an absolute x position in m to its position relative to the nozzle in mm'''
     return x*1000+2.412
 
-def csvfolder(folder:str, xpos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
+def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
     '''Export line trace for the folder. 
-    xpos is the x position of the trace, in absolute coordinates.
+    constDir is the direction that is constant, either 'x' or 'z'
+    pos is the constant x or z position of the trace, in absolute coordinates.
     tlist is the list to times at which to take the trace
     forceOverwrite to overwrite existing files'''
     initialized = False
@@ -118,14 +122,17 @@ def csvfolder(folder:str, xpos:float, tlist:List[float], forceOverwrite:bool=Fal
         if len(times)>0:
             for time in tlist:
                 if time in times:
-                    xstr = '{:.1f}'.format(convertToRelative(xpos))
+                    if constDir=='x':
+                        xstr = '{:.1f}'.format(convertToRelative(pos))
+                    else:
+                        xstr = '{:.1f}'.format(1000*pos)
                     tstr = str(int(round(time*10)))
-                    ipfile = os.path.join(folder, "line_t_"+tstr+"_x_"+xstr+".csv")
+                    ipfile = os.path.join(folder, f"line_t_{tstr}_{constDir}_{xstr}.csv")
                         # this is the file that all points for this time will be saved in
                     if not os.path.exists(ipfile) or forceOverwrite: 
                         # only run this if the file hasn't been created already or we're being forced to
                         if not initialized: # if paraview hasn't already been initialized, initialize it
-                            sv = initializeAll(folder, xpos)
+                            sv = initializeAll(folder, constDir, pos)
                             sv.times = times
                             initialized = True
                         setTime(time, sv) 

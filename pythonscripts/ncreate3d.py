@@ -269,12 +269,16 @@ def header(cl:str, obj:str) -> str:
     return s
 
 
-def compileAllClean() -> str:
+def compileAllClean(endTime:float, writeDt:float) -> str:
     '''this removes residual data from previous runs'''
-    s = ("cd \"${0%/*}\" || exit                                # Run from this directory"
-         + ". $WM_PROJECT_DIR/bin/tools/CleanFunctions; "
-         + "cleanCase"
-        )
+#     s = ("cd \"${0%/*}\" || exit                                # Run from this directory"
+#          + ". $WM_PROJECT_DIR/bin/tools/CleanFunctions; "
+#          + "cleanCase"
+#         )
+    s = "#!/bin/bash\n\nrm -r "
+    for t in np.arange(0, endTime+writeDt, writeDt):
+        s = s + str(t) + " "
+    s = s + "slurm*.out log_interFoam log_setFields log_foamToVTK"
     return s
 
 

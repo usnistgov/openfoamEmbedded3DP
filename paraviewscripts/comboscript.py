@@ -49,44 +49,33 @@ loopTime = 6 #hours
 ## csv
 
 forceOverwrite = False 
-getCSVs = False
+getCSVs = True
 
 # modes = ['nozzle', 'interface'] # CSVs to create
 modes = ['interface']
 
 # screenshots
 
+getSSs = True
 # for help, see ssVars in paraview_screenshots
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
 runList = []
-# runList.append(ss.ssVars('volumes', [], volViewList=['a']))
-# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-# for s in ['viscy', 'viscx']:
+runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+# runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
+for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
+    runList.append(ss.ssVars(s, [1, 2.5]))
+# for s in ['py', 'uslicey', 'uzslicey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
-# runList.append(ss.ssVars('viscy', [2.5]))
-# runList.append(ss.ssVars('uslicex', [2.5]))
-# runList.append(ss.ssVars('shearRatey', [2.5]))
-# runList.append(ss.ssVars('meshes', [2.5]))
-# runList.append(ss.ssVars('vectors', [2.5]))
-# runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volViewList=['y']))
-
-# for s in ['viscx', 'viscy']:
+# for s in ['shearRatex', 'shearRatey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
-
-# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-# for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy', 'shearRatex', 'shearRatey']:
-#     runList.append(ss.ssVars(s, [1.0, 2.5]))
+# runlist.append(ss.ssVars('meshes', [2.5]))
+# runlist.append(ss.ssVars('vectors', [2.5]))
+# runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
 
 # folders
 folders = []
-
-# nlist = [0,5,10,15,20,25,30] # simulations to access
-nlist = [5]
-
-# nlist = ['1149v4']
-# nlist=range(0, 1000)
-# nlist = [455]
+nlist = list(range(0,1000))
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
@@ -100,22 +89,8 @@ for f in os.listdir(topfolder):
             n1 = float(f[2:])
         except:
             n1 = f[2:]
-        if n1 in nlist:
+        if n1 in nlist or 'hor' in f:
             folders.append(os.path.join(topfolder, f))
-
-# topfolders = [os.path.join(SERVERFOLDER, 'viscositysweep',  s) for s in ['newtHBsweep', 'newtnewtsweep', 'HBHBsweep', 'HBnewtsweep']]
-
-# topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
-# topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRDTall')]
-# for topfolder in topfolders:
-#     for f in os.listdir(topfolder):
-#         if f.startswith('nb'):
-#             try:
-#                 n1 = float(f[2:])
-#             except:
-#                 n1 = f[2:]
-#             if n1 in nlist:
-#                 folders.append(os.path.join(topfolder, f))
 
 
         
@@ -135,7 +110,8 @@ while True:
         logging.debug('Checking '+folder)
         if getCSVs:
             pc.csvFolder(folder, modes, forceOverwrite) # create csvs RG
-        ss.folderScript(folder, runList)
+        if getSSs:
+            ss.folderScript(folder, runList)
     if not looping:
         break
     now = datetime.now()

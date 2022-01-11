@@ -43,11 +43,14 @@ __status__ = "Production"
 #------------------------------
 
 tlist = [1]        # times at which to collect the traces
-xlist = [-0.001]      # positions at which to collect the trace
+# xlist = [-0.001]      # positions at which to collect the trace
+xlist = [-0.001]
+zlist = [0.0005]
 
 forceOverwrite = False # True to overwrite existing files
 
 folders = []
+<<<<<<< Updated upstream
 nlist = [0,5,10,15,20,15,30]   # list of cn folder numbers that we will search
 
 SERVERFOLDER = cfg.path.server
@@ -59,13 +62,32 @@ for f in os.listdir(topfolder):
         except:
             n1 = f[2:]
         if n1 in nlist:
+=======
+nlist = range(0,1000)  # list of nb folder numbers that we will search
+
+SERVERFOLDER = cfg.path.server
+# topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
+# topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle')]
+for topfolder in topfolders:
+    for f in os.listdir(topfolder):
+        if f.startswith('nb') or f.startswith('cn'):
+#             n1 = float(f[2:])
+#             if n1 in nlist:
+>>>>>>> Stashed changes
             folders.append(os.path.join(topfolder, f))
                 
-logging.info(f'Exporting line traces.\nX positions: {[convertToRelative(x) for x in xlist]} mm behind nozzle.\nTime list: {tlist} s.\nFolders:{[os.path.basename(f) for f in folders]}')
+logging.info(f'Exporting line traces.\n\
+            X positions: {[convertToRelative(x) for x in xlist]} mm behind nozzle.\n\
+            Z positions: {[1000*(x) for x in zlist]} mm behind nozzle.\n\
+            Time list: {tlist} s.\n\
+            Folders:{[os.path.basename(f) for f in folders]}')
                 
 
 for folder in folders:
     logging.debug('Checking '+folder)
     for xpos in xlist:
-        csvfolder(folder, xpos, tlist, forceOverwrite=forceOverwrite)
+        csvfolder(folder, 'x', xpos, tlist, forceOverwrite=forceOverwrite)
+    for zpos in zlist:
+        csvfolder(folder, 'z', zpos, tlist, forceOverwrite=forceOverwrite)
 print('Done exporting csv files')
