@@ -56,19 +56,22 @@ class folderStats:
             self.geo = importLegend(folder)
         except:
             raise Exception('No legend file')
+            
+        transfer = {'nozzle inner width':'niw', 'nozzle thickness':'nt', 'bath width':'bw', 'bath depth':'bd'
+                    , 'nozzle length':'nl', 'bath left coord':'blc', 'bath right coord':'brx'
+                    , 'bath front coord':'bfc', 'bath back coord':'bbackc', 'bath bottom coord':'bbotc', 'bath top coord':'btc'
+                   , 'nozzle bottom coord':'nbz', 'nozzle center x coord':'ncx', 'nozzle center y coord':'ncy', 'nozzle angle':'na'
+                   , 'bath velocity':'bv', 'ink velocity':'iv'}
         
-        i0 = self.geo[self.geo['title']=='nozzle inner width (mm)'].index[0] # find the index where the nozzle inner width is
-        self.niw = float(self.geo.loc[i0, 'val']) # nozzle inner width
-        self.nt = float(self.geo.loc[i0+1, 'val']) # nozzle thickness
-        self.bd = float(self.geo.loc[i0+3, 'val']) # bath depth RG
-        self.nl = float(self.geo.loc[i0+4, 'val']) # nozzle length RG
-        self.brx = float(self.geo.loc[i0+6, 'val']) # bath right x
-        self.nbz = float(self.geo.loc[i0+11, 'val']) # nozzle bottom z
-        self.ncx = float(self.geo.loc[i0+12, 'val']) # nozzle center x
-        self.ncy = float(self.geo.loc[i0+13, 'val']) # nozzle center y RG
-        self.na = float(self.geo.loc[i0+14, 'val']) # nozzle angle RG
-        self.bv = float(self.geo.loc[i0+15, 'val'])*1000 # bath velocity (mm/s)
-        self.iv = float(self.geo.loc[i0+16, 'val'])*1000 # ink velocity (mm/s)
+        
+        for i, row in self.geo.iterrows():
+            if type(row['title'])==str and len(row['title'])>0:
+                s1 = re.split(' \(', row['title'])[0]
+                if s1 in transfer:
+                    setattr(self, transfer[s1], float(row['val']))
+                
+        self.bv = 1000*self.bv # convert to mm/s
+        self.iv = 1000*self.iv
         self.nre = self.ncx + self.niw/2 + self.nt # nozzle right edge
         self.behind = self.nre + self.niw # 1 inner diameter behind nozzle
         self.intentzcenter = self.nbz - self.niw/2
@@ -87,30 +90,6 @@ def importLegend(folder:str) -> pd.DataFrame:
         return pd.read_csv(os.path.join(folder, 'legend.csv'), names=['title', 'val'])
     else:
         raise Exception('No legend file')
-    
-
-# def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
-#     '''import a csv to a pandas dataframe. ic is the index column. Int if there is an index column, False if there is none'''
-#     if os.path.exists(file):
-#         try:
-#             d = pd.read_csv(file, index_col=ic, skiprows=[1], dtype=np.float64) # skiprows skips units, dtype defines as floats to save memory RG
-#             d.columns = map(str.lower, d.columns)
-#             u = pd.read_csv(file, nrows=1) # read the units seperately since they are not numbers RG
-#             row1 = list(u.iloc[0])
-#             if type(row1[0]) is str and ('m' in row1 or 's' in row1):
-#                 unitdict = dict(u.iloc[0])
-#                 skiprows = [1]
-#             else:
-#                 unitdict = dict([[s,'undefined'] for s in toprows])
-#                 skiprows = []
-#             d = pd.read_csv(file, index_col=ic, dtype=float, skiprows=skiprows)
-#             d.columns = map(str.lower, d.columns)
-#         except:
-#             traceback.print_exc()
-#             return [],{}
-#         return d, unitdict
-#     else:
-#         return [], {}
 
 
 def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
@@ -388,7 +367,7 @@ def ssFile(folder:str) -> str:
     return os.path.join(folder, 'sliceSummaries.csv')
 
 
-def summarize(folder:str, overwrite:bool) -> int:
+def summarize(folder:str, overwrite:bool=False) -> int:
     '''given a simulation, get critical statistics on the filament shape
     folder is the full path name to the folder holding all the files for the simulation
         there must be an interfacePoints folder holding csvs of the interface points
@@ -406,6 +385,7 @@ def summarize(folder:str, overwrite:bool) -> int:
             try:
                 fs = folderStats(folder)
             except:
+                traceback.print_exc()
                 return 1
             
             # summarizeSlices will raise an exception if there are no interface
@@ -524,7 +504,7 @@ def spFile(folder:str) -> str:
     return os.path.join(folder, 'steadyPositions.csv')
 
 
-def steadyMetric(folder:str, mode:int, overwrite:bool) -> int:
+def steadyMetric(folder:str, mode:int, overwrite:bool=False) -> int:
     '''exports steadyTimes or steadyPositions
     folder is full path name
     mode 0 for steady times, 1 for steady positions
@@ -547,7 +527,7 @@ def steadyMetric(folder:str, mode:int, overwrite:bool) -> int:
     return 0
 
 
-def steadyMetrics(folder:str, overwrite:bool) -> int:
+def steadyMetrics(folder:str, overwrite:bool=False) -> int:
     '''exports steadyTimes and steadyPositions
     folder is full path name
     overwrite true to overwrite existing files'''
@@ -562,11 +542,11 @@ def steadyMetrics(folder:str, overwrite:bool) -> int:
     return 0
 
 
-def sumAndSteady(folder:str, overwrite:bool) -> None:
+def sumAndSteady(folder:str, overwrite:bool=False) -> None:
     '''summarize slices and find steady state for a simulation
     folder is full path name
     overwrite true to overwrite existing files, false to only write new ones'''
-    
+
     if not overwrite:
         ssfn = ssFile(folder)
         stfn = stFile(folder)
@@ -581,14 +561,14 @@ def sumAndSteady(folder:str, overwrite:bool) -> None:
     if not os.path.exists(cf):
         return 
 
-    logging.debug(folder)
+    logging.info(folder)
     
     # get initial summaries of the slices in time and position
-    sret = summarize(folder, overwrite)
+    sret = summarize(folder, overwrite=overwrite)
     
     # if sret is 1, summarizing failed, and we won't be able to gather steady metrics
     if sret==0:
-        steadyMetrics(folder, overwrite)
+        steadyMetrics(folder, overwrite=overwrite)
     return 
     
     

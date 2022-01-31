@@ -302,7 +302,7 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
         If we use kwargs to say we only want files with, e.g. nuink=10, then it will only return those files.
         The dictionary lists all of the values in the list of files for each transport property variable. e.g. {'nuinklist':[10,100], 'tau0inklist':[0], 'kinklist':[0], ...}
     '''
-
+    
     tab = [extractTP(folder) for folder in flist]
     tab = pd.DataFrame(tab)
     

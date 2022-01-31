@@ -44,7 +44,43 @@ __status__ = "Production"
 
 #-------------------------------------------
 
- 
+def setSquare(ax):
+    ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
+    
+def subFigureLabel(ax, label:str, inside:bool=True) -> None:
+    '''add a subfigure label to the top left corner'''
+    if inside:
+        x=0.05
+        y = 0.95
+        ha = 'left'
+        va = 'top'
+    else:
+        x = -0.05
+        y = 1.05
+        ha = 'right'
+        va = 'bottom'
+    ax.text(x, y, label, fontsize=12, transform=ax.transAxes, horizontalalignment=ha, verticalalignment=va)
+    
+def subFigureLabels(axs, horiz:bool=True, inside:bool=True) -> None:
+    '''add subfigure labels to all axes'''
+    alphabet_string = string.ascii_uppercase
+    alphabet_list = list(alphabet_string)
+    if len(axs.shape)==1:
+        # single row
+        for ax in axs:
+            subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
+    else:
+        if horiz:
+            # 2d array
+            for axrow in axs:
+                for ax in axrow:
+                    subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
+        else:
+            w = len(axs[0])
+            h = len(axs)
+            for i in range(w):
+                for j in range(h):
+                    subFigureLabel(axs[j][i], alphabet_list.pop(0), inside=inside)
 
 def plotSquare(ax:plt.Axes, x0:float, y0:float, dx:float, caption:str, color) -> None:
     '''plotSquare plots a square
@@ -404,31 +440,36 @@ def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bo
     if not os.path.exists(folder):
         raise ValueError(f"Path {folder} does not exist")
 
-    le, units = intm.importSS(folder)
+    ss, u = intm.importSS(folder)
         # get slice summaries
-    if len(le)<2:
+    if len(ss)<2:
         raise ValueError(f"Slice summaries too short: {folder}")
+        
     try:
-        xreal = intm.closest(list(le['xbehind'].unique()), xbehind) 
+        xreal = intm.closest(list(ss['xbehind'].unique()), xbehind) 
         # this is the actual x value that we measured that's 
         # closest to the one we're asking for
     except Exception as e:
         raise e
+        
     if abs(xreal-xbehind)>0.2:
         # if the x value is too far away, abort
         raise ValueError(f"No valid x value: {folder}")
-    row = le[(le['xbehind']==xreal) & (le['time']==time)] 
+        
+    row = ss[(ss['xbehind']==xreal) & (ss['time']==time)] 
         # select the slice summary at the position and time we asked for
     if not len(row)==1:
         raise ValueError(f"Not enough rows: {folder}, {xreal}, {xbehind}, {time}")
+        
     try:
         rates = {label:row.iloc[0][label] for label in labels}
         # find the value of the metric we're looking for
     except:
         logging.debug(folder)
         raise NameError(f'Error collecting metric value: {folder}')
+        
     if units:
-        return rates, dict([[i, units[i]] for i in labels])
+        return rates, dict([[i, u[i]] for i in labels])
     else:
         return rates
 
@@ -481,45 +522,45 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     
     
     
-def qualityPlots(rows:int, time:float, xbehind:float, xlist:List[int], matrix:List[List[int]], labels:List[str]): # RG
+def qualityPlots(d:pd.DataFrame, time:float, xbehind:float):
     '''Plot points for all labels, one plot per label
-    rows is the number of labels
+    d is dataframe holding table of angles and metrics
     time is time in s
     xbehind is the distance behind the nozzle to take the slice summaries
-    xlist is the angles to plot
-    matrix contains all slice summaries for all angles
-    labels is the slice summaries to extract'''
+    '''
     
-    yval = ['NA']*rows # list to put the labels in
-    for i, name in enumerate(labels): # allows the labels to be passed in any order
-        if name=='arean':
-            yval[i] = 'Normalized Area'
-        elif name=='vertdispn':
-            yval[i] = 'Normalized Vertical Displacement'
-        elif name=='aspectratio':
-            yval[i] = 'Aspect Ratio'
-        elif name=='speeddecay':
-            yval[i] = 'Speed Decay'
+    labdict = {'arean':'Area/intended', 'vertdispn':'Vert disp/nozzle diam', 'aspectratio':'Height/width', 'speeddecay':'Speed/intended'}
+    yvars = list(d.keys())
+    yvars.remove('theta')
+    nvars = len(yvars)
+    if nvars>4:
+        cols = 3
+    else:
+        cols = 2
+    rows = int(np.ceil(nvars/cols))
     
-    fig, axs = plt.subplots(2, 2, sharex=True, constrained_layout=True)
+    
+    fig, axs = plt.subplots(rows, cols, sharex=True, figsize=(6.5, 6.5*rows/cols))
     fig.suptitle('Print Quality Metrics, '+str(xbehind)+' mm behind nozzle, t = '+str(time)+' s')
     plt.xticks(ticks=[0,5,10,15,20,25,30])
     
-    fig.text(0.54, -0.04, 'Nozzle angle (degrees)', ha='center') # x label, did not center when using fig.set_xlabel
-    fig.text(0.95, 0.95, '---- ideal', ha='center', color='#2b6cb3') # key for ideal horizontal lines
+    fig.text(0.95, 0.95, '---- ideal', ha='center', color='black') # key for ideal horizontal lines
     axs[0,0].set_title(" ") # so y axis names do not overlap title
     colors = ['#32964d', '#27cae6', '#335862', '#38f0ac'] # colors to plot with
-    
-    nvd = yval.index('Normalized Vertical Displacement') # find location of nvd, necessary because it has an ideal of 0 not 1
-    
-    for r in range(2): # creates plots, sets labels, and adds ideal lines
-        for c in range(2):
-            axs[r,c].scatter(xlist, matrix[r*2+c][:], c=colors[r*2+c], marker='D')
-            axs[r,c].set_ylabel(yval[r*2+c])
-            if r*2+c==nvd:
-                axs[r,c].axhline(0, ls='--', c='#2b6cb3')
+
+    for r in range(rows): # creates plots, sets labels, and adds ideal lines
+        for c in range(cols):
+            yvar = yvars.pop(0)
+            axs[r,c].scatter(d['theta'], d[yvar], c='black', marker='D')
+            axs[r,c].set_ylabel(labdict[yvar])
+            if yvar=='vertdispn':
+                axs[r,c].axhline(0, ls='--', c='black')
             else:
-                axs[r,c].axhline(1, ls='--', c='#2b6cb3')
+                axs[r,c].axhline(1, ls='--', c='black')
+            setSquare(axs[r,c])
+    for ax in axs[-1]:
+        ax.set_xlabel('Nozzle angle ($\degree$)')
+    fig.tight_layout()
     return fig
 
     
@@ -537,32 +578,23 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
         return
 
     folders = fp.caseFolders(topFolder) # names of folders to plot
+    if len(folders)==0:
+        logging.warning('No folders found')
+        return
             
     xlist = [] # list of nozzle angles
-    for theta in folders:
-        thetaValue = theta.split('cn')[1] # take only the angle from the folder path
-        xlist.append(thetaValue)
-        
-    xlist = [int(i) for i in xlist] # cast xlist to ints     
-    idx = np.argsort(xlist) # create indices for sorted xlist
-    xlist = [xlist[i] for i in idx] # sort xlist
-    folders = [folders[i] for i in idx] # sort folders so the matrix later is already sorted
+    for folder in folders:
+        meta = extractTP(folder)
+        d = {'theta':meta['nozzleAngle']}
+        try:
+            value = metricVals(folder, time, xbehind, labels, units=False)
+        except Exception as e:
+            pass
+        else:
+            d = {**d, **value}
+            xlist.append(d)
+    fig = qualityPlots(pd.DataFrame(xlist), time, xbehind)
 
-    ylist = [] # y values as a list of dicts containing all labels
-    for theta in folders:
-        value = metricVals(theta, time, xbehind, labels) # get slice summary values for each label
-        ylist.append(value)
-    
-    rows = len(labels) # a row for each label
-    cols = len(xlist) # a column for each nozzle angle
-    matrix = [[0 for x in range(cols)] for y in range(rows)] # a 2d list to hold y values for all labels
-    
-    for r in range(rows):
-        current = [sub[labels[r]] for sub in ylist] # get all of the values for the current label without their key
-        for c in range(cols):
-            matrix[r][c] = current[c] # add each value to its appropriate position in the 2d list
-            
-    fig = qualityPlots(rows, time, xbehind, xlist, matrix, labels) # plot values
     intm.exportIm(fn, fig) # export figure
 
 

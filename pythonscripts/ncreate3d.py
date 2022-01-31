@@ -155,7 +155,7 @@ class FileGroup:
         if 'slurmFolder' in kwargs:
             self.slurmFolder = kwargs['slurmFolder']
         else:
-            self.slurmFolder = cfg.path.slurmFolder
+            self.slurmFolder = os.path.join(cfg.path.slurmFolder, os.path.basename(folder))
 
         self.plot = ""
 
@@ -190,7 +190,7 @@ class FileGroup:
         if not self.onlyMesh:
             exportFile(f, 'labels.csv', self.labels)
             exportFile(f, 'run.slurm', self.slurm, linux=True)
-            exportFile(casef, "Allclean", self.allclean, linux=True) 
+            exportFile(casef, "Allclean.sh", self.allclean, linux=True) 
 #             exportFile(casef, "Allrun", self.allrun)
             exportFile(casef, 'Allrun.sh', self.allrun, linux=True)
 #             exportFile(casef, "Continue", self.cont) 
@@ -209,10 +209,10 @@ class FileGroup:
 
         if self.exportMesh:
             if not self.onlyMesh:
-                exportFile(f, "Allrun", self.allallrun, linux=True)
+                exportFile(f, "Allrun.sh", self.allallrun, linux=True)
                 exportFile(f, "geometry.csv", self.geofile)
-            exportFile(fmesh, "Allclean", self.allclean, linux=True) 
-            exportFile(fmesh, "Allrun", self.allrunmesh, linux=True)
+            exportFile(fmesh, "Allclean.sh", self.allclean, linux=True) 
+            exportFile(fmesh, "Allrun.sh", self.allrunmesh, linux=True)
             exportFile(fmesh0, "pointLevel", self.pointLevel)
             exportFile(fmesh0, "cellLevel", self.cellLevel)
             exportFile(fmeshsys, "blockMeshDict", self.blockMeshDict) 
@@ -284,7 +284,9 @@ def compileAllClean(endTime:float, writeDt:float) -> str:
 
 def compileAllAllRun() -> str:
     '''for folders that contain both a mesh and case folder, create a function that runs both allrun functions'''
-    s = ("./mesh/Allrun; ./case/Allrun")
+    s = '#!/bin/bash\n\n'
+    s = s + 'cd \"$(dirname \"$0\")\"\n'
+    s = s + ("./mesh/Allrun.sh; ./case/Allrun.sh")
     return s
 
 def fListLoop(s:str, functionlist:List[str], folder:str, ifstarted:bool=False) -> str:
@@ -314,6 +316,7 @@ def compileAllRun(folder:str, solver:str) -> str: # RG
     '''this is the allrun bash script for the case folder'''
     f = os.path.basename(folder)
     s = '#!/bin/bash\n\n'
+    s = s + 'cd \"$(dirname \"$0\")\"\n'
     s = s + '. $WM_PROJECT_DIR/bin/tools/RunFunctions;\n'
     s = s + 'echo '+f+'\n'
     s = s + 'if [ ! -d "0.1" ]; then\n'
@@ -345,8 +348,9 @@ def compileSlurm(folder:str, parentdir:str) -> str:
 
 def compileAllRunMesh(folder:str) -> str:
     '''this script runs the meshing functions in the mesh folder'''
-    s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
-        + "cd \"${0%/*}\" || exit; ")
+    s = '#!/bin/bash\n\n'
+    s = s + 'cd \"$(dirname \"$0\")\" || exit; \n'
+    s = s + '. $WM_PROJECT_DIR/bin/tools/RunFunctions;\n'
     s = s + 'if [ ! -d "VTK" ]; then\n'
     functionlist = ["surfaceFeatures", "blockMesh", "snappyHexMesh -overwrite", "foamToVTK"]
         # use surfaceFeatures for OpenFOAM 8 and later
@@ -404,9 +408,9 @@ class NozVars:
     
     def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, nozzleAngle:float=0, horizontal:bool=False, **kwargs):
         ''' Allowed input variables:
-            bathWidth: (default=16) bath width in nozzle inner diameters
-            bathHeight: (default=7) bath height in nozzle inner diameters
-            bathDepth: (default=7) bath depth in nozzle inner diameters
+            bathWidth: (default=16) bath width in nozzle inner diameters (x)
+            bathHeight: (default=7) bath height in nozzle inner diameters (y)
+            bathDepth: (default=7) bath depth in nozzle inner diameters (z)
             frontWidth: (default=4) front of nozzle bath width in nozzle inner diameters
             vink: (default=10) ink extrusion speed in mm/s
             vbath: (default=10) bath translation speed in mm/s
@@ -1538,7 +1542,7 @@ def compileSolverFiles(cdv:CDVars, fvv:FVVars, out:FileGroup) -> FileGroup:
     out = compileFV(fvv, out)
     out.slurm = compileSlurm(out.folder, out.slurmFolder)
     out.allallrun = compileAllAllRun()
-    out.allclean = compileAllClean()
+    out.allclean = compileAllClean(cdv.endTime, cdv.writeInterval)
     out.allrunmesh = compileAllRunMesh(out.folder)
     out.allrun = compileAllRun(out.folder, cdv.application)
 #     out.cont = compileContinue(out.folder, cdv.application)

@@ -76,20 +76,27 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy'
 # folders
 folders = []
 nlist = list(range(0,1000))
+# nlist = [0]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle') # RG
+topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle', 'horizontal') # RG
 for f in os.listdir(topfolder):
     if f.startswith('cn'):
-        try:
-            n1 = float(f[2:])
-        except:
-            n1 = f[2:]
-        if n1 in nlist or 'hor' in f:
+        if f.endswith('hor'):
+            try:
+                n1 = float(f[2:-3])
+            except:
+                n1 = f[2:-3]
+        else:
+            try:
+                n1 = float(f[2:])
+            except:
+                n1 = f[2:]
+        if n1 in nlist:
             folders.append(os.path.join(topfolder, f))
 
 

@@ -12,6 +12,7 @@ from datetime import datetime
 import time
 import logging, platform, socket, sys
 from backwardsRead import fileReadBackwards
+import traceback
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -96,6 +97,7 @@ class scrape:
         self.GEOncxc = ['nozzle center x coord (mm)', '']
         self.GEOncyc = ['nozzle center y coord (mm)', '']
         self.GEOna = ['nozzle angle (degrees)', ''] # RG
+        self.GEOhoriz = ['horizontal', False]
         self.GEObathv = ['bath velocity (m/s)', '']
         self.GEOinkv = ['ink velocity (m/s)', '']
     
@@ -244,7 +246,7 @@ class scrape:
            [self.GEOniw, self.GEOnt, self.GEObw, self.GEObd, \
             self.GEOnl, self.GEOblc, self.GEObrc, self.GEObfc,\
             self.GEObbackc, self.GEObbotc, self.GEObtc, self.GEOnbc,\
-            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEObathv, self.GEOinkv])
+            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEOhoriz, self.GEObathv, self.GEOinkv])
         ca(col, ['', 'SYSTEM'], [])    
         ca(col, ['snappyHexMeshDict'], self.SHMlist)
         ca(col, ['castellatedMeshControls'], self.CMClist)
@@ -267,6 +269,326 @@ class scrape:
         ca(col, ['', 'U'], self.fvSUlist)
         ca(col, ['', 'PIMPLE'], self.fvSPIMPLElist)
         return col
+    
+    #---------------------------------------
+    
+    def scrapeSHMLog(self) -> None:
+        '''scrape the snappyHexMesh log file
+        s is a scrape object'''
+        shmlog = os.path.join(self.meshfold, 'log_snappyHexMesh')
+        if os.path.exists(shmlog):
+            # it's useful to go backwards here because we're just looking for the time reported at the end of the file
+            for line in fileReadBackwards(shmlog):
+                if line.startswith('Finished meshing'):
+                    strs = re.split('Finished meshing in = | s', line)
+                    shmtime = float(strs[1])
+                    self.shmtimes[1] = "%.2f" % shmtime
+                    self.shmtimem[1] = "%.2f" % (shmtime/60)
+                    return 
+
+
+
+    def scrapeIFLog(self) -> None:
+        '''scrape the interFoam log file
+            Because interFoam can take hours to days, sometimes runs get split into pieces. 
+            Each interFoam run adds onto the existing log file. 
+            s is a scrape object  '''
+        ifLog = os.path.join(self.casefold, 'log_interFoam')
+        if not os.path.exists(ifLog):
+            ifLog = os.path.join(self.fold, 'log_interFoam')
+        if not os.path.exists(ifLog):
+            return
+        iftime = 0 # this variable adds up all the times for separate interFoam runs
+        waitfortop = False # this variable tells us what to look for, so we only collect the last reported time from each run
+        simtime = 0
+        # it's useful to go backwards here because we're just looking for the time reported at the end of the run
+        for line in fileReadBackwards(ifLog):
+            if simtime==0 and line.startswith('Time = '):
+                strs = re.split('Time = ', line)
+                simtime = float(strs[1])
+            if (waitfortop and line.startswith('fileModificationChecking')): 
+                # when we hit fileModificationChecking, it's the end of the run, so now we should look for the next reported time
+                waitfortop = False
+            if (not waitfortop and line.startswith('ExecutionTime')):
+                # read the last reported ExecutionTime
+                strs = re.split('ExecutionTime = | s', line)
+                iftime+=float(strs[1])
+                waitfortop = True # now that we've read the time, look for the next end of run
+        # store the time in the scrape object in seconds and hr
+        self.iftimes[1] = "%.2f" % iftime 
+        self.iftimehr[1] = "%.2f" % (iftime/60/60)
+        try:
+            if simtime==0:
+                simtime = "%.2f" % float(self.simTime[1])
+            if simtime>0:
+                # if we've already measured a simulation time, calculate the simulation speed
+                self.simrate[1] = "%.2f" % (iftime/60/60/simtime)
+        except:
+            pass
+        return
+
+    def scrapeRunTime(self) -> None:
+        '''Get the simulation time from the folder'''
+        ti = times(self.fold)
+        if len(ti)>0:
+            self.simTime[1] = str(max(ti))
+        else:
+            self.simTime[1] = '0'
+        return
+
+
+    def scrapeLogs(self) -> None:
+        '''scrape all of the times (run time, simulation time, etc.)
+        s is a scrape object'''
+        self.scrapeRunTime()
+        self.scrapeSHMLog()
+        self.scrapeIFLog()
+
+
+    def scrapeBlockMeshDict(self) -> None:
+        '''scrape blockMeshDict
+        s is a scrape object'''
+        bm = os.path.join(self.meshfold, 'system', 'blockMeshDict')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                while not line.startswith('vertices'):
+                    line = f.readline()
+                # now we have reached the list of vertices
+                # because we establish a basic mesh with blockmeshDict and refine with snappyHexMesh, this list only contains 8 vertices
+                for i in range(2):
+                    line = f.readline() # read coords from the first list of points
+                strs = re.split('\(|\)| ', line)
+                self.GEOblc[1] = strs[1] # bath left coord
+                self.GEObbackc[1] = strs[2] # bath back coord
+                self.GEObbotc[1] = strs[3] # bath bottom coord
+                for i in range(7):
+                    line = f.readline() # read coords from the last list of points
+                strs = re.split('\(|\)| ', line)
+                self.GEObrc[1] = strs[1] # bath right coord
+                self.GEObfc[1] = strs[2] # bath front coord
+                self.GEObtc[1] = strs[3] # bath top coord
+                self.GEObw[1] = str(float(self.GEObrc[1]) - float(self.GEOblc[1])) # bath width
+                self.GEObd[1] = str(float(self.GEObfc[1]) - float(self.GEObbackc[1])) # bath depth
+                while not line.startswith('blocks'):
+                    line = f.readline()    
+                # now we have reached the list of blocks
+                # again, there is only one block because we're using snappyHexMesh
+                for i in range(2):
+                    line = f.readline() # read coords from the first list of blocks
+                strs = re.split('\) \(|\) s', line)
+                self.blocksdims[1] = strs[1] # number of cells in the blocks: this should look like (# # #)
+                return
+
+
+    def scrapeSetFieldsDict(self) -> None:
+        '''scrape setFieldsDict
+        s is a scrape object'''
+        bm = os.path.join(self.casefold, 'system', 'setFieldsDict')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                while not line.startswith('\t\tp1'):
+                    line = f.readline()
+                # now we have reached the bottom point of the nozzle
+                strs = re.split('\(|\)| ', line) # RG
+                self.GEOncxc[1] = str(1000*float(strs[2])) # nozzle center x
+                self.GEOncyc[1] = str(1000*float(strs[3])) # nozzle center y
+                self.GEOnbc[1] = (1000*float(strs[4])) # nozzle bottom 
+                try:
+                    btc = float(self.GEObtc[1]) # bath top coord
+                except:
+                    self.GEOnl[1] = ""
+                else:
+                    self.GEOnl[1] = str(btc - self.GEOnbc[1]) # nozzle length
+                self.GEOnbc[1] = str(self.GEOnbc[1])
+                return
+
+
+    def scrapeU(self) -> None:
+        '''scrape 0/U
+        s is a scrape object'''
+        bm = os.path.join(self.casefold, '0', 'U')
+        
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                # get geometry
+                if len(self.GEOnl[1])==0:
+                    self.scrapeGeo()
+                horiz = self.GEOhoriz[1]
+                if type(horiz) is str:
+                    if 'true' in horiz.lower():
+                        horiz = True
+                    else:
+                        horiz = False
+                
+                # read bath speed
+                line = f.readline()
+                while not line.startswith('\tbathFlow'):
+                    line = f.readline()
+                # now we have reached the bath flow section
+                for i in range(3):
+                    line = f.readline()
+                if horiz:
+                    strs = re.split('\(|\)| |-', line)
+                    self.GEObathv[1] = strs[5] # bath velocity: this will be reported in m/s
+                else:
+                    strs = re.split('\(|\)| ', line)
+                    self.GEObathv[1] = strs[2] # bath velocity: this will be reported in m/s
+                
+                # read ink speed
+                while not line.startswith('\tinkFlow'):
+                    line = f.readline()
+                # now we have reached the ink flow section
+                for i in range(3):
+                    line = f.readline()
+                strs = re.split('\(|\)| |-', line)
+                
+                theta = np.radians(float(self.GEOna[1]))
+                vt = strs[5]
+                if theta==0:
+                    self.GEOinkv[1] = vt
+                else:
+                    ri = float(self.GEOniw[1])/2
+                    l = float(self.GEOnl[1])
+                    self.GEOinkv[1] = float(vt)*(ri+l*np.tan(theta))**2/ri**2 # ink velocity: this will be reported in m/s
+                return
+        else:
+            logging.info(f'path {bm} does not exist')
+
+
+    def scrapeSHM(self) -> None:
+        '''scrape snappyHexMeshDict
+        here we use listLevel because snappyHexMeshDict has a lot of sections and we're scraping all of the data
+        to change which fields we collect, go back to the scrape class definition
+        we're collecting data for SHMlist, CMClist, CMCfixedWallsLevel, SClist, ALClist, ALCfixedWallsLayers, MQClist, and SHMmergeTolerance
+        s is a scrape object'''
+        bm = os.path.join(self.meshfold, 'system', 'snappyHexMeshDict')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                # first determine if castellatedMesh, snapping, and layers are active
+                line = listLevel('castellatedMesh', 'geometry', line, f, self.SHMlist)
+                # then read in castellated mesh controls
+                if self.SHMlist[0][1]=='true':
+                    # only collect castellatedMesh variables if we're using a castellated mesh
+                    line = listLevel('castellatedMeshControls', '\tfeatures', line, f, self.CMClist)
+                    while not line.startswith('\t\t\tfile\t\"fixed'):
+                        line = f.readline()
+                    line = f.readline()
+                    strs = re.split(';|\t', line)
+                    self.CMCfixedWallsLevel[1] = strs[4]
+                if self.SHMlist[1][1]=='true':
+                    # only collect snap variables if we're using snapping
+                    line = listLevel('snapControls', 'addLayersControls', line, f, self.SClist)
+                if self.SHMlist[2][1]=='true':
+                    # only collect layers variables if we're using layers
+                    listLevel('addLayersControls', '\tlayers', line, f, self.ALClist)
+                    while not line.startswith('\t\tfixed'):
+                        line = f.readline()
+                    for i in range(2):
+                        line = f.readline()
+                    strs = re.split(';|\t', line)
+                    self.ALCfixedWallsLayers[1] = strs[4]
+                line = listLevel('meshQualityControls', 'writeFlags', line, f, self.MQClist)
+                line = readLevel0('mergeTolerance', line, f, self.SHMmergeTolerance)
+                return
+        else:
+            logging.warning(f'path {bm} does not exist')
+
+
+    def scrapeDMD(self) -> None:
+        '''scrape dynamicMeshDict
+        s is a scrape object'''
+        bm = os.path.join(self.casefold, 'constant', 'dynamicMeshDict')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                # just collect the variables in the dynamicRefineFvMeshCoeffs section
+                line = listLevel('dynamicRefineFvMeshCoeffs', '\tcorrectFluxes', line, f, self.DMDlist)
+                return
+        else:
+            logging.warning(f'path {bm} does not exist')
+
+
+    def scrapeTP(self) -> None:
+        '''scrape transportProperties
+        s is a scrape object'''
+        bm = os.path.join(self.casefold, 'constant', 'transportProperties')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                line = listLevel('ink', '}', line, f, self.TPinklist)
+                line = listLevel('sup', '}', line, f, self.TPsuplist)
+                line = readLevel0('sigma', line, f, self.TPsigma)
+                return
+        else:
+            logging.warning(f'path {bm} does not exist')
+
+    def scrapeLabels(self) -> None:
+        '''scrape the labels.csv document'''
+        bm = os.path.join(self.fold, 'labels.csv')
+        if os.path.exists(bm):
+            with open(bm, "r") as f:
+                data = list(csv.reader(f))
+                self.TPinklist[0][1]=data[0][1]
+                self.TPsuplist[0][1]=data[1][1]
+
+
+    def scrapeCD(self) -> None:
+        '''scrape controlDict
+        s is a scrape object'''
+        bm = os.path.join(self.casefold, 'system', 'controlDict')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                line = listLevel('application', '//', line, f, self.controlDictList)
+                return
+        else:
+            logging.warning(f'path {bm} does not exist')
+
+
+
+    def scrapeFV(self) -> None:
+        '''scrape fvSolution
+            fvSolution files are broken into sections by the variable we're solving for, e.g. alpha, pcorr, p_rgh. 
+            scrape each section into a different list stored in s
+            s is a scrape object'''
+        bm = os.path.join(self.casefold, 'system', 'fvSolution')
+        if os.path.exists(bm):
+            with open (bm, "r") as f:
+                line = f.readline()
+                line = listLevel('\t\"alpha', '\t}', line, f, self.fvSailist)
+                line = listLevel('\t\"pcorr', '\t}', line, f, self.fvSpcorrlist)
+                line = listLevel('\tp_rgh', '\t}', line, f, self.fvSprghlist)
+                line = listLevel('\tp_rghFinal', '\t}', line, f, self.fvSprghfinallist)
+                line = listLevel('\tU', '\t}', line, f, self.fvSUlist)
+                line = listLevel('PIMPLE', '\t}', line, f, self.fvSPIMPLElist)
+                return
+        else:
+            logging.warning(f'path {bm} does not exist')
+
+
+    def scrapeGeo(self) -> None:
+        '''scrape geometry.csv
+            geometry.csv was created by ncreate3d.py/noz3dscript.ipynb when we generated the whole folder
+            s is a scrape object'''
+        bm = os.path.join(self.fold, 'geometry.csv')
+        transfer = {'nozzle inner width':'niw', 'nozzle thickness':'nt', 'bath width':'bw', 'bath depth':'bd'
+                    , 'nozzle length':'nl', 'bath left coord':'blc', 'bath right coord':'brc'
+                    , 'bath front coord':'bfc', 'bath back coord':'bbackc', 'bath bottom coord':'bbotc', 'bath top coord':'btc'
+                   , 'nozzle bottom coord':'nbc', 'nozzle center x coord':'ncxc', 'nozzle center y coord':'ncyc', 'nozzle angle':'na', 'horizontal':'horiz'
+                   , 'bath velocity':'bathv', 'ink velocity':'inkv'}
+        if os.path.exists(bm):
+            with open(bm, "r") as f:
+                data = list(csv.reader(f))
+                for row in data:
+                    s1 = re.split(' \(', row[0])[0]
+                    if s1 in transfer:
+                        setattr(self, 'GEO'+transfer[s1], row)
+                return
+        else:
+            return
 
 
 
@@ -350,310 +672,12 @@ def readLevel0(s:str, line:str, f:TextIO, obj:List[List[str]]) -> str:
 ###################### SCRAPING FILES ##################
 
 
-def scrapeSHMLog(s:scrape) -> None:
-    '''scrape the snappyHexMesh log file
-    s is a scrape object'''
-    shmlog = os.path.join(s.meshfold, 'log_snappyHexMesh')
-    if os.path.exists(shmlog):
-        # it's useful to go backwards here because we're just looking for the time reported at the end of the file
-        for line in fileReadBackwards(shmlog):
-            if line.startswith('Finished meshing'):
-                strs = re.split('Finished meshing in = | s', line)
-                shmtime = float(strs[1])
-                s.shmtimes[1] = "%.2f" % shmtime
-                s.shmtimem[1] = "%.2f" % (shmtime/60)
-                return 
-    
 
-              
-def scrapeIFLog(s:scrape) -> None:
-    '''scrape the interFoam log file
-        Because interFoam can take hours to days, sometimes runs get split into pieces. 
-        Each interFoam run adds onto the existing log file. 
-        s is a scrape object  '''
-    ifLog = os.path.join(s.casefold, 'log_interFoam')
-    if not os.path.exists(ifLog):
-        ifLog = os.path.join(s.fold, 'log_interFoam')
-    if not os.path.exists(ifLog):
-        return
-    iftime = 0 # this variable adds up all the times for separate interFoam runs
-    waitfortop = False # this variable tells us what to look for, so we only collect the last reported time from each run
-    simtime = 0
-    # it's useful to go backwards here because we're just looking for the time reported at the end of the run
-    for line in fileReadBackwards(ifLog):
-        if simtime==0 and line.startswith('Time = '):
-            strs = re.split('Time = ', line)
-            simtime = float(strs[1])
-        if (waitfortop and line.startswith('fileModificationChecking')): 
-            # when we hit fileModificationChecking, it's the end of the run, so now we should look for the next reported time
-            waitfortop = False
-        if (not waitfortop and line.startswith('ExecutionTime')):
-            # read the last reported ExecutionTime
-            strs = re.split('ExecutionTime = | s', line)
-            iftime+=float(strs[1])
-            waitfortop = True # now that we've read the time, look for the next end of run
-    # store the time in the scrape object in seconds and hr
-    s.iftimes[1] = "%.2f" % iftime 
-    s.iftimehr[1] = "%.2f" % (iftime/60/60)
-    try:
-        if simtime==0:
-            simtime = "%.2f" % float(s.simTime[1])
-        if simtime>0:
-            # if we've already measured a simulation time, calculate the simulation speed
-            s.simrate[1] = "%.2f" % (iftime/60/60/simtime)
-    except:
-        pass
-    return
-
-def scrapeRunTime(s:scrape) -> None:
-    '''Get the simulation time from the folder'''
-    ti = times(s.fold)
-    if len(ti)>0:
-        s.simTime[1] = str(max(ti))
-    else:
-        s.simTime[1] = '0'
-    return
-
-
-def scrapeLogs(s:scrape) -> None:
-    '''scrape all of the times (run time, simulation time, etc.)
-    s is a scrape object'''
-    scrapeRunTime(s)
-    scrapeSHMLog(s)
-    scrapeIFLog(s)
-    
-
-def scrapeBlockMeshDict(s:scrape) -> None:
-    '''scrape blockMeshDict
-    s is a scrape object'''
-    bm = os.path.join(s.meshfold, 'system', 'blockMeshDict')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            while not line.startswith('vertices'):
-                line = f.readline()
-            # now we have reached the list of vertices
-            # because we establish a basic mesh with blockmeshDict and refine with snappyHexMesh, this list only contains 8 vertices
-            for i in range(2):
-                line = f.readline() # read coords from the first list of points
-            strs = re.split('\(|\)| ', line)
-            s.GEOblc[1] = strs[1] # bath left coord
-            s.GEObbackc[1] = strs[2] # bath back coord
-            s.GEObbotc[1] = strs[3] # bath bottom coord
-            for i in range(7):
-                line = f.readline() # read coords from the last list of points
-            strs = re.split('\(|\)| ', line)
-            s.GEObrc[1] = strs[1] # bath right coord
-            s.GEObfc[1] = strs[2] # bath front coord
-            s.GEObtc[1] = strs[3] # bath top coord
-            s.GEObw[1] = str(float(s.GEObrc[1]) - float(s.GEOblc[1])) # bath width
-            s.GEObd[1] = str(float(s.GEObfc[1]) - float(s.GEObbackc[1])) # bath depth
-            while not line.startswith('blocks'):
-                line = f.readline()    
-            # now we have reached the list of blocks
-            # again, there is only one block because we're using snappyHexMesh
-            for i in range(2):
-                line = f.readline() # read coords from the first list of blocks
-            strs = re.split('\) \(|\) s', line)
-            s.blocksdims[1] = strs[1] # number of cells in the blocks: this should look like (# # #)
-            return
-
-
-def scrapeSetFieldsDict(s:scrape) -> None:
-    '''scrape setFieldsDict
-    s is a scrape object'''
-    bm = os.path.join(s.casefold, 'system', 'setFieldsDict')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            while not line.startswith('\t\tp1'):
-                line = f.readline()
-            # now we have reached the bottom point of the nozzle
-            strs = re.split('\(|\)| ', line) # RG
-            s.GEOncxc[1] = str(1000*float(strs[2])) # nozzle center x
-            s.GEOncyc[1] = str(1000*float(strs[3])) # nozzle center y
-            s.GEOnbc[1] = (1000*float(strs[4])) # nozzle bottom 
-            try:
-                btc = float(s.GEObtc[1]) # bath top coord
-            except:
-                s.GEOnl[1] = ""
-            else:
-                s.GEOnl[1] = str(btc - s.GEOnbc[1]) # nozzle length
-            s.GEOnbc[1] = str(s.GEOnbc[1])
-            return
-        
-
-def scrapeU(s:scrape) -> None:
-    '''scrape 0/U
-    s is a scrape object'''
-    bm = os.path.join(s.casefold, '0', 'U')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            while not line.startswith('\tbathFlow'):
-                line = f.readline()
-            # now we have reached the bath flow section
-            for i in range(3):
-                line = f.readline()
-            strs = re.split('\(|\)| ', line)
-            s.GEObathv[1] = strs[2] # bath velocity: this will be reported in m/s
-            while not line.startswith('\tinkFlow'):
-                line = f.readline()
-            # now we have reached the ink flow section
-            for i in range(3):
-                line = f.readline()
-            strs = re.split('\(|\)| |-', line)
-            s.GEOinkv[1] = strs[5] # ink velocity: this will be reported in m/s
-            return
-    else:
-        logging.info(f'path {bm} does not exist')
-
-
-def scrapeSHM(s:scrape) -> None:
-    '''scrape snappyHexMeshDict
-    here we use listLevel because snappyHexMeshDict has a lot of sections and we're scraping all of the data
-    to change which fields we collect, go back to the scrape class definition
-    we're collecting data for SHMlist, CMClist, CMCfixedWallsLevel, SClist, ALClist, ALCfixedWallsLayers, MQClist, and SHMmergeTolerance
-    s is a scrape object'''
-    bm = os.path.join(s.meshfold, 'system', 'snappyHexMeshDict')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            # first determine if castellatedMesh, snapping, and layers are active
-            line = listLevel('castellatedMesh', 'geometry', line, f, s.SHMlist)
-            # then read in castellated mesh controls
-            if s.SHMlist[0][1]=='true':
-                # only collect castellatedMesh variables if we're using a castellated mesh
-                line = listLevel('castellatedMeshControls', '\tfeatures', line, f, s.CMClist)
-                while not line.startswith('\t\t\tfile\t\"fixed'):
-                    line = f.readline()
-                line = f.readline()
-                strs = re.split(';|\t', line)
-                s.CMCfixedWallsLevel[1] = strs[4]
-            if s.SHMlist[1][1]=='true':
-                # only collect snap variables if we're using snapping
-                line = listLevel('snapControls', 'addLayersControls', line, f, s.SClist)
-            if s.SHMlist[2][1]=='true':
-                # only collect layers variables if we're using layers
-                listLevel('addLayersControls', '\tlayers', line, f, s.ALClist)
-                while not line.startswith('\t\tfixed'):
-                    line = f.readline()
-                for i in range(2):
-                    line = f.readline()
-                strs = re.split(';|\t', line)
-                s.ALCfixedWallsLayers[1] = strs[4]
-            line = listLevel('meshQualityControls', 'writeFlags', line, f, s.MQClist)
-            line = readLevel0('mergeTolerance', line, f, s.SHMmergeTolerance)
-            return
-    else:
-        logging.warning(f'path {bm} does not exist')
-
-
-def scrapeDMD(s:scrape) -> None:
-    '''scrape dynamicMeshDict
-    s is a scrape object'''
-    bm = os.path.join(s.casefold, 'constant', 'dynamicMeshDict')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            # just collect the variables in the dynamicRefineFvMeshCoeffs section
-            line = listLevel('dynamicRefineFvMeshCoeffs', '\tcorrectFluxes', line, f, s.DMDlist)
-            return
-    else:
-        logging.warning(f'path {bm} does not exist')
-
-
-def scrapeTP(s:scrape) -> None:
-    '''scrape transportProperties
-    s is a scrape object'''
-    bm = os.path.join(s.casefold, 'constant', 'transportProperties')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            line = listLevel('ink', '}', line, f, s.TPinklist)
-            line = listLevel('sup', '}', line, f, s.TPsuplist)
-            line = readLevel0('sigma', line, f, s.TPsigma)
-            return
-    else:
-        logging.warning(f'path {bm} does not exist')
-        
-def scrapeLabels(s:scrape) -> None:
-    '''scrape the labels.csv document'''
-    bm = os.path.join(s.fold, 'labels.csv')
-    if os.path.exists(bm):
-        with open(bm, "r") as f:
-            data = list(csv.reader(f))
-            s.TPinklist[0][1]=data[0][1]
-            s.TPsuplist[0][1]=data[1][1]
-        
-
-def scrapeCD(s:scrape) -> None:
-    '''scrape controlDict
-    s is a scrape object'''
-    bm = os.path.join(s.casefold, 'system', 'controlDict')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            line = listLevel('application', '//', line, f, s.controlDictList)
-            return
-    else:
-        logging.warning(f'path {bm} does not exist')
-        
-
-
-def scrapeFV(s:scrape) -> None:
-    '''scrape fvSolution
-        fvSolution files are broken into sections by the variable we're solving for, e.g. alpha, pcorr, p_rgh. 
-        scrape each section into a different list stored in s
-        s is a scrape object'''
-    bm = os.path.join(s.casefold, 'system', 'fvSolution')
-    if os.path.exists(bm):
-        with open (bm, "r") as f:
-            line = f.readline()
-            line = listLevel('\t\"alpha', '\t}', line, f, s.fvSailist)
-            line = listLevel('\t\"pcorr', '\t}', line, f, s.fvSpcorrlist)
-            line = listLevel('\tp_rgh', '\t}', line, f, s.fvSprghlist)
-            line = listLevel('\tp_rghFinal', '\t}', line, f, s.fvSprghfinallist)
-            line = listLevel('\tU', '\t}', line, f, s.fvSUlist)
-            line = listLevel('PIMPLE', '\t}', line, f, s.fvSPIMPLElist)
-            return
-    else:
-        logging.warning(f'path {bm} does not exist')
-
-
-def scrapeGeo(s:scrape) -> None:
-    '''scrape geometry.csv
-        geometry.csv was created by ncreate3d.py/noz3dscript.ipynb when we generated the whole folder
-        s is a scrape object'''
-    bm = os.path.join(s.fold, 'geometry.csv')
-    if os.path.exists(bm):
-        with open(bm, "r") as f:
-            data = list(csv.reader(f))
-            s.GEOniw = data[0] # nozzle inner width
-            s.GEOnt = data[1] # nozzle thickness
-            s.GEObw = data[2] # bath width
-            s.GEObd = data[3] # bath depth
-            s.GEOnl = data[4] # nozzle length
-            s.GEOblc = data[5] # bath left coordinate
-            s.GEObrc = data[6] # bath right coordinate
-            s.GEObfc = data[7] # bath front coordinate
-            s.GEObbackc = data[8] # bath back coordinate
-            s.GEObbotc = data[9] # bath bottom coordinate
-            s.GEObtc = data[10] # bath top coordinate
-            s.GEOnbc = data[11] # nozzle bottom coordinate
-            s.GEOncxc = data[12] # nozzle center x coordinate
-            s.GEOncyc = data[13] # nozzle center y coordinate
-            s.GEOna = data[14] # nozzle angle
-            s.GEObathv = data[15] # bath velocity
-            s.GEOinkv = data[16] # ink velocity
-            return
-    else:
-        return
 
 
 #----------------------------------------------------------------------------
 
-def populate(folder:str, *varargin) -> List[List[str]]:
+def populate(folder:str, *varargin, readLogs:bool=True, overwrite:bool=False) -> List[List[str]]:
     '''populate scrapes all the data from the folder and exports it to a table called legend.csv
     folder is a full path name
     can also add strings that evaluate specific functions, e.g. scrapeTP, so that you can just scrape the transportproperties if there is already a legend'''
@@ -661,13 +685,15 @@ def populate(folder:str, *varargin) -> List[List[str]]:
         raise Exception("Not a simulation folder")
     s = scrape(folder)   # create an object to store variables
     fn = os.path.join(folder, 'legend.csv')     # export file name
-    scrapeLogs(s)   # scrape the logs
-    if os.path.exists(fn):
+    if readLogs:
+        s.scrapeLogs()   # scrape the logs
+    if not overwrite and os.path.exists(fn):
         for func in varargin:
             try:
-                eval(func+'(s)')
+                eval('s.'+func+'()')
             except Exception as e:
-                print(e)
+                logging.warning(e)
+                traceback.print_exc()
                 pass
         # if a legend file already exists, keep that 
         # legend file and just replace the processing times
@@ -676,24 +702,33 @@ def populate(folder:str, *varargin) -> List[List[str]]:
             t = list(csv.reader(f))
             t2 = s.table()
             t[2:8] = t2[2:8]
-            
+
             # keep any collected variables
             if len(varargin)>0:
-                for i in range(len(t)):
-                    if not t[i][1]==t2[i][1] and not t2[i][1]=='' :
-                        t[i]=t2[i]
+                i = 0
+                while i<len(t2):
+                    if not t[i][0]==t2[i][0]:
+                        # new row added
+                        t = t[:i]+[t2[i]]+t[i:]
+                        i+=1
+                    else:
+                        if not t[i][1]==t2[i][1] and not t2[i][1]=='' :
+                            # new value updated
+                            t[i]=t2[i]
+                        i+=1
+                        
     else:
         # if there is no legend file, we have to go through all the files and scrape data
-        scrapeGeo(s)
-        scrapeBlockMeshDict(s)
-        scrapeSetFieldsDict(s)
-        scrapeU(s)
-        scrapeSHM(s)
-        scrapeDMD(s)
-        scrapeTP(s)
-        scrapeLabels(s)
-        scrapeCD(s)
-        scrapeFV(s)
+        s.scrapeGeo()
+        s.scrapeBlockMeshDict()
+        s.scrapeSetFieldsDict()
+        s.scrapeU()
+        s.scrapeSHM()
+        s.scrapeDMD()
+        s.scrapeTP()
+        s.scrapeLabels()
+        s.scrapeCD()
+        s.scrapeFV()
         t = s.table() # generate a table from all the data we scraped
     exportCSV(fn, t) # export the updated table
     return t
