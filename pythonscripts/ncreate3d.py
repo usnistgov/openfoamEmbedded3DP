@@ -188,8 +188,9 @@ class FileGroup:
 
         
         if not self.onlyMesh:
-            exportFile(f, 'labels.csv', self.labels)
+#             exportFile(f, 'labels.csv', self.labels)
             exportFile(f, 'run.slurm', self.slurm, linux=True)
+            exportFile(f, "Allclean.sh", self.allallclean, linux=True) 
             exportFile(casef, "Allclean.sh", self.allclean, linux=True) 
 #             exportFile(casef, "Allrun", self.allrun)
             exportFile(casef, 'Allrun.sh', self.allrun, linux=True)
@@ -211,7 +212,7 @@ class FileGroup:
             if not self.onlyMesh:
                 exportFile(f, "Allrun.sh", self.allallrun, linux=True)
                 exportFile(f, "geometry.csv", self.geofile)
-            exportFile(fmesh, "Allclean.sh", self.allclean, linux=True) 
+#             exportFile(fmesh, "Allclean.sh", self.allclean, linux=True) 
             exportFile(fmesh, "Allrun.sh", self.allrunmesh, linux=True)
             exportFile(fmesh0, "pointLevel", self.pointLevel)
             exportFile(fmesh0, "cellLevel", self.cellLevel)
@@ -275,10 +276,20 @@ def compileAllClean(endTime:float, writeDt:float) -> str:
 #          + ". $WM_PROJECT_DIR/bin/tools/CleanFunctions; "
 #          + "cleanCase"
 #         )
-    s = "#!/bin/bash\n\nrm -r "
-    for t in np.arange(0, endTime+writeDt, writeDt):
-        s = s + str(t) + " "
-    s = s + "slurm*.out log_interFoam log_setFields log_foamToVTK"
+    s = "#!/bin/bash\n\n"
+    s = s + 'cd \"$(dirname \"$0\")\"\n'
+    s = s + 'rm -f -r 0.* '
+    for t in range(1, int(np.ceil(endTime+writeDt)+1), 1):
+        s = s + str(t) + "* "
+    s = s + "slurm*.out log_*"
+    return s
+
+def compileAllAllClean() -> str:
+    '''for folders that contain both a mesh and case folder, create a function that runs both allrun functions'''
+    s = '#!/bin/bash\n\n'
+    s = s + 'cd \"$(dirname \"$0\")\"\n'
+    s = s + 'rm -f -r slurm*.out log_*\n'
+    s = s + ("./case/Allclean.sh")
     return s
 
 
@@ -292,7 +303,7 @@ def compileAllAllRun() -> str:
 def fListLoop(s:str, functionlist:List[str], folder:str, ifstarted:bool=False) -> str:
     '''Write a bash script to go through multiple functions. ifstarted True if you do not want to run this function if the sim has started'''
     for f in functionlist:
-        s1 = 'echo \"running ' + f + ' in ' + folder + '\";\n' + f + ">>log_" + f
+        s1 = 'echo \"running ' + f + ' in ' + os.path.basename(folder) + '\";\n' + f + ">>log_" + f
         if ifstarted:
             s = s + '[ ! d \"0.1\"] && ('+s1+'); '
         else:
@@ -990,27 +1001,27 @@ def compileSetFieldsDict(geo:NozVars) -> str: # fills the nozzle with ink at t=0
 
 def geometryFile(geo:NozVars) -> str:
     '''geometryFile gets a csv string of all of the geometry variables we care about'''
-    l = [['nozzle inner width (mm)', geo.niw],\
-         ['nozzle thickness (mm)', geo.nt], \
-         ['bath width (mm)', geo.bw], \
-         ['bath depth (mm)', geo.bd], \
-         ['nozzle length (mm)', geo.nl],\
-         ['bath left coord (mm)', geo.ble], \
-         ['bath right coord (mm)', geo.bri],\
-         ['bath front coord (mm)', geo.bfr], \
-         ['bath back coord (mm)', geo.bba],\
-         ['bath bottom coord (mm)', geo.bbo], \
-         ['bath top coord (mm)', geo.bto], \
-         ['nozzle bottom coord (mm)', geo.nbo],\
-         ['nozzle center x coord (mm)', geo.ncx],\
-         ['nozzle center y coord (mm)', geo.ncy], \
-         ['nozzle angle (degrees)', geo.na], \
-         ['horizontal', geo.hor], \
-         ['bath velocity (m/s)', geo.bv], \
-         ['ink velocity (m/s)', geo.iv]]
+    l = [['nozzle inner width', geo.niw, 'mm'],\
+         ['nozzle thickness', geo.nt, 'mm'], \
+         ['bath width', geo.bw, 'mm'], \
+         ['bath depth', geo.bd, 'mm'], \
+         ['nozzle length', geo.nl, 'mm'],\
+         ['bath left coord', geo.ble, 'mm'], \
+         ['bath right coord', geo.bri, 'mm'],\
+         ['bath front coord', geo.bfr, 'mm'], \
+         ['bath back coord', geo.bba, 'mm'],\
+         ['bath bottom coord', geo.bbo, 'mm'], \
+         ['bath top coord', geo.bto, 'mm'], \
+         ['nozzle bottom coord', geo.nbo, 'mm'],\
+         ['nozzle center x coord', geo.ncx, 'mm'],\
+         ['nozzle center y coord', geo.ncy, 'mm'], \
+         ['nozzle angle', geo.na, 'degrees'], \
+         ['horizontal', geo.hor, ''], \
+         ['bath velocity', geo.bv, 'm/s'], \
+         ['ink velocity', geo.iv, 'm/s']]
     s = ""
     for li in l:
-        s = s + li[0] + ', ' + str(li[1]) + '\n'
+        s = s + li[0] + ', ' + str(li[1]) +  ', ' + str(li[2]) + '\n'
     return s
          
     
@@ -1543,6 +1554,7 @@ def compileSolverFiles(cdv:CDVars, fvv:FVVars, out:FileGroup) -> FileGroup:
     out.slurm = compileSlurm(out.folder, out.slurmFolder)
     out.allallrun = compileAllAllRun()
     out.allclean = compileAllClean(cdv.endTime, cdv.writeInterval)
+    out.allallclean = compileAllAllClean()
     out.allrunmesh = compileAllRunMesh(out.folder)
     out.allrun = compileAllRun(out.folder, cdv.application)
 #     out.cont = compileContinue(out.folder, cdv.application)
@@ -1844,74 +1856,3 @@ def genericMesh(parentFolder:str, **kwargs) -> FileGroup:
     out.makePlot() # make a plot of the boundaries
     return out
 
-
-#----------------------------------------------------------------------------------  
-#----------------------------------------------------------------------------------  
-#----------------------------------------------------------------------------------  
-#----------------------------------------------------------------------------------  
- ############## ARCHIVE
-    
-    
-    
-    
-
-# def classIterate(obj, f):
-#     '''iterate over all items stored in an object. Inputs: obj, f
-#     obj is an object
-#     f is a function with 2 inputs: the attribute name and the value'''
-#      for attr, value in obj.__dict__.items():
-#         f(attr, value)
-
-
-
-        
-# # calculate the grading for the mesh within a block
-#     # W is the total width of the block, 
-#     # R is the ratio of largest to smallest cell
-#     # t is the smallest cell size        
-# def gradingcalc(self, W:float, R:float, t:float) -> float:
-#     er = (W-t)/(W-R*t)
-#     n = round(math.log(1-W*(1-er)/t, er))
-#     return n
-
-
-
- ####### for newtonian ink and support
-# def newtNewtExport(ii, ivisc, svisc, sigma, topFolder, exportMesh):
-#     out = allButTransport(ii, exportMesh, topFolder)
-#     ink = transportGroupNewt("ink", ivisc, 1000)
-#     sup = transportGroupNewt("sup", svisc, 1000)
-#     out.transportProperties = compileTransportProperties(ink, sup, sigma)
-#     out.exportAllFiles(exportMesh)
-
-# ####### for Herschel Bulkley support and newtonian ink
-# def HBnewtexport(ii, tau0, k, n, ivisc, nu0, sigma, topFolder, exportMesh):
-#     out = allButTransport(ii, exportMesh, topFolder)
-#     ink = transportGroupNewt("ink", ivisc, 1000)
-#     sup = transportGroupHB("sup", nu0, tau0, k, n, 1000)
-#     out.transportProperties = compileTransportProperties(ink, sup, sigma)
-#     out.exportAllFiles(exportMesh)
-    
-# ####### for newtonian support and HerschelBulkley ink
-# def newtHBexport(ii, tau0, k, n, svisc, nu0, sigma, topFolder, exportMesh):
-#     out = allButTransport(ii, exportMesh, topFolder)
-#     sup = transportGroupNewt("sup", svisc, 1000)
-#     ink = transportGroupHB("ink", nu0, tau0, k, n, 1000)
-#     out.transportProperties = compileTransportProperties(ink, sup, sigma)
-#     out.exportAllFiles(exportMesh)
-    
-# ####### for newtonian support and HerschelBulkley ink
-# def HBHBexport(ii, tau0, k, n, nu0sup, nu0ink, sigma, topFolder, exportMesh):
-#     out = allButTransport(ii, exportMesh, topFolder)
-#     sup = transportGroupHB("sup", nu0sup, tau0, k, n, 1000)
-#     ink = transportGroupHB("ink", nu0ink, tau0, k, n, 1000)
-#     out.transportProperties = compileTransportProperties(ink, sup, sigma)
-#     out.exportAllFiles(exportMesh)
-    
-# ####### for newtonian support and HerschelBulkley ink
-# def HBHByielded(ii, tau0sup, tau0ink, ksup, kink, nsup, nink, nu0sup, nu0ink, sigma, topFolder, exportMesh):
-#     out = allButTransport(ii, exportMesh, topFolder)
-#     sup = transportGroupHB("sup", nu0sup, tau0sup, ksup, nsup, 1000)
-#     ink = transportGroupHB("ink", nu0ink, tau0ink, kink, nink, 1000)
-#     out.transportProperties = compileTransportProperties(ink, sup, sigma)
-#     out.exportAllFiles(exportMesh)

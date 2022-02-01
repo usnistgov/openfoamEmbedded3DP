@@ -87,7 +87,7 @@ def importLegend(folder:str) -> pd.DataFrame:
     '''import the legend file'''
     file = os.path.join(folder, 'legend.csv')
     if os.path.exists(file):
-        return pd.read_csv(os.path.join(folder, 'legend.csv'), names=['title', 'val'])
+        return pd.read_csv(os.path.join(folder, 'legend.csv'), names=['title', 'val', 'units'])
     else:
         raise Exception('No legend file')
 

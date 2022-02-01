@@ -50,7 +50,7 @@ class scrape:
         self.meshfold = meshFolder(folder)
         self.casefold = caseFolder(folder)
         self.folder = ['folder', os.path.basename(folder)] # just the folder name
-        self.compareto = ['compare to', '']
+        self.compareto = ['compare to', '', '']
 
         self.initRates()
         self.initGeo()
@@ -67,173 +67,185 @@ class scrape:
         '''initial (empty) values for simulation rates'''
         
         # these values are ripped from log files
-        self.shmtimes = ['snappyHexMesh time (s)', ''] 
+        self.shmtimes = ['snappyHexMesh time', '', 's'] 
             # how long it takes snappyHexMesh to run
-        self.shmtimem = ['snappyHexMesh time (min)', '']
-        self.iftimes = ['interFoam time (s)', ''] 
+        self.shmtimem = ['snappyHexMesh time', '', 'min']
+        self.iftimes = ['interFoam time', '', 's'] 
             # how long it takes interfoam to run
-        self.iftimehr = ['interFoam time (hr)', '']
-        self.simTime = ['simulation time (s)', ''] 
+        self.iftimehr = ['interFoam time', '', 'hr']
+        self.simTime = ['simulation time', '', 's'] 
             # how many seconds within the simulation we ran
-        self.simrate = ['simulation rate (hr/s)', ''] 
+        self.simrate = ['simulation rate', '',  'hr/s'] 
             # how many real hours it takes to run each second within the simulation
         
         
     #-------------------------
     def initGeo(self):
         '''these values measure the geometry of the system and are stored in geometry.csv, which is created by ncreate3d.py/noz3dscript.ipynb'''
-        self.GEOniw = ['nozzle inner width (mm)', '0.603']
-        self.GEOnt = ['nozzle thickness (mm)', '0.152']
-        self.GEObw = ['bath width (mm)', '']
-        self.GEObd = ['bath depth (mm)', '']
-        self.GEOnl = ['nozzle length (mm)', '']
-        self.GEOblc = ['bath left coord (mm)', ''] # x coord
-        self.GEObrc = ['bath right coord (mm)', ''] # x coord
-        self.GEObfc = ['bath front coord (mm)', ''] # y
-        self.GEObbackc = ['bath back coord (mm)', ''] # y
-        self.GEObbotc = ['bath bottom coord (mm)', ''] # z
-        self.GEObtc = ['bath top coord (mm)', ''] # z
-        self.GEOnbc = ['nozzle bottom coord (mm)', ''] # z
-        self.GEOncxc = ['nozzle center x coord (mm)', '']
-        self.GEOncyc = ['nozzle center y coord (mm)', '']
-        self.GEOna = ['nozzle angle (degrees)', ''] # RG
-        self.GEOhoriz = ['horizontal', False]
-        self.GEObathv = ['bath velocity (m/s)', '']
-        self.GEOinkv = ['ink velocity (m/s)', '']
+        self.GEOniw = ['nozzle inner width', '0.603', 'mm']
+        self.GEOnt = ['nozzle thickness', '0.152', 'mm']
+        self.GEObw = ['bath width', '', 'mm']
+        self.GEObd = ['bath depth', '', 'mm']
+        self.GEOnl = ['nozzle length', '', 'mm']
+        self.GEOblc = ['bath left coord', '', 'mm'] # x coord
+        self.GEObrc = ['bath right coord', '', 'mm'] # x coord
+        self.GEObfc = ['bath front coord', '', 'mm'] # y
+        self.GEObbackc = ['bath back coord', '', 'mm'] # y
+        self.GEObbotc = ['bath bottom coord', '', 'mm'] # z
+        self.GEObtc = ['bath top coord', '', 'mm'] # z
+        self.GEOnbc = ['nozzle bottom coord', '', 'mm'] # z
+        self.GEOncxc = ['nozzle center x coord', '', 'mm']
+        self.GEOncyc = ['nozzle center y coord', '', 'mm']
+        self.GEOna = ['nozzle angle', '0', 'degrees'] # RG
+        self.GEOhoriz = ['horizontal', False, '']
+        self.GEObathv = ['bath velocity', '', 'm/s']
+        self.GEOinkv = ['ink velocity', '', 'm/s']
     
     #-------------------------
     def initMesh(self):
         '''initial values for mesh variables'''
         
-        self.SHMlist = [['castellatedMesh', ''],\
-                        ['snap', ''],\
-                        ['addLayers', '']]
-        self.CMClist = [['maxLocalCells', ''], \
-                        ['maxGlobalCells', ''], \
-                        ['minRefinementCells', ''], \
-                        ['nCellsBetweenLevels', ''],\
-                        ['resolveFeatureAngle', ''],\
-                        ['locationInMesh', ''], \
-                        ['allowFreeStandingZoneFaces', '']]
-        self.CMCfixedWallsLevel = ['fixedWalls level', '']
-        self.SClist = [['nSmoothPatch', ''], \
-                       ['tolerance', ''], \
-                       ['nSolveIter', ''], \
-                       ['nRelaxIter', ''],\
-                       ['nFeatureSnapIter', ''], \
-                       ['implicitFeatureSnap', ''],\
-                       ['explicitFeatureSnap', ''], \
-                       ['multiRegionFeatureSnap', '']]
-        self.ALClist = [['relativeSizes', ''], \
-                        ['expansionRatio', ''], \
-                        ['finalLayerThickness', ''],\
-                        ['minThickness', ''], \
-                        ['nGrow', ''], \
-                        ['featureAngle', ''], \
-                        ['nRelaxIter', ''], \
-                        ['nSmoothSurfaceNormals', ''], \
-                        ['nSmoothNormals', ''], \
-                        ['nSmoothThickness', ''],\
-                        ['maxFaceThicknessRatio', ''],\
-                        ['maxThicknessToMedialRatio', ''],\
-                        ['minMedialAxisAngle', ''],\
-                        ['nBufferCellsNoExtrude', ''], \
-                        ['nLayerIter', ''], \
-                        ['nRelaxedIter', '']]
-        self.ALCfixedWallsLayers = ['fixedWalls nSurfaceLayers', '']
-        self.MQClist = [['nSmoothScale', ''], \
-                        ['errorReduction', ''], \
+        self.SHMlist = [['castellatedMesh', '', ''],\
+                        ['snap', '', ''],\
+                        ['addLayers', '', '']]
+        self.CMClist = [['maxLocalCells', '', ''], \
+                        ['maxGlobalCells', '', ''], \
+                        ['minRefinementCells', '', ''], \
+                        ['nCellsBetweenLevels', '', ''],\
+                        ['resolveFeatureAngle', '', ''],\
+                        ['locationInMesh', '', ''], \
+                        ['allowFreeStandingZoneFaces', '', '']]
+        self.CMCfixedWallsLevel = ['fixedWalls level', '', '']
+        self.SClist = [['nSmoothPatch', '', ''], \
+                       ['tolerance', '', ''], \
+                       ['nSolveIter', '', ''], \
+                       ['nRelaxIter', '', ''],\
+                       ['nFeatureSnapIter', '', ''], \
+                       ['implicitFeatureSnap', '', ''],\
+                       ['explicitFeatureSnap', '', ''], \
+                       ['multiRegionFeatureSnap', '', '']]
+        self.ALClist = [['relativeSizes', '', ''], \
+                        ['expansionRatio', '', ''], \
+                        ['finalLayerThickness', '', ''],\
+                        ['minThickness', '', ''], \
+                        ['nGrow', '', ''], \
+                        ['featureAngle', '', ''], \
+                        ['nRelaxIter', '', ''], \
+                        ['nSmoothSurfaceNormals', '', ''], \
+                        ['nSmoothNormals', '', ''], \
+                        ['nSmoothThickness', '', ''],\
+                        ['maxFaceThicknessRatio', '', ''],\
+                        ['maxThicknessToMedialRatio', '', ''],\
+                        ['minMedialAxisAngle', '', ''],\
+                        ['nBufferCellsNoExtrude', '', ''], \
+                        ['nLayerIter', '', ''], \
+                        ['nRelaxedIter', '', '']]
+        self.ALCfixedWallsLayers = ['fixedWalls nSurfaceLayers', '', '']
+        self.MQClist = [['nSmoothScale', '', ''], \
+                        ['errorReduction', '', ''], \
                         ['maxNonOrtho', '']]
-        self.SHMmergeTolerance = ['mergeTolerance', '']
+        self.SHMmergeTolerance = ['mergeTolerance', '', '']
                         
-        self.blocksdims = ['blocks dims', '']
+        self.blocksdims = ['blocks dims', '', '']
     
     #-------------------------
     def initDMD(self):
         '''initial values for dynamic mesh dictionary'''
-        self.DMDlist = [['refineInterval', ''], \
-                        ['lowerRefineLevel', ''], \
-                        ['upperRefineLevel', ''], \
-                        ['unrefineLevel', ''],\
-                        ['nBufferLayers', ''], \
-                        ['maxRefinement', ''], \
-                        ['maxCells', '']]
+        self.DMDlist = [['refineInterval', '', 'steps'], \
+                        ['lowerRefineLevel', '', ''], \
+                        ['upperRefineLevel', '', ''], \
+                        ['unrefineLevel', '', 'cells'],\
+                        ['nBufferLayers', '', 'cells'], \
+                        ['maxRefinement', '', 'cells'], \
+                        ['maxCells', '', 'cells']]
     
     #-------------------------
     def initTransport(self):
         '''initial values for transport model'''
-        self.TPinklist = [['ink', ''],\
-                        ['transportModel', ''],\
-                          ['nu', ''], \
-                          ['nu0', ''], \
-                          ['tau0', ''], \
-                          ['k', ''],\
-                          ['n', ''], \
-                          ['rho', '']]
-        self.TPsuplist = [['sup', ''],\
-                        ['transportModel', ''],\
-                          ['nu', ''], \
-                          ['nu0', ''], \
-                          ['tau0', ''], \
-                          ['k', ''], \
-                          ['n', ''], \
-                          ['rho', '']]  
+        self.TPinklist = [['ink', '', ''],\
+                        ['transportModel', '', ''],\
+                          ['nu', '', 'm^2/s'], \
+                          ['nu0', '', 'm^2/s'], \
+                          ['tau0', '', 'm^2/s^2'], \
+                          ['k', '', 'm^2*s^(n-2)'],\
+                          ['n', '', ''], \
+                          ['rho', '', 'kg/m^3']]
+        self.TPsuplist = [['sup', '', ''],\
+                        ['transportModel', '', ''],\
+                          ['nu', '', 'm^2/s'], \
+                          ['nu0', '', 'm^2/s'], \
+                          ['tau0', '', 'm^2/s^2'], \
+                          ['k', '', 'm^2*s^(n-2)'],\
+                          ['n', '', ''], \
+                          ['rho', '', 'kg/m^3']]
         self.inkLabel = ''
         self.supLabel = ''
-        self.TPsigma = ['sigma', '']
+        self.TPsigma = ['sigma', '', 'J/m^2']
     
     #-------------------------
     def initControl(self):
         '''initial values for controlDict'''
-        self.controlDictList =  [['application', ''],\
-                                 ['endTime', ''], \
-                                 ['deltaT', ''], \
-                                 ['adjustTimeStep', ''], \
-                                 ['maxCo', ''],\
-                                 ['maxAlphaCo', ''],\
-                                 ['maxDeltaT', ''], \
-                                 ['writeControl', ''], \
-                                 ['writeInterval', ''], \
-                                 ['purgeWrite', ''],\
-                                 ['runTimeModifiable', '']]
+        self.controlDictList =  [['application', '', ''],\
+                                 ['endTime', '', 's'], \
+                                 ['deltaT', '', 's'], \
+                                 ['adjustTimeStep', '', ''], \
+                                 ['maxCo', '', ''],\
+                                 ['maxAlphaCo', '', ''],\
+                                 ['maxDeltaT', '', 's'], \
+                                 ['writeControl', '', ''], \
+                                 ['writeInterval', '', 's'], \
+                                 ['purgeWrite', '', ''],\
+                                 ['runTimeModifiable', '', '']]
     
     #-------------------------
     def initFV(self):
         '''initial values for fvSolution, fvSchemes'''
-        self.fvSailist = [['nAlphaSubCycles', ''],\
-                          ['cAlpha', ''], \
-                          ['nAlphaCorr', ''], \
-                          ['MULESCorr', ''], \
-                          ['nLimiterIter', ''], \
-                          ['solver', ''], \
-                          ['smoother', ''],\
-                          ['tolerance', ''],\
-                          ['relTol', ''], \
-                          ['isofaceTol', ''], \
-                          ['surfCellTol', ''], \
-                          ['nAlphaBounds', ''], \
-                          ['snapTol', ''],\
-                          [ 'clip', '']]                
-        self.fvSpcorrlist = [['solver', ''], \
-                             ['preconditioner', ''], \
-                             ['tolerance', ''], \
-                             ['relTol', '']]
-        self.fvSprghlist = [['solver', ''], \
-                            ['preconditioner', ''],\
-                            ['tolerance', ''],\
-                            ['relTol', '']]
-        self.fvSprghfinallist = [['relTol', '']]
-        self.fvSUlist = [['solver', ''],\
-                         ['smoother', ''], \
-                         ['tolerance', ''], \
-                         ['relTol', '']]
-        self.fvSPIMPLElist = [['momentumPredictor', ''], \
-                              ['nOuterCorrectors', ''], \
-                              ['nCorrectors', ''], \
-                              ['nNonOrthogonalCorrectors', '']]
+        self.fvSailist = [['nAlphaSubCycles', '', ''],\
+                          ['cAlpha', '', ''], \
+                          ['nAlphaCorr', '', ''], \
+                          ['MULESCorr', '', ''], \
+                          ['nLimiterIter', '', ''], \
+                          ['solver', '', ''], \
+                          ['smoother', '', ''],\
+                          ['tolerance', '', ''],\
+                          ['relTol', '', ''], \
+                          ['isofaceTol', '', ''], \
+                          ['surfCellTol', '', ''], \
+                          ['nAlphaBounds', '', ''], \
+                          ['snapTol', '', ''],\
+                          [ 'clip', '', '']]                
+        self.fvSpcorrlist = [['solver', '', ''], \
+                             ['preconditioner', '', ''], \
+                             ['tolerance', '', ''], \
+                             ['relTol', '', '']]
+        self.fvSprghlist = [['solver', '', ''], \
+                            ['preconditioner', '', ''],\
+                            ['tolerance', '', ''],\
+                            ['relTol', '', '']]
+        self.fvSprghfinallist = [['relTol', '', '']]
+        self.fvSUlist = [['solver', '', ''],\
+                         ['smoother', '', ''], \
+                         ['tolerance', '', ''], \
+                         ['relTol', '', '']]
+        self.fvSPIMPLElist = [['momentumPredictor', '', ''], \
+                              ['nOuterCorrectors', '', ''], \
+                              ['nCorrectors', '', ''], \
+                              ['nNonOrthogonalCorrectors', '', '']]
         
         
     #-------------------------
+    
+    def scrapeAll(self):
+        self.scrapeGeo()
+        self.scrapeBlockMeshDict()
+        self.scrapeSetFieldsDict()
+        self.scrapeU()
+        self.scrapeSHM()
+        self.scrapeDMD()
+        self.scrapeTP()
+        self.scrapeLabels()
+        self.scrapeCD()
+        self.scrapeFV()
 
     def table(self) -> List[List[str]]:
         '''this function takes all the values we ripped and stored as variables in the scrape object and turns them into a table with 2 columns: the variable name and the variable value'''
@@ -378,6 +390,7 @@ class scrape:
                     line = f.readline() # read coords from the first list of blocks
                 strs = re.split('\) \(|\) s', line)
                 self.blocksdims[1] = strs[1] # number of cells in the blocks: this should look like (# # #)
+                
                 return
 
 
@@ -392,9 +405,11 @@ class scrape:
                     line = f.readline()
                 # now we have reached the bottom point of the nozzle
                 strs = re.split('\(|\)| ', line) # RG
-                self.GEOncxc[1] = str(1000*float(strs[2])) # nozzle center x
-                self.GEOncyc[1] = str(1000*float(strs[3])) # nozzle center y
-                self.GEOnbc[1] = (1000*float(strs[4])) # nozzle bottom 
+                while '' in strs:
+                    strs.remove('')
+                self.GEOncxc[1] = str(1000*float(strs[1])) # nozzle center x
+                self.GEOncyc[1] = str(1000*float(strs[2])) # nozzle center y
+                self.GEOnbc[1] = (1000*float(strs[3])) # nozzle bottom 
                 try:
                     btc = float(self.GEObtc[1]) # bath top coord
                 except:
@@ -413,7 +428,7 @@ class scrape:
         if os.path.exists(bm):
             with open (bm, "r") as f:
                 # get geometry
-                if len(self.GEOnl[1])==0:
+                if len(self.GEOnl[1])==0 or len(self.GEOna[1])==0:
                     self.scrapeGeo()
                 horiz = self.GEOhoriz[1]
                 if type(horiz) is str:
@@ -614,9 +629,17 @@ def placeInList(l:List[List[str]], s:str, v:str) -> None:
         l is a list
         s is a string
         v is a value'''
-    try:
-        i = l.index([s, '']) # i is the position in the list
-    except:
+    
+    # find the index in the list where this value should go
+    i = -1
+    found=False
+    while i<len(l)-1 and not found:
+        i+=1
+        if len(l[i])>0 and l[i][0]==s:
+            found=True    
+            
+    # put the value in the list
+    if not found:
         return
     else:
         l[i][1] = v # this puts the value in the list
@@ -638,8 +661,10 @@ def listLevel(startString:str, endString:str, line:str, f:TextIO, l:List[List[st
     f is a file stream created by open()
     l is a list of variable names and values that we're going to scrape values into
     returns the line we just read'''
+    
     while not line.startswith(startString):
         line = f.readline()
+    
     while not line.startswith(endString):
         strs = re.split(';|\t', line) # split the line at tabs and semicolons
         ii = 0
@@ -688,47 +713,45 @@ def populate(folder:str, *varargin, readLogs:bool=True, overwrite:bool=False) ->
     if readLogs:
         s.scrapeLogs()   # scrape the logs
     if not overwrite and os.path.exists(fn):
-        for func in varargin:
-            try:
-                eval('s.'+func+'()')
-            except Exception as e:
-                logging.warning(e)
-                traceback.print_exc()
-                pass
+        
         # if a legend file already exists, keep that 
         # legend file and just replace the processing times
         # all of the other variables are set at the folder generation and don't change
         with open(fn, 'r') as f:
             t = list(csv.reader(f))
-            t2 = s.table()
-            t[2:8] = t2[2:8]
+            if len(t[0])==2:
+                # old version of legend, add units
+                s.scrapeAll()
+                t = s.table()
+#                 print(t)
+            else:
+                for func in varargin:
+                    try:
+                        eval('s.'+func+'()')
+                    except Exception as e:
+                        logging.warning(e)
+                        traceback.print_exc()
+                        pass
+                t2 = s.table()
+                t[2:8] = t2[2:8]
 
-            # keep any collected variables
-            if len(varargin)>0:
-                i = 0
-                while i<len(t2):
-                    if not t[i][0]==t2[i][0]:
-                        # new row added
-                        t = t[:i]+[t2[i]]+t[i:]
-                        i+=1
-                    else:
-                        if not t[i][1]==t2[i][1] and not t2[i][1]=='' :
-                            # new value updated
-                            t[i]=t2[i]
-                        i+=1
+                # keep any collected variables
+                if len(varargin)>0:
+                    i = 0
+                    while i<len(t2):
+                        if not t[i][0]==t2[i][0]:
+                            # new row added
+                            t = t[:i]+[t2[i]]+t[i:]
+                            i+=1
+                        else:
+                            if not t[i][1]==t2[i][1] and not t2[i][1]=='' :
+                                # new value updated
+                                t[i]=t2[i]
+                            i+=1
                         
     else:
         # if there is no legend file, we have to go through all the files and scrape data
-        s.scrapeGeo()
-        s.scrapeBlockMeshDict()
-        s.scrapeSetFieldsDict()
-        s.scrapeU()
-        s.scrapeSHM()
-        s.scrapeDMD()
-        s.scrapeTP()
-        s.scrapeLabels()
-        s.scrapeCD()
-        s.scrapeFV()
+        s.scrapeAll()
         t = s.table() # generate a table from all the data we scraped
     exportCSV(fn, t) # export the updated table
     return t
@@ -774,3 +797,39 @@ def populateList(liInit:List[str], exportFilename:str, repopulate:bool = False) 
     exportCSV(exportFilename, tbig) 
         # export the combined table
     return
+
+
+#------------------------------
+
+# RETROFITTING FUNCTIONS
+
+
+def updateGeoFile(folder:str) -> None:
+    '''update the geometry file to put units in the third column'''
+    fn = os.path.join(folder, 'geometry.csv')
+    if os.path.exists(fn):
+        with open(fn, 'r') as f:
+            geo = list(csv.reader(f))
+    else:
+        # no geometry file
+        return
+    if len(geo[0])==3:
+        # geometry file already has units
+        return
+    new = []
+    for row in geo:
+        spl = re.split(' \(|\)', row[0])
+        if len(spl)>1:
+            newrow = [spl[0], row[1], spl[1]]
+        else:
+            newrow = [spl[0], row[1], '']
+        new.append(newrow)
+    exportCSV(fn, new)
+    logging.info(f'Exported {fn}')
+    
+def addUnitsToLegend(folder:str) -> None:
+    '''add units to the legend file'''
+    updateGeoFile(folder)
+    populate(folder)
+        
+

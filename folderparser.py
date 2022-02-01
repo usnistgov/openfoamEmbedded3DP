@@ -449,11 +449,11 @@ def importIf(folder:str) -> List[List[str]]:
     else:
         return []   
 
-def legendUnique(folder:str) -> Dict:
+def legendUnique(folder:str, units:bool=False) -> Union[Tuple[dict,dict], dict]:
     '''legendUnique imports a legend, rewrites the variable names so they are all unique and ready to compile into a pandas dataframe, and outputs a dictionary'''
     t = importIf(folder)
     if len(t)==0:
-        return t
+        return {}
     headers = [i[0] for i in t]
     section = ''
     for i in range(len(t)):
@@ -466,9 +466,18 @@ def legendUnique(folder:str) -> Dict:
                 t[i][0] = section+'_'+t[i][0].replace(' ', '_')
             else:
                 t[i][0] = t[i][0].replace(' ', '_')
-    return {a[0]:a[1] for a in t}
-        
-
+        if len(t[i])==2:
+            t[i] = t[i] +['']
+    
+    values = {a[0]:a[1] for a in t}
+    if units:
+        if len(t[2])==3:
+            u = {a[0]:a[2] for a in t}
+        else:
+            u = legendUnique(cfg.path.legend_units, units=False)
+        return values, u
+    else:
+        return values
 
 def mkdirif(path:str) -> int:
     '''make a directory if it doesn't exist

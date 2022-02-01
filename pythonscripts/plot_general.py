@@ -12,6 +12,7 @@ import seaborn as sns
 import itertools
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
+import traceback
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -54,20 +55,20 @@ def kinToDyn(v:Union[List[float], float], density:float=1000) -> Union[List[floa
         for vi in v:
             v2.append(kinToDyn(vi))
         return v2
-    elif type(v) is str:
+    if type(v) is str:
         try:
-            v2 = float(v)*density
+            v2 = float(v)
         except:
             return ''
-        else:
-            if v2>=1:
-                v2 = round(v2)
-                return v2
-    else:
-        v2 = v*density
-        if v2>=1:
-            v2 = round(v2)
-        return v2
+    if type(density) is str:
+        try:
+            density = float(density)
+        except:
+            return ''
+    v2 = v*density
+    if abs(round(v2)-v2)<10**-20:
+        v2 = int(v2)
+    return v2
 
 def expFormat(x:float) -> str:
     '''display a number in exponential format'''
@@ -214,84 +215,62 @@ def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
         n = 0
     return nu, tau0, k, n, rho
 
-
-
-def extractTP(folder:str, units:bool=False) -> Tuple[float, float, float]:
-    '''extractTP gets the transport properties (viscosities and surface tension) for a folder
+def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
+    '''extractTP gets the metadata for a folder
     folder is a full path name
     used by vvplot, listTPvalues, folderToFunc'''
-    le = intm.importLegend(folder)
-    if len(le)==0:
+    try:
+        le, u = fp.legendUnique(folder, units=True) # get dictionary of legend values
+    except:
+        traceback.print_exc()
+        print(folder)
         raise Exception('No values in legend') 
-    di = float(le[le['title']=='nozzle inner width (mm)'].iloc[0]['val']) # inner diameter in mm
-    if len(le[le['title']=='nozzle angle (degrees)'])>0:
-        nozzleAngle = float(le[le['title']=='nozzle angle (degrees)'].iloc[0]['val'])
-    else:
-        nozzleAngle = 0
-    thickness = float(le[le['title']=='nozzle thickness (mm)'].iloc[0]['val'])
-    nl = float(le[le['title']=='nozzle length (mm)'].iloc[0]['val']) # nozzle length
-    bottomRadius = di/2
-    topRadius = bottomRadius+(nl*np.tan(nozzleAngle*np.pi/180))
-#     do = di + 2*np.tan(nozzleAngle*np.pi/180) + 2*thickness # outer diameter in mm, 1 mm above bottom of nozzle
-    do = 2*topRadius+2*thickness
-    vsup = float(le[le['title']=='bath velocity (m/s)'].iloc[0]['val'])*1000 # support velocity in mm/s
-    vink = float(le[le['title']=='ink velocity (m/s)'].iloc[0]['val'])*1000 # inlet ink velocity in mm/s
-    vink = vink/(bottomRadius**2/topRadius**2)   # ink velocity at nozzle exit
+    if len(le)==0:
+        raise Exception('No values in legend')
+    if not 'ink_velocity' in le:
+        fs.addUnitsToLegend(folder)
+        le, u = fp.legendUnique(folder, units=True) # get dictionary of legend values
+    for key in le:
+        try:
+            le[key] = float(le[key])
+        except:
+            pass
+    le['folder'] = folder
+        
+    if u['ink_velocity'] == 'm/s':
+        le['vink'] = 1000*le['ink_velocity']
+        u['vink'] = 'mm/s'
+        le['vsup'] = 1000*le['bath_velocity']
+        u['vsup'] = 'mm/s'
+    if u['ink_rho'] == 'kg/m^3':
+        for fluid in ['ink', 'sup']:
+            le[f'rho{fluid}'] = le[f'{fluid}_rho']/1000
+            u[f'rho{fluid}'] = 'g/mL'
+    for s in ['nu', 'nu0', 'tau0', 'k', 'n']:
+        for fluid in ['ink', 'sup']:
+            for dic in [le, u]:
+                dic[f'{s}{fluid}'] = dic[f'{fluid}_{s}']
+            # convert kinematic to dynamic
+            if s in ['tau0', 'k', 'nu', 'nu0'] and type(le[f'{s}{fluid}']) is float:
+                try:
+                    le[f'{s}{fluid}'] = kinToDyn(le[f'{s}{fluid}'], le[f'{fluid}_rho'])
+                except:
+                    traceback.print_exc()
+                    pass
+                else:
+                    u[f'{s}{fluid}'] = {'m^2/s':'Pa*s', 'm^2/s^2':'Pa', 'm^2*s^(n-2)':'Pa*s^n'}[u[f'{s}{fluid}']]
     
-    i0 = le[le['title']=='transportProperties'].index[0] # find the index where the transport properties start
-    inklabel = le.loc[i0+1, 'val']
-    # express viscosities as a dynamic viscosity 
-    # (multiply it by 1000 because all of our simulations were done with a density of 1000)
-    inkmode = le.loc[i0+2, 'val']
-    # find the row that contains the ink model.
-    if inkmode=='Newtonian':
-        # if it's newtonian, the viscosity is stored 3 rows below 'transportProperties'
-        nuinki = i0+3
-        getHB = False
-    else:
-        # otherwise the zero shear viscosity is 4 rows below
-        nuinki = i0+4
-        getHB = True
-    nuink, tau0ink, kink, nink, rhoink = extractTPfluid(le, nuinki, getHB)
-    
-    # find the support transport properties
-    # in some legends, there are no Herschel Bulkley boxes, and in some there are
-    # we need to find where the support section starts
-    nusupi = nuinki
-    
-    # iterate through rows until we find the support transportmodel
-    while not le.loc[nusupi, 'title']=='transportModel' and nusupi<len(le):
-        nusupi+=1
-    suplabel = le.loc[nusupi-1, 'val']
-    if le.loc[nusupi, 'val']=='Newtonian':
-        nusupi = nusupi+1
-        getHB = False
-    else:
-        nusupi = nusupi+2
-        getHB = True
-    nusup, tau0sup, ksup, nsup, rhosup = extractTPfluid(le, nusupi, getHB)    
-    
-    # likewise we need to find the row where the surface tension is stored 
-    # because we don't know if the legend contains HB rows or not
-    sigmai = nusupi
-    while not le.loc[nusupi, 'title']=='sigma' and nusupi<len(le):
-        nusupi+=1
-
-    # convert surface tension to mJ/m^2
-    sigma = int(round(1000*float(le.loc[nusupi, 'val'])))
-    
-    i = le[le['title']=='mesh'].index[0] # find the index where the mesh properties start RG
-#     if 'nozzle angle' in le.loc[i+16, 'title']:
-#         nozzleAngle = int(le.loc[i+16, 'val']) # RG
-#     else:
-#         nozzleAngle = 0
-
-    retval = {'folder':folder, 'ink':inklabel, 'nuink':nuink, 'tau0ink':tau0ink, 'kink':kink, 'nink':nink, 'rhoink':rhoink/1000, 'sup':suplabel, 'nusup':nusup, 'tau0sup':tau0sup, 'ksup':ksup, 'nsup':nsup, 'rhosup':rhosup/1000, 'sigma':sigma, 'nozzleAngle':nozzleAngle, 'vink':vink, 'vsup':vsup, 'dsup':do, 'dink':di}
-    u = {'folder':'', 'ink':'', 'nuink':'Pa*s', 'tau0ink':'Pa', 'kink':'Pa*s^n', 'nink':'', 'rhoink':'g/mL', 'sup':'', 'nusup':'Pa*s', 'tau0sup':'Pa', 'ksup':'Pa*s^n', 'nsup':'', 'rhosup':'g/mL', 'sigma':'mJ/m^2', 'nozzleAngle':'degree', 'vink':'mm/s', 'vsup':'mm/s', 'dink':'mm', 'dsup':'mm'}
+    if u['sigma'] =='J/m^2':
+        le['sigma'] = 1000*float(le['sigma'])
+        u['sigma'] = 'mJ/m^2'
+    le['nozzleAngle'] = float(le['nozzle_angle'])
+    le['dink'] = float(le['nozzle_inner_width'])
+    le['dsup'] = float(le['nozzle_inner_width']) + 2*float(le['nozzle_thickness'])
     if units:
-        return retval, u
+        return le,u
     else:
-        return retval
+        return le
+
 
 #---
 
@@ -309,7 +288,6 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
     for k in tab.keys():
         if k+'list' in kwargs:
             tab = tab[tab[k].isin(kwargs[k+'list'])]
-            
     flist2 = list(tab['folder'])
     lists = dict([[k+'list', sorted(list(tab[k].unique()))] for k in tab.keys()[1:]])
     return flist2, lists
