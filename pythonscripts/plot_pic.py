@@ -166,4 +166,5 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
 #     display(cp.fig)
     cp.addLegend()
     intm.exportIm(fn, cp.fig, **kwargs)
+    return cp.fig
     

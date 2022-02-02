@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
+import traceback
 
 # local packages
 import interfacemetrics as intm
@@ -83,6 +84,7 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
     except:
+        traceback.print_exc()
         return
     xlist = list(xs['y']+x0)
     ylist = list(xs['z']+y0)
@@ -139,7 +141,7 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     xvalue = fs.ncx + x
     for folder in cp.flist:
         XSPlotf(folder, time, xvalue, cp)
-    cp.figtitle = 'Cross sections, '+str(x)+' mm behind nozzle, t = '+str(time)+' s'
+    cp.figtitle = f'Cross sections, {x} mm behind nozzle, t = {time} s'
     cp.clean()
     for ax in cp.axs:
         if len(cp.yrtot)>1: # RG

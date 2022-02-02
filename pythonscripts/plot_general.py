@@ -98,7 +98,7 @@ def decideFormat(x:float) -> Tuple[Union[float, str], bool]:
         return expFormat(x),True
 
 
-def expFormatList(xlist:List[float]) -> List[Any]:
+def expFormatList(xlist:List[float], returnPrecision:bool=False) -> List[Any]:
     '''put the whole list in exponential or appropriate format'''
     xout = []
     useExp = True
@@ -108,6 +108,7 @@ def expFormatList(xlist:List[float]) -> List[Any]:
         else:
             x1 = x
         xout.append(x1)
+        prec = None
     if not useExp:
         ints = True
         i = 0
@@ -116,14 +117,18 @@ def expFormatList(xlist:List[float]) -> List[Any]:
                 ints=False
             i+=1
         if ints:
+            prec = 0
             return [int(xi) for xi in xlist]
-        
-        # determine precision of float
-        xlist.sort()
-        diffs = [t - s for s, t in zip(xlist, xlist[1:])] # differences between steps
-        prec = int(np.ceil(-np.log10(min(diffs))))+1
-        return [round(x,prec) for x in xlist]
-    return xout  
+        else:
+            # determine precision of float
+            xlist.sort()
+            diffs = [t - s for s, t in zip(xlist, xlist[1:])] # differences between steps
+            prec = int(np.ceil(-np.log10(min(diffs))))+1
+            xout = [round(x,prec) for x in xlist]
+    if returnPrecision:
+        return xout, prec
+    else:
+        return xout  
 
 #-----------------------------------------
 # x, y functions
@@ -365,8 +370,19 @@ def unqListFolders(folders:List[str], func) -> List[float]:
 def findPos(l:List, v:Any) -> Any:
     '''find the position of v in list l. l is a list. v is a value in the list.
     used by vv'''
+    if type(v) is float and not int(v)==v:
+        # float. round both the list and the value to eliminate rounding errors
+        formatted, prec = expFormatList(l, returnPrecision=True)
+        try:
+            vf = round(v, prec)
+        except:
+            traceback.print_exc()
+            pass
+    else:
+        formatted = l
+        vf = v
     try:
-        p = l.index(v)
+        p = formatted.index(vf)
     except ValueError:
         return -1
     return p
@@ -381,6 +397,7 @@ def vv(tp:Dict, xpv) -> Tuple[Any, float, float, int]:
     used by vvplot'''
     x = xpv.xfunc(tp)
     y = xpv.yfunc(tp)
+
     xpos = findPos(xpv.xlist, x)
     ypos = findPos(xpv.ylist, y)
     sigmapos = findPos(xpv.tplists['sigmalist'], tp['sigma'])
@@ -596,10 +613,17 @@ class gridOfPlots(folderPlots):
 
         # create figure
         # in the grid of plots, the row# is y, and the col# is x
-        fig, axs = plt.subplots(nrows=len(self.ylist), ncols=len(self.xlist),\
+        nrows = len(self.ylist)
+        ncols = len(self.xlist)
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols,\
                                 sharex='col', sharey='row',\
                                 figsize=(imsize*len(self.xlist), imsize*len(self.ylist)))
         fig.subplots_adjust(hspace=0.1, wspace=0.1)
+        
+        if nrows==1 and ncols==1:
+            axs = np.array([[axs]])
+        elif nrows==1 or ncols==1:
+            axs = np.array([axs])
                  
         # store axes and figure in object
         self.axs = axs
@@ -611,6 +635,10 @@ class gridOfPlots(folderPlots):
         if self.ab:
             self.xlistreal.sort()
             self.ylistreal.sort()
+            self.xlistreal = expFormatList(self.xlistreal)
+            self.ylistreal = expFormatList(self.ylistreal)
+            self.xlist = expFormatList(self.xlist)
+            self.ylist = expFormatList(self.ylist)
             self.ylistreal.reverse() # we reverse the rows so values go upwards up the side of the plot
             xindices = []
             yindices = []
@@ -671,9 +699,9 @@ class gridOfPlots(folderPlots):
      #   self.fig.set_size_inches(self.imsize*len(self.xlistreal), self.imsize*len(self.ylistreal))
         
         # top level axis labels
-        self.fig.suptitle(self.getLabel('x', False), y=1.25-(firsty/len(self.ylist)), fontsize=fs) # was 0.92 instead of 1.25 RG
+        self.fig.suptitle(self.getLabel('x', False), y=1-(firsty/len(self.ylist)), fontsize=fs) # was 0.92 instead of 1.25 RG
         if np.ndim(self.axs)!=1: # RG
-            self.fig.text((lastx/len(self.xlist))-0.2, 0.5, self.getLabel('y', False),\
+            self.fig.text((lastx/len(self.xlist))+0.2, 0.5, self.getLabel('y', False),\
                       verticalalignment='center', rotation=270, fontsize=fs)
         
         #### legends
@@ -851,6 +879,8 @@ def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float]):
     if len(xlistreal)>1:
         xmin = min(xlistreal)
         xmax = max(xlistreal)
+        xlist = expFormatList(xlist)
+        xlistreal = expFormatList(xlistreal)
         pos1 = xlist.index(min(xlistreal))
         pos2 = xlist.index(max(xlistreal))+1
         dx = xr[1]-xr[0]

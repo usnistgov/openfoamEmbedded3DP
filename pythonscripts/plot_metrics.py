@@ -11,6 +11,7 @@ import seaborn as sns
 import math
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -182,7 +183,7 @@ def runtimePlot(folder:str, cp:folderPlots, dt:float) -> None:
     xmid = x0
 #     ymid = y0+dt*(sigmapos-1) # xmid and ymid are positions in the plot
     ymid = y0+dt # xmid and ymid are positions in the plot
-    b = fp.currentTime(folder)
+    b = fp.currentTime(folder)[0]
     if cp.split:
         axnum = sigmapos
     else:
@@ -522,7 +523,7 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     
     
     
-def qualityPlots(d:pd.DataFrame, time:float, xbehind:float):
+def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', **kwargs):
     '''Plot points for all labels, one plot per label
     d is dataframe holding table of angles and metrics
     time is time in s
@@ -532,6 +533,8 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float):
     labdict = {'arean':'Area/intended', 'vertdispn':'Vert disp/nozzle diam', 'aspectratio':'Height/width', 'speeddecay':'Speed/intended'}
     yvars = list(d.keys())
     yvars.remove('theta')
+    if cvar in yvars:
+        yvars.remove(cvar)
     nvars = len(yvars)
     if nvars>4:
         cols = 3
@@ -541,30 +544,48 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float):
     
     
     fig, axs = plt.subplots(rows, cols, sharex=True, figsize=(6.5, 6.5*rows/cols))
-    fig.suptitle('Print Quality Metrics, '+str(xbehind)+' mm behind nozzle, t = '+str(time)+' s')
+    fig.suptitle(f'Print Quality Metrics, {xbehind} mm behind nozzle, t = {time} s')
     plt.xticks(ticks=[0,5,10,15,20,25,30])
     
-    fig.text(0.95, 0.95, '---- ideal', ha='center', color='black') # key for ideal horizontal lines
+    
     axs[0,0].set_title(" ") # so y axis names do not overlap title
-    colors = ['#32964d', '#27cae6', '#335862', '#38f0ac'] # colors to plot with
+#     colors = ['#32964d', '#27cae6', '#335862', '#38f0ac'] # colors to plot with
 
     for r in range(rows): # creates plots, sets labels, and adds ideal lines
         for c in range(cols):
+            ax = axs[r,c]
             yvar = yvars.pop(0)
-            axs[r,c].scatter(d['theta'], d[yvar], c='black', marker='D')
-            axs[r,c].set_ylabel(labdict[yvar])
-            if yvar=='vertdispn':
-                axs[r,c].axhline(0, ls='--', c='black')
+            if not cvar in d:
+                ax.scatter(d['theta'], d[yvar], c='black', marker='D')
             else:
-                axs[r,c].axhline(1, ls='--', c='black')
-            setSquare(axs[r,c])
+                zplot=ax.scatter(d['theta'], d[yvar], c=d[cvar], marker='D', cmap='coolwarm')
+            ax.set_ylabel(labdict[yvar])
+            if yvar=='vertdispn':
+                yideal=0
+            else:
+                yideal=1
+            ax.axhline(yideal, ls='--', c='black')
+            ax.text(0, yideal, 'ideal', ha='left', va='bottom', color='black') # key for ideal horizontal lines
+    if cvar in d:
+        cb_ax = fig.add_axes([0.95,.124,.03,.7])
+        if 'cvarlabel' in kwargs:
+            cvl = kwargs['cvarlabel']
+        else:
+            cvl = cvar
+        fig.colorbar(zplot, cax=cb_ax, orientation='vertical', label=cvl)
+        plt.subplots_adjust(wspace=0.25, hspace=0.05)
+    else:
+        fig.tight_layout()
+    for axrow in axs:
+        for ax in axrow[:-1]:
+            setSquare(ax)
+            
     for ax in axs[-1]:
         ax.set_xlabel('Nozzle angle ($\degree$)')
-    fig.tight_layout()
     return fig
 
     
-def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels:List[str], overwrite:bool=False, **kwargs) -> None: # RG
+def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels:List[str], overwrite:bool=False, cvar:str='', **kwargs) -> None: # RG
     '''Plots slice summaries for against nozzle angles in scatter plots
     topFolder is a full path name to the folder containing all the simulations
     exportFolder is the folder to export plots to
@@ -584,8 +605,11 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
             
     xlist = [] # list of nozzle angles
     for folder in folders:
-        meta = extractTP(folder)
+        meta, u = extractTP(folder, units=True)
         d = {'theta':meta['nozzle_angle']}
+        if cvar in meta:
+            d[cvar] = meta[cvar]
+            kwargs['cvarlabel'] = cvar.replace('_', ' ') + f' ({u[cvar]})'
         try:
             value = metricVals(folder, time, xbehind, labels, units=False)
         except Exception as e:
@@ -593,7 +617,7 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
         else:
             d = {**d, **value}
             xlist.append(d)
-    fig = qualityPlots(pd.DataFrame(xlist), time, xbehind)
+    fig = qualityPlots(pd.DataFrame(xlist), time, xbehind, cvar=cvar, **kwargs)
 
     intm.exportIm(fn, fig) # export figure
 

@@ -142,6 +142,7 @@ def caseFolders(folder:str) -> List[str]:
         fold = os.path.join(folder,f)
         if isSimFolder(fold):
             flist.append(fold)
+    flist.sort()
     return flist
 
 
@@ -283,37 +284,22 @@ def currentTime(folder:str) -> float:
 def currentRate(folder:str) -> dict:
     '''get the current time, end time, and simulation rate from the folder'''
     t = legendUnique(folder)
+    out =  {'simulation_time':'', 'end_time':'', 'rate':'', 'run_time':''}
     if len(t)==0:
-        return {'simulation_time':'', 'end_time':'', 'rate':'', 'run_time':''}
-    if 'endTime' in t:
-        endTime = t['endTime']
-    else:
-        if 'endTime_(s)' in t:
-            endTime = t['endTime_(s)']
-        else:
-            endTime = ''
-    if 'simulation_time' in t:
-        simTime = t['simulation_time']
-    else:
-        if 'simulation_time_(s)' in t:
-            simTime = t['simulation_time_(s)']
-        else:
-            simTime = ''
-    if '_interFoam_time' in t:
-        runTime = t['_interFoam_time']
-    else:
-        if '_interFoam_time_(s)' in t:
-            runTime = t['_interFoam_time_(s)']
-        else:
-            runTime = ''
-    if 'simulation_rate' in t:
-        rate = t['simulation_rate']
-    else:
-        if 'simulation_rate_(hr/s)' in t:
-            rate = t['simulation_rate_(hr/s)']
-        else:
-            rate = ''
-    return {'simulation_time':simTime, 'end_time':endTime, 'rate':rate, 'run_time':runTime}
+        return out
+    for s in ['endTime', 'endTime_s', 'endTime_(s)']:
+        if s in t:
+            out['end_time'] = t[s]
+    for s in ['simulation_time', 'simulation_time_(s)', 'simulation_time_s']:
+        if s in t:
+            out['simulation_time'] = t[s]
+    for s in ['_interFoam_time', 'interFoam_time_(s)', 'interFoam_time_s']:
+        if s in t:
+            out['run_time'] = t[s]
+    for s in ['simulation_rate', 'simulation_rate_(hr/s)', 'simulation_rate_hr/s']:
+        if s in t:
+            out['rate'] = t[s]
+    return out
 
 #-------------------------------------------------------------------------------------------------  
     ##################################
@@ -498,6 +484,7 @@ def legendUnique(folder:str, units:bool=False) -> Union[Tuple[dict,dict], dict]:
     if len(t)==0:
         return {}
     headers = [i[0] for i in t]
+    headers2 = headers
     section = ''
     for i in range(len(t)):
         if t[i][0]=='':
@@ -506,7 +493,16 @@ def legendUnique(folder:str, units:bool=False) -> Union[Tuple[dict,dict], dict]:
             section = t[i][0]
         else:
             if headers.count(t[i][0])>1:
-                t[i][0] = section+'_'+t[i][0].replace(' ', '_')
+                newname = t[i][0].replace(' ', '_')
+                if len(section)>0:
+                    newname = f'{section}_{newname}'
+                if headers2.count(newname)>0 or len(section)==0:
+                    if len(t[i])>2:
+                        newname = f'{newname}_{t[i][2]}'
+                    else:
+                        newname = f'{newname}_0'
+                t[i][0] = newname
+                headers2 = [i[0] for i in t]
             else:
                 t[i][0] = t[i][0].replace(' ', '_')
         if len(t[i])==2:
