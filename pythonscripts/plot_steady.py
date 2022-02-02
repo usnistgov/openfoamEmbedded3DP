@@ -138,23 +138,29 @@ def plotSteadyAx(ax:plt.Axes, folder:str, color, xlim:float=5.1, ylim:float=7.2,
     if len(st)<2 or len(sp)<2:
         return
     
-    l = intm.importLegend(folder)
-    finaltime = l.loc[6, 'val']
-    ylims = str(ylim) # RG
-    st = st.replace('1000', finaltime) # replaces placeholder 1000s with the final time RG
-    sp = sp.replace('1000', ylims) # replaces placeholder 1000s with the y limit RG
+    l = fp.legendUnique(folder)
+    finaltime = float(l['simulation_time'])
 
+    
+    for i,row in st.iterrows():
+        if float(row['tf'])>finaltime:
+            st.loc[i,'tf'] = finaltime
+    ylims = str(ylim) # RG
+    for i,row in sp.iterrows():
+        if float(row['xf'])>ylim:
+            sp.loc[i,'xf'] = ylim 
     color='gray'
     ax.plot([finaltime, finaltime],[-100,100], color=color, linestyle='--', linewidth='1')
     plotSteadyColor(ax, st, sp, color, labels=labels)
     
     ax.set_ylim(0,ylim)
+    ax.set_xticks([0,2.5])
 
-    ax.set_xticks([0, 18.9]) # this block sets x ticks at either end of subplots to 0 and 2.5 respectively. 18.9 is the coordinate of 2.5 s RG
-    a=ax.get_xticks().tolist()
-    a[0]='0'
-    a[1]='2.5'
-    ax.set_xticklabels(a)
+#     ax.set_xticks([0, 18.9]) # this block sets x ticks at either end of subplots to 0 and 2.5 respectively. 18.9 is the coordinate of 2.5 s RG
+#     a=ax.get_xticks().tolist()
+#     a[0]='0'
+#     a[1]='2.5'
+#     ax.set_xticklabels(a)
     
 
 def plotSteadyInGrid(gp:gridOfPlots, folder:str) -> None:
@@ -167,10 +173,13 @@ def plotSteadyInGrid(gp:gridOfPlots, folder:str) -> None:
     except:
         print('vvplot error')
         return
-    if np.ndim(gp.axs)!=1: # RG
+    dim = np.ndim(gp.axs)
+    if dim==2: # RG
         ax = gp.axs[len(gp.axs)-y0-1, x0]
-    else:
+    elif dim==1:
         ax = gp.axs[x0] # if grid is one-dimensional, only index the one dimension
+    else:
+        ax = gp.axs
     plotSteadyAx(ax, folder, color)
 
 

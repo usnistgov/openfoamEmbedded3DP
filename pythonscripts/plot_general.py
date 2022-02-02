@@ -83,26 +83,46 @@ def expFormat(x:float) -> str:
         return x
 
 
-def decideFormat(x:float) -> Union[float, str]:
+def decideFormat(x:float) -> Tuple[Union[float, str], bool]:
     '''determine what kind of format to put the number in
-    might return float or string'''
+    might return float or string. second value is whether it got turned to exponent'''
     if x==0:
-        return x
+        return x,False
     try:
         l = np.log10(x)
     except:
-        return x
+        return x,False
     if not l==round(l):
-        return x
+        return x,False
     else:
-        return expFormat(x)
+        return expFormat(x),True
 
 
 def expFormatList(xlist:List[float]) -> List[Any]:
     '''put the whole list in exponential or appropriate format'''
     xout = []
+    useExp = True
     for x in xlist:
-        xout.append(decideFormat(x))
+        if useExp:
+            x1, useExp = decideFormat(x)
+        else:
+            x1 = x
+        xout.append(x1)
+    if not useExp:
+        ints = True
+        i = 0
+        while i<len(xlist) and ints:
+            if not round(xlist[i])==xlist[i]:
+                ints=False
+            i+=1
+        if ints:
+            return [int(xi) for xi in xlist]
+        
+        # determine precision of float
+        xlist.sort()
+        diffs = [t - s for s, t in zip(xlist, xlist[1:])] # differences between steps
+        prec = int(np.ceil(-np.log10(min(diffs))))+1
+        return [round(x,prec) for x in xlist]
     return xout  
 
 #-----------------------------------------
@@ -263,7 +283,6 @@ def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
     if u['sigma'] =='J/m^2':
         le['sigma'] = 1000*float(le['sigma'])
         u['sigma'] = 'mJ/m^2'
-    le['nozzleAngle'] = float(le['nozzle_angle'])
     le['dink'] = float(le['nozzle_inner_width'])
     le['dsup'] = float(le['nozzle_inner_width']) + 2*float(le['nozzle_thickness'])
     if units:
@@ -517,9 +536,26 @@ class folderPlots:
         else:
             func = self.yfunc
         #RG 
-        namedefs = {'nuink':'Ink viscosity (Pa$\cdot$s)', 'tau0ink':'Ink yield stress (Pa)','kink':'Ink k (Pa*s^n)', 'nink':'Ink n',\
-                    'nusup':'Support viscosity (Pa$\cdot$s)', 'tau0sup':'Support yield stress (Pa)', 'ksup':'Support k (Pa*s^n)', 'nsup':'Support n',\
-                    'sigma':'Surface tension (mJ/m$^2$)', 'product':'Support viscosity \u00d7 ink viscosity (Pa$^2\cdot$s$^2$)', 'ratio':'Support viscosity / ink viscosity', 'nozzleAngle':'Nozzle angle (degrees)'} 
+#         namedefs = {'nuink':'Ink viscosity (Pa$\cdot$s)', 'tau0ink':'Ink yield stress (Pa)','kink':'Ink k (Pa*s^n)', 'nink':'Ink n',\
+#                     'nusup':'Support viscosity (Pa$\cdot$s)', 'tau0sup':'Support yield stress (Pa)', 'ksup':'Support k (Pa*s^n)', 'nsup':'Support n',\
+#                     'sigma':'Surface tension (mJ/m$^2$)', 'product':'Support viscosity \u00d7 ink viscosity (Pa$^2\cdot$s$^2$)', 'ratio':'Support viscosity / ink viscosity', 'nozzle_angle':'Nozzle angle (degrees)'} 
+        f,u = extractTP(self.flist[0], units=True)
+        sigmaunits = u['sigma'].replace('\^2', '$\^2$')
+        naunits = u['nozzle_angle']
+        namedefs = {'sigma':f'Surface tension ({sigmaunits})' 
+                    , 'product':'Support viscosity \u00d7 ink viscosity (Pa$^2\cdot$s$^2$)' 
+                    , 'ratio':'Support viscosity / ink viscosity' 
+                    , 'nozzle_angle':f'Nozzle angle ({naunits})'}
+        defs = {'nu':'viscosity', 'tau0':'yield stress', 'k':'k', 'n':'n'}
+        fluids = {'ink':'Ink', 'sup':'Support'}
+        for s in defs:
+            for fluid in fluids:
+                ui = (u[f'{s}{fluid}']).replace('*', '$\cdot$')
+                namedefs[f'{s}{fluid}'] = f'{fluids[fluid]} {defs[s]} ({ui})'
+        for ui in u:
+            uname = ui.replace('_', ' ')
+            namedefs[ui] = f'{uname} ({u[ui]})'
+ 
         
         # convert the function to a label
         if func==multfunc:
@@ -595,8 +631,14 @@ class gridOfPlots(folderPlots):
 
             # eliminate extra axes
             ax2 = []
-            for i in range(firsty, lasty+1):
-                ax2.append(self.axs[i][firstx:lastx+1])
+            dim = np.ndim(self.axs)
+            if dim==2:
+                for i in range(firsty, lasty+1):
+                    ax2.append(self.axs[i][firstx:lastx+1])
+            elif dim==1:
+                ax2 = [self.axs[firstx:lastx+1]]
+            else:
+                ax2 = [[self.axs]]
             self.axs = ax2
         else:
             self.xlistreal = self.xlist
@@ -610,16 +652,18 @@ class gridOfPlots(folderPlots):
         
         # plot labels
         # in the grid of plots, the row# is y, and the col# is x
+        strvals = expFormatList(self.xlistreal)
         for j, xval in enumerate(self.xlistreal):
             # going across columns
             if np.ndim(self.axs)!=1: # RG
-                strval = str(expFormat(xval)) # title
+                strval = str(strvals[j])
                 self.axs[0][j].set_title(strval, fontsize=fs) # put the title on top
             else:
                 self.axs[j].set_title(xval, fontsize=fs) # put the title on top for 1D plot
+        strvals = expFormatList(self.ylistreal)
         for i, yval in enumerate(self.ylistreal):
             # going down rows
-            strval = str(expFormat(yval)) # title
+            strval = str(strvals[i])
             if np.ndim(self.axs)!=1: # RG
                 self.axs[i][-1].text(5.1, 4, strval, verticalalignment='center', rotation=270, fontsize=fs) # put the title on the right side
                 
@@ -698,7 +742,7 @@ class comboPlot(folderPlots):
         
     def addLegend(self):
         '''Add a surface tension legend'''
-        if not self.ncol==1 and not self.xvar=='nozzleAngle': # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
+        if not self.ncol==1 and not self.xvar=='nozzle_angle': # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
             self.axs[0].legend(handles=self.plist, loc='upper center', ncol=4, bbox_to_anchor=(0.5, self.titley+0.1))
         
     def clean(self):
@@ -771,10 +815,10 @@ class comboPlot(folderPlots):
             self.titley = 0.8
         self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
 
-        if self.xvar=='nozzleAngle': # since there is only one variable, remove y information RG
+        if len(self.ylistreal)==0: # since there is only one variable, remove y information RG
             ax.set_ylabel("")
             ax.set_yticks([])
-            ax.set_xticklabels(self.xlist, fontname="Arial", fontsize=10) # 10 degree angle should not be 10^1
+#             ax.set_xticklabels(self.xlist, fontname="Arial", fontsize=10) # 10 degree angle should not be 10^1
 
 #         self.fig.tight_layout()
         
@@ -849,6 +893,9 @@ def plotCircle(ax:plt.Axes, x0:float, y0:float, radius:float, caption:str, color
             txtx = arrowx+dar*np.cos(angle)       # where the label is
             txty = arrowy+dar*np.sin(angle)
             ax.annotate(caption, (arrowx, arrowy), color=color, xytext=(txtx, txty), ha='center', arrowprops={'arrowstyle':'->', 'color':color})
+            
+def setSquare(ax):         
+    ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
             
             
 #--------------------------------------

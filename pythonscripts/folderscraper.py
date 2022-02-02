@@ -77,6 +77,7 @@ class scrape:
             # how many seconds within the simulation we ran
         self.simrate = ['simulation rate', '',  'hr/s'] 
             # how many real hours it takes to run each second within the simulation
+
         
         
     #-------------------------
@@ -712,6 +713,7 @@ def populate(folder:str, *varargin, readLogs:bool=True, overwrite:bool=False) ->
     fn = os.path.join(folder, 'legend.csv')     # export file name
     if readLogs:
         s.scrapeLogs()   # scrape the logs
+        s.scrapeCD() # scrape the control dictionary
     if not overwrite and os.path.exists(fn):
         
         # if a legend file already exists, keep that 

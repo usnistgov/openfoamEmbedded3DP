@@ -585,7 +585,7 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
     xlist = [] # list of nozzle angles
     for folder in folders:
         meta = extractTP(folder)
-        d = {'theta':meta['nozzleAngle']}
+        d = {'theta':meta['nozzle_angle']}
         try:
             value = metricVals(folder, time, xbehind, labels, units=False)
         except Exception as e:
@@ -598,52 +598,48 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
     intm.exportIm(fn, fig) # export figure
 
 
-def shearStressPlots(time:float, ss:List[float], alist:List[float]): # RG
+def shearStressPlots(time:float, folders:List[str]):
     '''Plot average shear stress over the nozzle
     time is time in s
-    ss is the average shear stress of each nozzle down the nozzle length
-    alist is the angles to plot'''
-    
-#     xmin = 0.3015 # tip of nozzle
-#     xmax = 2.05623 # 3% below top of nozzle
-    xmin = 0 # 3% below top of nozzle
-        # xmin is 0 so that our frame of reference is of the ink ask it flows down the nozzle
-    xmax = 1.75473 # tip of nozzle, translated with reference
-    dx = 0.05
-    xlist = np.arange(xmin, xmax, dx) # evenly spaced values
-    
-    xvar = 'z position (mm)'
-    yvar = 'Shear Stress (Pa)'
-    
+    folders is list of folders to plot'''
+
     fig, ax = plt.subplots(constrained_layout=True)
     fig.suptitle('Average shear stress along the nozzle')
-    cm = sns.color_palette('viridis', n_colors=7) # uses viridis color scheme
+    cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
 
-    for i,name in enumerate(alist):
-        ax.plot(xlist, ss[i], label=str(name)+' degrees', c=cm[i]) # plot each shear stress by distance from top of nozzle and label by name
-      
+    tplist = pd.DataFrame([extractTP(folder) for folder in folders])
+    tplist.sort_values(by='nozzle_angle', inplace=True)
+    tplist.reset_index(drop=True, inplace=True)
+
+    for i,row in tplist.iterrows():
+        zstress = shearStressCalc(row['folder'], time)
+        if len(zstress)>0:
+            theta = row['nozzle_angle']
+            z0 = row['nozzle_bottom_coord']
+            zlist = z0 - zstress.index
+            stresslist = list(zstress)
+            ax.plot(zlist, stresslist, label=f'{int(theta)} $\degree$', c=cm[i])
+        
+    xvar = 'z position (mm)'
+    yvar = 'Shear Stress (Pa)'
+    ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--')
+    ax.text(0.05,0, 'nozzle exit', horizontalalignment='right')
     ax.set_xlabel(xvar)
     ax.set_ylabel(yvar)
-    ax.legend()
+    ax.legend(loc='upper left', bbox_to_anchor=(1,1))
+    setSquare(ax)
     
     return fig
     
 
-def shearStressCalc(folder:str): # RG
+def shearStressCalc(folder:str, time:float): # RG
     '''Calculates mean shear stress across the length of the nozzle
     folder is the folder to do calculations on'''
     
-    df,units = intm.importPtsNoz(folder, 2.5) # get points in nozzle
-    vals = [] # average shear stress for current angle
-    realz = round(df['z'],5) # z values in CSV, rounded to avoid floating point error
-    delta = len(np.unique(realz)) # number of cross-sections
-    zlist = [round(0.3015+(delta-i-1)*0.05,5) for i in range(delta)] # z values expected, rounded to avoid floating point error
-
-    for i in range(delta): # go through each cross-section
-        mask = df[realz==zlist[i]] # extract only the cells at current z value Currently extracts nothing
-        ss = mask['shearstressmag'] # extract only shear stress magnitude
-        av = np.mean(ss) # average shear stress
-        vals.append(av) # add average to vals
+    df,units = intm.importPtsNoz(folder, time) # get points in nozzle
+    if len(df)==0:
+        return []
+    vals = df.groupby(by='z').mean()['shearstressmag']
         
     return vals
 
@@ -661,21 +657,5 @@ def shearStressPlots0(topFolder:str, exportFolder, time:float, overwrite:bool=Fa
         return
     
     folders = fp.caseFolders(topFolder)
-            
-    alist = [] # a list of nozzle angles
-    for theta in folders:
-        thetaValue = theta.split('cn')[1]
-        alist.append(thetaValue)
-    
-    alist = [int(i) for i in alist] # cast xlist to ints     
-    idx = np.argsort(alist) # create indices for sorted xlist
-    alist = [alist[i] for i in idx] # sort xlist
-    folders = [folders[i] for i in idx] # sort folders to match sorted angles
-
-    allVals = [] # average shear stresses for all angles
-    for theta in folders: # for each folder
-        ss = shearStressCalc(theta) # calculate average shear stresses
-        allVals.append(ss)
-    
-    fig = shearStressPlots(time, allVals, alist) # create figure
+    fig = shearStressPlots(time, folders)
     intm.exportIm(fn, fig) # export figure

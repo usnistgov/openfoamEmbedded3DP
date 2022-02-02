@@ -32,6 +32,7 @@ def plainIm(file:str, ic:Union[int, bool]=0, checkUnits:bool=True) -> Tuple[Unio
     if os.path.exists(file):
         try:
             toprows = pd.read_csv(file, index_col=ic, nrows=2)
+            
             toprows = toprows.fillna('')
             row1 = list(toprows.iloc[0])
             if checkUnits and all([(type(s) is str or pd.isnull(s)) for s in row1]):
@@ -48,6 +49,7 @@ def plainIm(file:str, ic:Union[int, bool]=0, checkUnits:bool=True) -> Tuple[Unio
         except Exception as e:
 #             logging.error(str(e))
             return [],{}
+        d.columns = map(str.lower, d.columns) # set headers to lowercase
         return d, unitdict
     else:
         return [], {}

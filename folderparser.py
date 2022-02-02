@@ -262,15 +262,58 @@ def currentTime(folder:str) -> float:
     '''Get the latest simulated time
     Input folder should be a simulation folder, e.g. "C:\\...\\nb30"
     If there is no vtk file or simulation folders, it takes the value from the legend'''
-    t = times(folder)
-    if len(t)>0:
-        return max(t)
+    rdict = currentRate(folder)
+    endTime = rdict['end_time']
+    t2 = times(folder)
+    if len(t2)>0:
+        simtime = max(t2)
     else:
-        t = importIf(folder)
-        if len(t)==0:
-            return 0
+        simtime = rdict['simulation_time']
+        
+    try:
+        simtime = float(simtime)
+    except:
+        pass
+    try:
+        endTime = float(endTime)
+    except:
+        pass
+    return simtime, endTime
+            
+def currentRate(folder:str) -> dict:
+    '''get the current time, end time, and simulation rate from the folder'''
+    t = legendUnique(folder)
+    if len(t)==0:
+        return {'simulation_time':'', 'end_time':'', 'rate':'', 'run_time':''}
+    if 'endTime' in t:
+        endTime = t['endTime']
+    else:
+        if 'endTime_(s)' in t:
+            endTime = t['endTime_(s)']
         else:
-            return t[6][1]   
+            endTime = ''
+    if 'simulation_time' in t:
+        simTime = t['simulation_time']
+    else:
+        if 'simulation_time_(s)' in t:
+            simTime = t['simulation_time_(s)']
+        else:
+            simTime = ''
+    if '_interFoam_time' in t:
+        runTime = t['_interFoam_time']
+    else:
+        if '_interFoam_time_(s)' in t:
+            runTime = t['_interFoam_time_(s)']
+        else:
+            runTime = ''
+    if 'simulation_rate' in t:
+        rate = t['simulation_rate']
+    else:
+        if 'simulation_rate_(hr/s)' in t:
+            rate = t['simulation_rate_(hr/s)']
+        else:
+            rate = ''
+    return {'simulation_time':simTime, 'end_time':endTime, 'rate':rate, 'run_time':runTime}
 
 #-------------------------------------------------------------------------------------------------  
     ##################################

@@ -17,6 +17,10 @@ sys.path.append(parentdir)
 from folderparser import *
 from config import cfg
 
+# logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 # info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
@@ -112,49 +116,44 @@ def toDoList(topfolder:str) -> List[str]:
 
 def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
     '''Go through files in the folder and determine which are done, in progress, and aborted, and abort any simulations that are too slow. Returns true if all simulations are done, false if not done.'''
-    abort = False
-    while not abort:
+    abortRun = False
+    while not abortRun:
         done = []
         aborted = []
         aborted1 = []
         progress = []
         notstarted = []
-        tdl = toDoList(topfolder)
-        for f in caseFolders(topfolder):
-            ct = currentTime(f)
+#         tdl = toDoList(topfolder)
+        flist = caseFolders(topfolder)
+        for f in flist:
+            ct, progTime = currentTime(f)
             f0 = os.path.basename(f)
-            if ct==0:
-                if os.path.exists(os.path.join(f, 'log_interFoam')) or os.path.exists(os.path.join(f, 'case', 'log_interFoam')):
-                    if f0 in tdl:
-                        progress.append(f0)
-                    else:
-                        aborted.append(f0)
+            if ct>=progTime:
+                if ct>=tfinal:
+                    done.append(f0)
+                elif ct>=1:
+                    aborted1.append(f0)
                 else:
-                    notstarted.append(f0)
-            elif ct>=tfinal:
-                done.append(f0)
+                    aborted.append(f0)
             else:
-                if f0 in tdl:
+                if os.path.exists(os.path.join(f, 'log_interFoam')) or os.path.exists(os.path.join(f, 'case', 'log_interFoam')):
                     progress.append(f0)
                 else:
-                    if ct>=1:
-                        aborted1.append(f0)
-                    else:
-                        aborted.append(f0)
+                    notstarted.append(f0)
         plog = []
 
-        print('Populating legends')
+        logging.info('Populating legends')
 
         for p in progress:
             o = 0
             endtime = 2.5
             abort = '     '
             f = os.path.join(topfolder, p)
-            t = populate(f)
-            t = importIf(f)
-            runtime = t[5][1]
-            ct = t[6][1]
-            rate = t[7][1]
+            t = populate(f) # update the legend
+            rdict = currentRate(f) # get the current times
+            runtime = rdict['run_time']
+            ct = rdict['simulation_time']
+            rate = rdict['rate']
             if len(rate)>0:
                 try:
                     rate = float(rate)
@@ -193,6 +192,7 @@ def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
                 plog.append('{!s}\t{!s}\t{!s}\t\t{:1.1f}\t{!s}'.format(p, ct, rate, endtime, abort))
 
         aborted.sort()
+        aborted1.sort()
         logging.info('###### done: '+', '.join(done))
         logging.info('###### not started: '+', '.join(notstarted))
         logging.info('###### aborted at 1: '+', '.join(aborted1))
@@ -205,7 +205,7 @@ def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
 
         if len(notstarted)==0 and len(plog)==0:
             finished=True
-            abort=True
+            abortRun=True
         else:
             finished=False
             if loopTime>0:
@@ -214,7 +214,7 @@ def doneFolder(topfolder:str, tfinal:float, loopTime:float=0) -> bool:
                 logging.info(f'Waiting {loopTime} hours\n\n\n')
                 time.sleep(60*60*loopTime)
             else:
-                abort=True
+                abortRun=True
     return finished
     
 
