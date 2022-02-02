@@ -81,6 +81,7 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     xs is a pandas DataFrame holding points
     folder is a full pathname
     cp is a comboPlot object'''
+    print(folder)
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
     except:
@@ -137,7 +138,7 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
     
     fs = intm.folderStats(cp.flist[0])
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
-
+    print(cp.flist)
     xvalue = fs.ncx + x
     for folder in cp.flist:
         XSPlotf(folder, time, xvalue, cp)

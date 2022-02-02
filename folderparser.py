@@ -376,6 +376,7 @@ def generateVTKSeries(tlist:List[str], flist:List[str], cf:str, ending:str, last
         seriesTime = os.path.getmtime(seriesfile)
         if seriesTime>lastTime:
             # the series file is up to date
+            print(seriesTime, lastTime)
             return
         cfbasename = os.path.basename(seriesfile).replace(ending+'.series', '') # e.g. 'case'
     else:
@@ -418,7 +419,7 @@ def redoVTKSeriesNoLog(folder:str) -> None:
     if os.path.exists(vtkfolder):
         for file in os.listdir(vtkfolder):
             if file.endswith('.vtm'):
-                updatedTime = os.path.getmtime(file)
+                updatedTime = os.path.getmtime(os.path.join(vtkfolder, file))
                 if updatedTime>lastTime:
                     lastTime=updatedTime
                 flabel, time = readVTM(os.path.join(vtkfolder, file))
@@ -426,6 +427,9 @@ def redoVTKSeriesNoLog(folder:str) -> None:
                     flist.append(flabel)
                     tlist.append(time)
             elif file.endswith('.vtk'):
+                updatedTime = os.path.getmtime(os.path.join(vtkfolder, file))
+                if updatedTime>lastTime:
+                    lastTime=updatedTime
                 ending = '.vtk'
                 flabel = int(re.split('\_|.v', file)[1])
                 flist.append(flabel)
@@ -437,6 +441,7 @@ def redoVTKSeriesNoLog(folder:str) -> None:
             flist.sort()
             flist = [str(f) for f in flist]
             tlist = ['{:1.1f}'.format(t) for t in tlist]
+
         generateVTKSeries(tlist, flist, cf, ending, lastTime=lastTime)
     return
 

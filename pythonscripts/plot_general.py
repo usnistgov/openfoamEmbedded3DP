@@ -298,6 +298,19 @@ def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
 
 #---
 
+def mixedSort(l1:List) -> List:
+    '''sort values, converting if there are mixed types'''
+    try:
+        return sorted(l1)
+    except:
+        l2 = [0 if i=='' else i for i in l1]
+        try:
+            return sorted(l1)
+        except:
+            l1 = [str(i) for i in l1]
+            return sorted(l1)
+
+
 def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
     '''get a list of all of the transport property values in this list of folders
     flist is a list of folders (full path names)
@@ -313,7 +326,11 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
         if k+'list' in kwargs:
             tab = tab[tab[k].isin(kwargs[k+'list'])]
     flist2 = list(tab['folder'])
-    lists = dict([[k+'list', sorted(list(tab[k].unique()))] for k in tab.keys()[1:]])
+    try:
+        lists = dict([[k+'list', mixedSort(list(tab[k].unique()))] for k in tab.keys()[1:]])
+    except:
+        print(list(tab[k].unique()))
+        traceback.print_exc()
     return flist2, lists
 
 
@@ -401,7 +418,6 @@ def vv(tp:Dict, xpv) -> Tuple[Any, float, float, int]:
     xpos = findPos(xpv.xlist, x)
     ypos = findPos(xpv.ylist, y)
     sigmapos = findPos(xpv.tplists['sigmalist'], tp['sigma'])
-    
     # find the position in the plot x0,y0 for this simulation. Not the real value! Just a placeholder so we don't have to deal with logs.
     if xpos<0 or ypos<0 or sigmapos<0:
         raise ValueError
