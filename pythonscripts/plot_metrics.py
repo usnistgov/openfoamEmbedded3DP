@@ -5,6 +5,7 @@
 import sys
 import os
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -21,6 +22,7 @@ import folderparser as fp
 import interfacemetrics as intm
 from plot_general import *
 from plainIm import *
+from figureLabels import *
 
 # logging
 logger = logging.getLogger(__name__)
@@ -28,10 +30,10 @@ logger.setLevel(logging.DEBUG)
 for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
     logging.getLogger(s).setLevel(logging.WARNING)
 
-# plots
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['font.size'] = 10
+# plotting
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rc('font', family='Arial')
+matplotlib.rc('font', size='10.0')
 
 # info
 __author__ = "Leanne Friedrich"
@@ -48,40 +50,40 @@ __status__ = "Production"
 def setSquare(ax):
     ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
     
-def subFigureLabel(ax, label:str, inside:bool=True) -> None:
-    '''add a subfigure label to the top left corner'''
-    if inside:
-        x=0.05
-        y = 0.95
-        ha = 'left'
-        va = 'top'
-    else:
-        x = -0.05
-        y = 1.05
-        ha = 'right'
-        va = 'bottom'
-    ax.text(x, y, label, fontsize=12, transform=ax.transAxes, horizontalalignment=ha, verticalalignment=va)
+# def subFigureLabel(ax, label:str, inside:bool=True) -> None:
+#     '''add a subfigure label to the top left corner'''
+#     if inside:
+#         x=0.05
+#         y = 0.95
+#         ha = 'left'
+#         va = 'top'
+#     else:
+#         x = -0.05
+#         y = 1.05
+#         ha = 'right'
+#         va = 'bottom'
+#     ax.text(x, y, label, fontsize=12, transform=ax.transAxes, horizontalalignment=ha, verticalalignment=va)
     
-def subFigureLabels(axs, horiz:bool=True, inside:bool=True) -> None:
-    '''add subfigure labels to all axes'''
-    alphabet_string = string.ascii_uppercase
-    alphabet_list = list(alphabet_string)
-    if len(axs.shape)==1:
-        # single row
-        for ax in axs:
-            subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
-    else:
-        if horiz:
-            # 2d array
-            for axrow in axs:
-                for ax in axrow:
-                    subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
-        else:
-            w = len(axs[0])
-            h = len(axs)
-            for i in range(w):
-                for j in range(h):
-                    subFigureLabel(axs[j][i], alphabet_list.pop(0), inside=inside)
+# def subFigureLabels(axs, horiz:bool=True, inside:bool=True) -> None:
+#     '''add subfigure labels to all axes'''
+#     alphabet_string = string.ascii_uppercase
+#     alphabet_list = list(alphabet_string)
+#     if len(axs.shape)==1:
+#         # single row
+#         for ax in axs:
+#             subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
+#     else:
+#         if horiz:
+#             # 2d array
+#             for axrow in axs:
+#                 for ax in axrow:
+#                     subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
+#         else:
+#             w = len(axs[0])
+#             h = len(axs)
+#             for i in range(w):
+#                 for j in range(h):
+#                     subFigureLabel(axs[j][i], alphabet_list.pop(0), inside=inside)
 
 def plotSquare(ax:plt.Axes, x0:float, y0:float, dx:float, caption:str, color) -> None:
     '''plotSquare plots a square
@@ -166,6 +168,7 @@ def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
     cp.figtitle = 'Folder names'
     cp.clean()
     intm.exportIm(fn, cp.fig, **kwargs)
+    return cp.fig
 
 #------------------------------------------   
 # run time plot: how long the simulation ran in simulation seconds
@@ -231,6 +234,7 @@ def plotTableVals(t1:pd.DataFrame, cp:comboPlot, tminmode:int, timeplot:bool=Fal
     cp is the comboPlot to plot the values on
     tminmode=0 to set the minimum to 0. tminmode=1 to set the minimum to the min value in the table.
     timeplot true if we are plotting times. This is necessary for circle scaling.'''
+
     
     if len(t1)<1:
         raise ValueError
@@ -248,16 +252,13 @@ def plotTableVals(t1:pd.DataFrame, cp:comboPlot, tminmode:int, timeplot:bool=Fal
     
         
     t1 = t1.sort_values(by=['rate'])
-    t1 = t1.reset_index()
+    t1 = t1.reset_index(drop=True)
 
-    
     # set circle size
     if not cp.split:
-        rmax = cp.dx/2 # maximum radius of circle is the spacing between points/2
+        rmax = cp.dx # maximum radius of circle is the spacing between points/2
         if tmax>(100*t1['rate'].median()) or timeplot:
             rmax = rmax*np.sqrt(tmax/500)
-    #         rmax = rmax*(tmax/(100*t1['rate'].median()))
-
     
     #cmap = sns.cubehelix_palette(as_cmap=True, rot=-0.4)
     cmap = sns.diverging_palette(220, 20, as_cmap=True)
@@ -345,12 +346,15 @@ def timePlot(folder:str, cp:comboPlot):
     '''timePlot determines the position and size of circle to plot
     folder is a full path name
     cp is a comboPlot object'''
-    
-    le = intm.importLegend(folder)
-    rate = float((le[le['title']=='simulation rate (hr/s)']).val) # find the simulation rate
-    return folderToPlotVals(folder, cp, rate) 
-       
-       
+
+    le = fp.currentRate(folder)
+    try:
+        rate = float(le['rate'])
+    except:
+        return
+    else:
+        return folderToPlotVals(folder, cp, rate) 
+
 
 def timePlots(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -> None:
     '''timePlots plots computation rates as circles
@@ -521,9 +525,9 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     valueLegend(cp, vpout)
     intm.exportIm(fn, cp.fig, **kwargs)
     
+#--------------------------------    
     
-    
-def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', **kwargs):
+def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', xvar:str='theta', **kwargs):
     '''Plot points for all labels, one plot per label
     d is dataframe holding table of angles and metrics
     time is time in s
@@ -532,7 +536,7 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', **kwarg
     
     labdict = {'arean':'Area/intended', 'vertdispn':'Vert disp/nozzle diam', 'aspectratio':'Height/width', 'speeddecay':'Speed/intended'}
     yvars = list(d.keys())
-    yvars.remove('theta')
+    yvars.remove(xvar)
     if cvar in yvars:
         yvars.remove(cvar)
     nvars = len(yvars)
@@ -541,13 +545,13 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', **kwarg
     else:
         cols = 2
     rows = int(np.ceil(nvars/cols))
-    
-    
+
     fig, axs = plt.subplots(rows, cols, sharex=True, figsize=(6.5, 6.5*rows/cols))
+    if rows==1:
+        axs = np.array([axs])
     fig.suptitle(f'Print Quality Metrics, {xbehind} mm behind nozzle, t = {time} s')
     plt.xticks(ticks=[0,5,10,15,20,25,30])
-    
-    
+
     axs[0,0].set_title(" ") # so y axis names do not overlap title
 #     colors = ['#32964d', '#27cae6', '#335862', '#38f0ac'] # colors to plot with
 
@@ -555,18 +559,18 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', **kwarg
         for c in range(cols):
             ax = axs[r,c]
             yvar = yvars.pop(0)
-            if not cvar in d:
-                ax.scatter(d['theta'], d[yvar], c='black', marker='D')
+            if not cvar in d or len(cvar)==0:
+                ax.scatter(d[xvar], d[yvar], c='black', marker='D')
             else:
-                zplot=ax.scatter(d['theta'], d[yvar], c=d[cvar], marker='D', cmap='coolwarm')
+                zplot=ax.scatter(d[xvar], d[yvar], c=d[cvar], marker='D', cmap='coolwarm')
             ax.set_ylabel(labdict[yvar])
             if yvar=='vertdispn':
                 yideal=0
             else:
                 yideal=1
             ax.axhline(yideal, ls='--', c='black')
-            ax.text(0, yideal, 'ideal', ha='left', va='bottom', color='black') # key for ideal horizontal lines
-    if cvar in d:
+            ax.text(min(d[xvar]), yideal, 'ideal', ha='left', va='bottom', color='black') # key for ideal horizontal lines
+    if cvar in d and len(cvar)>0:
         cb_ax = fig.add_axes([0.95,.124,.03,.7])
         if 'cvarlabel' in kwargs:
             cvl = kwargs['cvarlabel']
@@ -581,11 +585,16 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', **kwarg
             setSquare(ax)
             
     for ax in axs[-1]:
-        ax.set_xlabel('Nozzle angle ($\degree$)')
+        if xvar=='nozzle_angle':
+            ax.set_xlabel('Nozzle angle ($\degree$)')
+        elif 'xvarlabel' in kwargs:
+            ax.set_xlabel(kwargs['xvarlabel'])
+        else:
+            ax.set_xlabel(xvar)
     return fig
 
     
-def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels:List[str], overwrite:bool=False, cvar:str='', **kwargs) -> None: # RG
+def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels:List[str]=['arean', 'vertdispn', 'aspectratio', 'speeddecay'], overwrite:bool=False, xvar:str='nozzle_angle', cvar:str='', **kwargs) -> None: # RG
     '''Plots slice summaries for against nozzle angles in scatter plots
     topFolder is a full path name to the folder containing all the simulations
     exportFolder is the folder to export plots to
@@ -598,15 +607,18 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
     if not overwrite and os.path.exists(fn+'.png'):
         return
 
+
     folders = fp.caseFolders(topFolder) # names of folders to plot
     if len(folders)==0:
         logging.warning('No folders found')
         return
-            
+    folders, _ = listTPvalues(folders, **kwargs) # list of transport property lists
+    
     xlist = [] # list of nozzle angles
     for folder in folders:
         meta, u = extractTP(folder, units=True)
-        d = {'theta':meta['nozzle_angle']}
+        d = {xvar:meta[xvar]}
+        kwargs['xvarlabel'] = xvar.replace('_', ' ') + f' ({u[xvar]})'
         if cvar in meta:
             d[cvar] = meta[cvar]
             kwargs['cvarlabel'] = cvar.replace('_', ' ') + f' ({u[cvar]})'
@@ -617,44 +629,12 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
         else:
             d = {**d, **value}
             xlist.append(d)
-    fig = qualityPlots(pd.DataFrame(xlist), time, xbehind, cvar=cvar, **kwargs)
+
+    fig = qualityPlots(pd.DataFrame(xlist), time, xbehind, cvar=cvar, xvar=xvar, **kwargs)
 
     intm.exportIm(fn, fig) # export figure
 
-
-def shearStressPlots(time:float, folders:List[str]):
-    '''Plot average shear stress over the nozzle
-    time is time in s
-    folders is list of folders to plot'''
-
-    fig, ax = plt.subplots(constrained_layout=True)
-    fig.suptitle('Average shear stress along the nozzle')
-    cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
-
-    tplist = pd.DataFrame([extractTP(folder) for folder in folders])
-    tplist.sort_values(by='nozzle_angle', inplace=True)
-    tplist.reset_index(drop=True, inplace=True)
-
-    for i,row in tplist.iterrows():
-        zstress = shearStressCalc(row['folder'], time)
-        if len(zstress)>0:
-            theta = row['nozzle_angle']
-            z0 = row['nozzle_bottom_coord']
-            zlist = z0 - zstress.index
-            stresslist = list(zstress)
-            ax.plot(zlist, stresslist, label=f'{int(theta)} $\degree$', c=cm[i])
-        
-    xvar = 'z position (mm)'
-    yvar = 'Shear Stress (Pa)'
-    ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--')
-    ax.text(0.05,0, 'nozzle exit', horizontalalignment='right')
-    ax.set_xlabel(xvar)
-    ax.set_ylabel(yvar)
-    ax.legend(loc='upper left', bbox_to_anchor=(1,1))
-    setSquare(ax)
-    
-    return fig
-    
+#--------------------------------
 
 def shearStressCalc(folder:str, time:float): # RG
     '''Calculates mean shear stress across the length of the nozzle
@@ -666,6 +646,9 @@ def shearStressCalc(folder:str, time:float): # RG
     vals = df.groupby(by='z').mean()['shearstressmag']
         
     return vals
+
+
+
 
 
 def shearStressPlots0(topFolder:str, exportFolder, time:float, overwrite:bool=False, **kwargs) -> None: # RG
@@ -681,5 +664,187 @@ def shearStressPlots0(topFolder:str, exportFolder, time:float, overwrite:bool=Fa
         return
     
     folders = fp.caseFolders(topFolder)
-    fig = shearStressPlots(time, folders)
+    folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
+    fig, ax = plt.subplots(constrained_layout=True)
+    shearStressPlots(folders, time, ax, **kwargs)
     intm.exportIm(fn, fig) # export figure
+    
+#-------------------
+    
+def nozzleLineTrace(folder:str, time:float, z:float) -> pd.DataFrame:
+    '''Calculates mean shear stress across the width of the nozzle
+    folder is the folder to do calculations on'''
+    
+    df,units = intm.importPtsNoz(folder, time) # get points in nozzle
+    
+    
+    if len(df)==0:
+        return []
+    zvar = intm.closest(df['z'].unique(), z) # get constant z val
+    prec = -4
+    df = df[(df['z']==zvar)&(df['y']>-1*(10**prec))&(df['y']<10**prec)] # get exact z value and y close to 0
+    
+    
+    le = fp.legendUnique(folder)
+    rho = float(le['ink_rho'])    
+    df['nu_ink'] = [rho*nu for nu in df['nu_ink']] # convert to dynamic
+    
+#     md = df.x.median()
+    md = float(le['nozzle_center_x_coord'])
+    df['x'] = [x-md for x in df['x']]
+    
+    df.sort_values(by='x', inplace=True)
+        
+    return df
+
+def shearStressPlots(folders:List[str], time:float, ax, cvar:str='nozzle_angle',legendloc:str='overlay',  **kwargs) -> None:
+    '''Plot average shear stress over the nozzle
+    time is time in s
+    folders is list of folders to plot'''
+
+    
+    if not 'cm' in kwargs:
+        cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
+    else:
+        cm = kwargs['cm']
+    
+    _, u = extractTP(folders[0], units=True) # get units
+
+    tplist = pd.DataFrame([extractTP(folder) for folder in folders])
+    tplist.sort_values(by=cvar, inplace=True)
+    tplist.reset_index(drop=True, inplace=True)
+
+    for i,row in tplist.iterrows():
+        zstress = shearStressCalc(row['folder'], time)
+        if len(zstress)>0:
+            theta = row[cvar]
+            z0 = row['nozzle_bottom_coord']
+            zlist = z0 - zstress.index
+            stresslist = list(zstress)
+            if cvar=='nozzle_angle':
+                clabel = f'{int(theta)} $\degree$'
+            else:
+#                 clabel = f'{theta} {u[cvar]}'
+                clabel = theta
+            ax.plot(zlist, stresslist, label=clabel, c=cm[i], linewidth=0.75)
+            if legendloc=='overlay':
+                ax.text(zlist[-1], stresslist[-1], clabel, color=cm[i], horizontalalignment='right', verticalalignment='top') 
+            
+        
+    xvar = 'z position (mm)'
+    yvar = 'Shear Stress (Pa)'
+    ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--')
+    ax.text(-0.05,0, 'nozzle exit', horizontalalignment='right')
+    ax.set_xlabel(xvar)
+    ax.set_ylabel(yvar)
+    setSquare(ax)
+    
+    if not legendloc=='overlay':
+        ax.legend(loc='lower left', bbox_to_anchor=(0,1))
+    
+    return 
+
+def withinNozzle(folders:List[str], time:float, z:float, ax, cvar:str, yvar:str, legendloc:str='overlay',  **kwargs) -> None:
+    '''plot a line trace of value yvar across the nozzle at position z and time time, on axis ax, coloring the lines by variable cvar'''
+    _, u = extractTP(folders[0], units=True) # get units
+
+    if not 'cm' in kwargs:
+        cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
+    else:
+        cm = kwargs['cm']
+    
+    tplist = pd.DataFrame([extractTP(folder) for folder in folders])
+    tplist.sort_values(by=cvar, inplace=True)
+    tplist.reset_index(drop=True, inplace=True)
+    maxy = 0
+ 
+    for i,row in tplist.iterrows():
+
+        # get data
+        if yvar=='shearstressz':
+            zstress = shearStressCalc(row['folder'], time)
+            if len(zstress)>0:
+                theta = row[cvar]
+                z0 = row['nozzle_bottom_coord']
+                xlist = list(z0 - zstress.index)
+                ylist = list(zstress)
+                li = int(len(zstress)/2)
+        else:
+            zstress = nozzleLineTrace(row['folder'], time, z)
+            if len(zstress)>0:
+                theta = row[cvar]    
+                xlist = list(zstress['x'])
+                ylist = list(zstress[yvar])
+                if yvar=='magu':
+                    li = int(len(zstress)/2)
+                else:
+                    li = 0
+            
+        # set color label
+        if cvar=='nozzle_angle':
+            clabel = f'{int(theta)} $\degree$'
+        else:
+            clabel = theta
+           
+        # plot data
+        ax.plot(xlist, ylist, label=clabel, c=cm[i], linewidth=0.75)
+        maxy = max(maxy, max(ylist))
+        
+        # label line
+        if legendloc=='overlay':
+            x0 = xlist[li]
+            y0 = ylist[li]
+            if li==0:
+                ha = 'right'
+            else:
+                ha = 'center'
+            ax.text(x0, y0, clabel, color=cm[i], horizontalalignment=ha, verticalalignment='top') 
+
+    if yvar=='shearstressmag':
+        ax.set_ylabel('Shear Stress (Pa)')
+        ax.set_ylim([0, maxy])
+    elif yvar=='nu_ink':
+        ax.set_ylabel('Viscosity (Pa*s)')
+        ax.set_yscale('log')
+    elif yvar=='magu':
+        ax.set_ylabel('Velocity (mm/s)')
+    ax.set_xlabel('x position (mm)')
+    
+    if not legendloc=='overlay':
+        ax.legend(loc='lower left', bbox_to_anchor=(0,1))
+    
+    
+    
+def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, cvar:str='nozzle_angle'
+                  , overwrite:bool=False, export:bool=True, fontsize:int=8, **kwargs):
+    '''plots line traces within the nozzle at a given z position and time. cvar is the variable to color by, yvar is the variable to plot, nu_ink or shear_stress'''
+    
+
+    labels = ['trace_across']
+    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
+    if not overwrite and os.path.exists(fn+'.png'):
+        return
+
+    plt.rc('font', size=fontsize) 
+    
+    folders = fp.caseFolders(topFolder)
+    folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
+
+    fig, axs = plt.subplots(1,3, figsize=(6.5,5))
+    
+    cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
+#     shearStressPlots(folders, time, axs[0], cvar=cvar, cm=cm, **kwargs)
+    
+    for j, yvar in enumerate(['shearstressz', 'shearstressmag', 'magu']):
+        ax = axs[j]     
+        withinNozzle(folders, time, z, ax, cvar, yvar, cm=cm, **kwargs) # plot the values on the axis
+        
+    for ax in axs:
+        setSquare(ax)
+        
+    subFigureLabels(axs, inside=False)
+    fig.tight_layout()
+
+    if export:
+        intm.exportIm(fn, fig) # export figure
+    

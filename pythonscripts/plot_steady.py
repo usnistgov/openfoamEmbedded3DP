@@ -5,6 +5,7 @@
 import sys
 import os
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -25,9 +26,9 @@ for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
     logging.getLogger(s).setLevel(logging.WARNING)
 
 # plotting
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['font.size'] = 10
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rc('font', family='Arial')
+matplotlib.rc('font', size='10.0')
 
 # info
 __author__ = "Leanne Friedrich"

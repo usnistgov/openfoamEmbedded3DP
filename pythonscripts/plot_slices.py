@@ -4,9 +4,10 @@
 # external packages
 import sys
 import os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
+# currentdir = os.path.dirname(os.path.realpath(__file__))
+# parentdir = os.path.dirname(currentdir)
+# sys.path.append(parentdir)
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 from typing import List, Dict, Tuple, Union, Any, TextIO
@@ -24,9 +25,9 @@ for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
     logging.getLogger(s).setLevel(logging.WARNING)
 
 # plotting
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['font.size'] = 10
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rc('font', family='Arial')
+matplotlib.rc('font', size='10.0')
 
 # info
 __author__ = "Leanne Friedrich"
@@ -81,35 +82,59 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     xs is a pandas DataFrame holding points
     folder is a full pathname
     cp is a comboPlot object'''
-    print(folder)
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
     except:
         traceback.print_exc()
         return
-    xlist = list(xs['y']+x0)
-    ylist = list(xs['z']+y0)
+#     xlist = list(xs['y']+x0)
+#     ylist = list(xs['z']+y0)
+    xs['y'] = xs['y']+x0
+    xs['z'] = xs['z']+y0
     try:
-        x,y = intm.pdCentroid(xs)
+        xmid,ymid = intm.pdCentroid(xs)
     except:
         return
-    else:
-        xmid = x + x0
-        ymid = y + y0
+#     else:
+#         xmid = x + x0
+#         ymid = y + y0
     if cp.split:
         ax = cp.axs[sigmapos]
     else:
         ax = cp.axs[0]
-    size = 0.01*6/(len(cp.xmlist)*(cp.ncol))
-    ax.scatter(xlist, ylist, c=color, s=0.01, rasterized=True)
-    ax.arrow(x0, y0, xmid-x0, ymid-y0, ls='--', head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
+#     size = 0.01*6/(len(cp.xmlist)*(cp.ncol))
+    
+    bottom = xs.z.min()
+    height= xs.z.max() - bottom
+    left = xs.y.min()
+    width = xs.y.max() - left
+    
+    leftpts = xs.copy()
+    leftpts = leftpts[(leftpts.y<left+0.25*width)]
+    leftpts.sort_values(by='z', inplace=True)
+    toppts = xs.copy()
+    toppts = toppts[(toppts.y>left+0.25*width)&(toppts.y<left+0.75*width)&(toppts.z>leftpts.z.median())]
+    toppts.sort_values(by='y', inplace=True)
+    botpts = xs.copy()
+    botpts = botpts[(botpts.y>left+0.25*width)&(botpts.y<left+0.75*width)&(botpts.z<leftpts.z.median())]
+    botpts.sort_values(by='y', inplace=True)
+    rightpts = xs.copy()
+    rightpts = rightpts[(rightpts.y>left+0.55*width)]
+    rightpts.sort_values(by='z', inplace=True)
+    
+    for pts in [leftpts, toppts, botpts, rightpts]:
+        ax.plot(pts['y'], pts['z'], color=color, linewidth=1, marker=None)
+    
+    
+#     ax.scatter(xlist, ylist, color=color, s=0.01, marker='.', facecolor=color, edgecolor=None, rasterized=True)
+    ax.arrow(x0, y0, xmid-x0, ymid-y0,  head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
     
 
 def XSPlotIdeal(cp:comboPlot, fs:intm.folderStats) -> None:
     '''this plots an ideal cross-section on the cross-section plot
     fs is a folderStats object'''
     x0 = cp.xrtot[0]+cp.dx/2
-    y0 = cp.yrtot[-1]-cp.dy/2
+    y0 = cp.yrtot[-1]+cp.dy/2
     color='Black'
     plotCircle(cp.axs[0], x0, y0, fs.niw/2, 'Ideal', color)
 
@@ -133,12 +158,11 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:Li
         return
 
     dx = 0.7
-    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, sigmalist=sigmalist0, **kwargs)
+    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 12, sigmalist=sigmalist0, **kwargs)
     cp.sigmalist = sigmalist0
     
     fs = intm.folderStats(cp.flist[0])
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
-    print(cp.flist)
     xvalue = fs.ncx + x
     for folder in cp.flist:
         XSPlotf(folder, time, xvalue, cp)

@@ -5,6 +5,7 @@
 import sys
 import os
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
@@ -20,11 +21,12 @@ parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 import interfacemetrics as intm
 import folderparser as fp
+from figureLabels import *
 
 # plotting
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['font.size'] = 10
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rc('font', family='Arial')
+matplotlib.rc('font', size='10.0')
 
 # logging
 logger = logging.getLogger(__name__)
@@ -121,9 +123,20 @@ def expFormatList(xlist:List[float], returnPrecision:bool=False) -> List[Any]:
             return [int(xi) for xi in xlist]
         else:
             # determine precision of float
-            xlist.sort()
-            diffs = [t - s for s, t in zip(xlist, xlist[1:])] # differences between steps
-            prec = int(np.ceil(-np.log10(min(diffs))))+1
+            xsort = xlist.copy()
+            xsort.sort()
+            diffs = [t - s for s, t in zip(xsort, xsort[1:])] # differences between steps
+            diffs = [i for i in diffs if i>0]
+            if len(diffs)==0:
+                prec=1
+                found = False
+                while prec<20 and not found:
+                    if abs(round(xlist[0], prec)-xlist[0])<10**-10:
+                        found=True
+                    else:
+                        prec+=1
+            else:
+                prec = int(np.ceil(-np.log10(min(diffs))))+1
             xout = [round(x,prec) for x in xlist]
     if returnPrecision:
         return xout, prec
@@ -165,6 +178,11 @@ def sigfuncc(tp:Dict) -> str:
 def cubehelix1(val:float):
     '''val should be 0-1. returns a color'''
     cm = sns.cubehelix_palette(as_cmap=True, rot=-0.4)
+    return cm(val)
+
+def namedColor(cname:str, val:float):
+    '''a function for getting a color from a float, given a palette name'''
+    cm = sns.color_palette(cname, as_cmap=True)
     return cm(val)
 
 #-----------------------------------------
@@ -219,26 +237,26 @@ def logRatioFunc(tp:Dict, func, rang:List[float]) -> float:
 #--------- 
 # get transport properties
 
-def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
-    '''Extract transport properties from a legend. 
-        le is the legend
-        nui is the index of the viscosity
-        getHB is true to get herschel-bulkley parameters
-        used by extractTP'''
-    nuj = nui
-    while not le.loc[nuj,'title']=='rho' and nuj<len(le):
-        nuj+=1
-    rho = float(le.loc[nuj, 'val']) # kg/m^3
-    nu = kinToDyn(float(le.loc[nui, 'val']), density=rho) # get the actual viscosity in Pa s
-    if getHB:
-        tau0 = kinToDyn(float(le.loc[nui+1, 'val']), density=rho)
-        k = kinToDyn(float(le.loc[nui+2, 'val']), density=rho)
-        n = float(le.loc[nui+3, 'val'])
-    else:
-        tau0 = 0
-        k = 0
-        n = 0
-    return nu, tau0, k, n, rho
+# def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
+#     '''Extract transport properties from a legend. 
+#         le is the legend
+#         nui is the index of the viscosity
+#         getHB is true to get herschel-bulkley parameters
+#         used by extractTP'''
+#     nuj = nui
+#     while not le.loc[nuj,'title']=='rho' and nuj<len(le):
+#         nuj+=1
+#     rho = float(le.loc[nuj, 'val']) # kg/m^3
+#     nu = kinToDyn(float(le.loc[nui, 'val']), density=rho) # get the actual viscosity in Pa s
+#     if getHB:
+#         tau0 = kinToDyn(float(le.loc[nui+1, 'val']), density=rho)
+#         k = kinToDyn(float(le.loc[nui+2, 'val']), density=rho)
+#         n = float(le.loc[nui+3, 'val'])
+#     else:
+#         tau0 = 0
+#         k = 0
+#         n = 0
+#     return nu, tau0, k, n, rho
 
 def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
     '''extractTP gets the metadata for a folder
@@ -316,20 +334,20 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
     flist is a list of folders (full path names)
     Returns a list of files and Dict of properties. 
         If we use kwargs to say we only want files with, e.g. nuink=10, then it will only return those files.
-        The dictionary lists all of the values in the list of files for each transport property variable. e.g. {'nuinklist':[10,100], 'tau0inklist':[0], 'kinklist':[0], ...}
+        The dictionary lists all of the values in the list of files for each transport property variable. e.g. {'nuink_list':[10,100], 'tau0ink_list':[0], 'kink_list':[0], ...}
     '''
     
     tab = [extractTP(folder) for folder in flist]
     tab = pd.DataFrame(tab)
     
     for k in tab.keys():
-        if k+'list' in kwargs:
-            tab = tab[tab[k].isin(kwargs[k+'list'])]
+        if f'{k}_list' in kwargs:
+            tab[k] = expFormatList(list(tab[k]))  # round floats
+            tab = tab[tab[k].isin(kwargs[f'{k}_list'])] # only take rows that are in the list
     flist2 = list(tab['folder'])
     try:
-        lists = dict([[k+'list', mixedSort(list(tab[k].unique()))] for k in tab.keys()[1:]])
+        lists = dict([[f'{k}_list', mixedSort(list(tab[k].unique()))] for k in tab.keys()[1:]])
     except:
-        print(list(tab[k].unique()))
         traceback.print_exc()
     return flist2, lists
 
@@ -346,7 +364,7 @@ def folderToFunc(folder:str, func) -> float:
 
 def tpCombos(tplists:Dict) -> List:
     '''List of combinations of transportProperties values. tplists comes from listTPvalues
-    used by unqList, and will look like {'nuinklist':[10, 100], 'tau0inklist':[10], ...}'''
+    used by unqList, and will look like {'nuink_list':[10, 100], 'tau0ink_list':[10], ...}'''
     vallists = []
     for l in tplists:
         vallist = [[l[0:-4],i] for i in tplists[l]] # e.g. [['nuink', 10^5], ['nuink', 10^6]]
@@ -417,7 +435,7 @@ def vv(tp:Dict, xpv) -> Tuple[Any, float, float, int]:
 
     xpos = findPos(xpv.xlist, x)
     ypos = findPos(xpv.ylist, y)
-    sigmapos = findPos(xpv.tplists['sigmalist'], tp['sigma'])
+    sigmapos = findPos(xpv.tplists['sigma_list'], tp['sigma'])
     # find the position in the plot x0,y0 for this simulation. Not the real value! Just a placeholder so we don't have to deal with logs.
     if xpos<0 or ypos<0 or sigmapos<0:
         raise ValueError
@@ -455,30 +473,40 @@ def vvplot(folder:str, xpv):
 class folderPlots:
     '''A generic class used for plotting many folders at once. Subclasses are comboPlot, which puts everything on one plot, and gridOfPlots, which puts everything in separate plots based on viscosity.'''
     
-    def __init__(self, topFolder:str, imsize:float, split:bool=False, **kwargs):
+    def __init__(self, topFolder:str, imsize:float, split:bool=False, fontsize:float=8, **kwargs):
         '''topFolder is the folder we're plotting
             imsize is the size of the total image in inches
             split is true to split into separate plots by surface tension'''
         self.kwargs = kwargs
+        plt.rc('font', size=fontsize) 
         self.ab = not 'adjustBounds' in self.kwargs or self.kwargs['adjustBounds']==True
         self.topFolder = topFolder
         self.imsize = imsize
         self.split = split
         self.plotsLists(**kwargs)
         
-    def convertFunc(self, var):
+    def convertFunc(self, var, normalize:bool=False):
         '''Convert a variable name or expression, e.g. 'nuink' or 'nusup/nuink' into a lambda function to be used on transport properties dict'''
         strs = self.strings.copy()
-        strs.remove('sup')
-        strs.remove('ink')
+        if 'sup' in strs:
+            strs.remove('sup')
+        if 'ink' in strs:
+            strs.remove('ink')
         if len(var)>0:
             if var in strs:
                 # just one variable, can just pick the variable from transport properties
-                func = lambda tp: tpFunc(tp, var)
+                if normalize:
+                    vals = self.tplists[f'{var}_list']
+                    maxval = max(vals)
+                    minval = min(vals)
+                    nvals = len(vals)
+                    func = lambda tp: (tpFunc(tp, var)-minval)/((maxval-minval)*((nvals+1)/nvals))
+                else:
+                    func = lambda tp: tpFunc(tp, var)
                 return func
             else:
                 for s in strs:
-                    var = var.replace(s, "tp[\'"+s+"\']")
+                    var = var.replace(s, f"tp[\'{s}\']")
                 func = lambda tp: eval(var)
                 return func
        
@@ -487,11 +515,19 @@ class folderPlots:
         '''plotsLists initializes gridOfPlots and comboPlots objects, creating the initial figure'''
         self.flist = fp.caseFolders(self.topFolder) # list of all folders in the top folder
         self.flist, self.tplists = listTPvalues(self.flist, **kwargs) # list of transport property lists
-        self.cfunc = sigfuncc
-        self.strings = [s[0:-4] for s in list(self.tplists.keys())]
+        self.strings = [s[0:-5] for s in list(self.tplists.keys())]
+        
+        if not 'cvar' in kwargs:
+            self.cfunc = sigfuncc
+        else:
+            if 'cname' in kwargs:
+                cname = kwargs['cname']
+            else:
+                cname = 'viridis'
+            self.cfunc = lambda tp: namedColor(cname, self.convertFunc(kwargs['cvar'], normalize=True)(tp))
         
         if self.split:
-            ncol = len(self.tplists['sigmalist'])
+            ncol = len(self.tplists['sigma_list'])
         else:
             ncol = 1
         self.ncol = ncol
@@ -554,7 +590,7 @@ class folderPlots:
     def legendList(self):
         '''Make a legend from the list of sigma values and store it for later'''
         if self.ncol==1:
-            sigmalist = self.tplists['sigmalist']
+            sigmalist = self.tplists['sigma_list']
             plist = [mpatches.Patch(color=sigmaColor(sigmalist[i]), label=sigmalist[i]) for i in range(len(sigmalist))]
             ph = [plt.plot([],marker="", ls="", label='\u03C3 (mJ/m$^2$)')[0]]; # Canvas
             self.plist = ph + plist
@@ -801,8 +837,8 @@ class comboPlot(folderPlots):
         # This step cuts out the space we set out for those folders that didn't end up in the final plot
         # if we were given adjustBounds=False during initialization, don't adjust the bounds
         if self.ab:
-            self.xrtot = adjustBounds(self.xlistreal, self.xr, self.xlist)
-            self.yrtot = adjustBounds(self.ylistreal, self.yr, self.ylist)
+            self.xrtot = adjustBounds(self.xlistreal, self.xr, self.xlist, self.dx)
+            self.yrtot = adjustBounds(self.ylistreal, self.yr, self.ylist, self.dy)
         else:
             self.xrtot[1] = self.xrtot[1]-self.dx
             self.yrtot[1] = self.yrtot[1]-self.dy
@@ -834,7 +870,7 @@ class comboPlot(folderPlots):
             ax.set_aspect('equal', adjustable='box')
             
         if self.ncol>1:
-            sigmalist = self.tplists['sigmalist']
+            sigmalist = self.tplists['sigma_list']
             for i in range(len(sigmalist)):
                 self.axs[i].set_title('\u03C3='+str(sigmalist[i])+' mJ/m$^2$', fontname="Arial", fontsize=10)
 
@@ -887,7 +923,7 @@ def addDots(ax:plt.Axes, xlist:List[float], ylist:List[float]):
     return
 
 
-def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float]):
+def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float], dx:float):
     '''adjust the bounds of the plot.
     xlistreal is a list of x points to be included in the plot
     xr is the [min, max] position of each segment, e.g. [-0.7, 0.7]
@@ -902,7 +938,7 @@ def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float]):
         dx = xr[1]-xr[0]
         xrtot = [xr[0]+pos1*dx, xr[0]+pos2*dx]
     else:
-        xrtot = [0]
+        xrtot = [-dx/2, dx/2]
     return xrtot
 
 def emptyYLabels(ax:plt.Axes):

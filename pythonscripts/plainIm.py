@@ -34,6 +34,7 @@ def plainIm(file:str, ic:Union[int, bool]=0, checkUnits:bool=True) -> Tuple[Unio
             toprows = pd.read_csv(file, index_col=ic, nrows=2)
             
             toprows = toprows.fillna('')
+            toprows.columns = map(str.lower, toprows.columns) # set headers to lowercase
             row1 = list(toprows.iloc[0])
             if checkUnits and all([(type(s) is str or pd.isnull(s)) for s in row1]):
                 # row 2 is all str: this file has units

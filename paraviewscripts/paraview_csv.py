@@ -177,10 +177,14 @@ def csvFolder(folder:str, modes:List[str], forceOverwrite:bool):
                 xmin = -0.004824 # left edge of bath
                 xmax = -xmin # right edge of bath
                 dx = 0.0002
-                times = fp.times(folder)
+                # times = fp.times(folder)
+                times = [2.5]
             elif mode=='nozzle':
-                xmin = 0.0003015 # tip of nozzle RG
-                xmax = 0.00205623 # 3% below top of nozzle RG
+                le = fp.legendUnique(folder)
+                xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
+                # xmin = 0.0003015 # tip of nozzle RG
+                xmax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + xmin
+                # xmax = 0.00205623 # 3% below top of nozzle RG
                 dx = 0.00005
                 times = [2.5] # very storage intensive to do all 25 timesteps
             else:

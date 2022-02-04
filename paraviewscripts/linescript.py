@@ -50,31 +50,17 @@ zlist = [0.0005]
 forceOverwrite = False # True to overwrite existing files
 
 folders = []
-<<<<<<< Updated upstream
-nlist = [0,5,10,15,20,15,30]   # list of cn folder numbers that we will search
-
-SERVERFOLDER = cfg.path.server
-topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle') # RG
-for f in os.listdir(topfolder):
-    if f.startswith('cn'):
-        try:
-            n1 = float(f[2:])
-        except:
-            n1 = f[2:]
-        if n1 in nlist:
-=======
 nlist = range(0,1000)  # list of nb folder numbers that we will search
 
 SERVERFOLDER = cfg.path.server
 # topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
 # topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
-topfolders = [os.path.join(cfg.path.server, 'conicalnozzle')]
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'visc_speed']]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('nb') or f.startswith('cn'):
 #             n1 = float(f[2:])
 #             if n1 in nlist:
->>>>>>> Stashed changes
             folders.append(os.path.join(topfolder, f))
                 
 logging.info(f'Exporting line traces.\n\

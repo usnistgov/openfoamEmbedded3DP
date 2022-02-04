@@ -5,10 +5,12 @@
 import sys
 import os
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from PIL import Image
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
+import traceback
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -24,9 +26,9 @@ for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
     logging.getLogger(s).setLevel(logging.WARNING)
 
 # plotting
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['font.size'] = 10
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rc('font', family='Arial')
+matplotlib.rc('font', size='10.0')
 
 # info
 __author__ = "Leanne Friedrich"
@@ -64,26 +66,32 @@ def picFromFolder(folder:str, t:float, tag:str='y_umag'):
         raise ValueError
 
 
-def picPlot(folder:str, cp:comboPlot, t:float, dx:float, cropx:int, cropy:int, tag:str='y_umag') -> None:
+def picPlot(folder:str, cp:comboPlot, t:float, dx:float, crops, tag:str='y_umag', **kwargs) -> None:
     '''plots picture from just one folder. 
     folder is the full path name
     cp is the comboPlot object that stores the plot
     t is the time since extrusion started
     dx is the spacing between images in plot space, e.g. 0.7
-    cropx is the size to crop from the left and right edges of the piture in px
+    cropx is the size to crop from the left and right edges of the picture in px
     cropy is the size to crop from top and bottom in px
     tag is the name of the image type, e.g. 'y_umag'. Used to find images. '''
     try:
         im = picFromFolder(folder, t, tag=tag)
         width, height = im.size 
-        im = im.crop((cropx, cropy, width-cropx, height-cropy))
+        im = im.crop((crops['cropxl'], crops['cropyb'], width-crops['cropxr'], height-crops['cropyt']))
+        width, height = im.size 
     except:
+        traceback.print_exc()
         return
-    dy = dx*(height/width)
+    ar = height/width
+#     if ar>1:
+#         dx = dx/ar
+    dy = dx*ar
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
-    except:
+    except Exception as e:
         return
+    
     cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2])
         
 
@@ -110,7 +118,7 @@ def picPlotLegend(folder:str, cp:comboPlot, t:float, tag):
     cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2])
 
 
-def picPlots(folderList:List[str], cp:comboPlot, t:float, dx:float, cropx:int, cropy:int, tag:str='y_umag') -> None:
+def picPlots(folderList:List[str], cp:comboPlot, t:float, dx:float, crops:dict, tag:str='y_umag',**kwargs) -> None:
     '''plot all pictures for simulations in a folder
     folderList is a list of paths
     cp holds the plot
@@ -120,7 +128,7 @@ def picPlots(folderList:List[str], cp:comboPlot, t:float, dx:float, cropx:int, c
     cropy is the size to crop from top and bottom in px
     tag is the name of the image type, e.g. 'y_umag'. Used to find images. '''
     for folder in folderList:
-        picPlot(folder, cp, t, dx, cropx, cropy, tag=tag)
+        picPlot(folder, cp, t, dx, crops, tag=tag, **kwargs)
     cp.figtitle = 't = '+str(t)+' s'
     cp.clean()
     picPlotLegend(folderList[0], cp, t, tag=tag)
@@ -145,23 +153,26 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
     if len(flist)==0:
         return
     
-    dx = 0.7
+    dx = 0.5
     cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, gridlines=False, sigmalist=[sigma], **kwargs)
+    dx = dx*2
     if len(cp.flist)==0:
         return
     cp.legendList()
-    if tag.startswith('y'):
-        cropx = 60 # RG
-        cropy = 120
-        dx = dx*2
-    elif tag.startswith('x'):
-        cropx = 350 # RG
-        cropy = 375
-        dx = dx*2
+    if tag=='y_shearStressy' or tag=='y_viscy':
+        crops = {'cropxl':60, 'cropxr':600, 'cropyt':120, 'cropyb':240}
     else:
-        cropx = 100
-        cropy = 120
-    picPlots(flist, cp, time, dx, cropx, cropy, tag=tag)
+        if tag.startswith('y'):
+            cropx = 60 # RG
+            cropy = 120
+        elif tag.startswith('x'):
+            cropx = 350 # RG
+            cropy = 375
+        else:
+            cropx = 100
+            cropy = 120
+        crops = {'cropxl':cropx, 'cropxr':cropx, 'cropyt':cropy, 'cropyb':cropy}
+    picPlots(flist, cp, time, dx*0.9, crops, tag=tag, **kwargs)
     
 #     display(cp.fig)
     cp.addLegend()

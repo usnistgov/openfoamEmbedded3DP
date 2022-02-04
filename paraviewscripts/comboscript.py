@@ -52,7 +52,7 @@ forceOverwrite = False
 getCSVs = True
 
 # modes = ['nozzle', 'interface'] # CSVs to create
-modes = ['interface']
+modes = ['nozzle']
 
 # screenshots
 
@@ -75,29 +75,30 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy'
 
 # folders
 folders = []
-nlist = list(range(0,1000))
-# nlist = [0]
+# nlist = list(range(0,1000))
+nlist = [139]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle', 'horizontal') # RG
-for f in os.listdir(topfolder):
-    if f.startswith('cn'):
-        if f.endswith('hor'):
-            try:
-                n1 = float(f[2:-3])
-            except:
-                n1 = f[2:-3]
-        else:
-            try:
-                n1 = float(f[2:])
-            except:
-                n1 = f[2:]
-        if n1 in nlist:
-            folders.append(os.path.join(topfolder, f))
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'visc_speed']]
+for topfolder in topfolders:
+    for f in os.listdir(topfolder):
+        if f.startswith('cn'):
+            if f.endswith('hor'):
+                try:
+                    n1 = float(f[2:-3])
+                except:
+                    n1 = f[2:-3]
+            else:
+                try:
+                    n1 = float(f[2:])
+                except:
+                    n1 = f[2:]
+            if n1 in nlist:
+                folders.append(os.path.join(topfolder, f))
 
 
         

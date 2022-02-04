@@ -125,7 +125,7 @@ def importPointsFile(file:str) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
     except:
         pass
     mdict = {'m':'mm', 'm/s':'mm/s'}
-    for s in ['x', 'y', 'z', 'vx', 'vy', 'vz', 'arc_length']:
+    for s in ['x', 'y', 'z', 'vx', 'vy', 'vz', 'arc_length', 'magu']:
         if s in d:
             try:
                 d[s] = d[s].astype(float)
@@ -181,7 +181,7 @@ def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
     bn = os.path.basename(topfolder)
     s = ''
     for k in kwargs:
-        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split'] and 'list' not in k:
+        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split']:
             s = s + k + '_'+str(kwargs[k])+'_'
     s = s[0:-1]
     s = s.replace('*', 'x')
