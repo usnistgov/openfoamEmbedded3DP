@@ -647,42 +647,31 @@ def shearStressCalc(folder:str, time:float): # RG
         
     return vals
 
-
-
-
-
-def shearStressPlots0(topFolder:str, exportFolder, time:float, overwrite:bool=False, **kwargs) -> None: # RG
-    '''Plots average shear stress along the length of the nozzle
-    topFolder is a full path name to the folder containing all the simulations
-    exportFolder is the folder to export plots to
-    time is the time since extrusion started in s
-    overwrite is whether to overwrite if the file exists'''
-    
-    labels = ['shear_stress']
-    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
-    if not overwrite and os.path.exists(fn+'.png'):
-        return
-    
-    folders = fp.caseFolders(topFolder)
-    folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
-    fig, ax = plt.subplots(constrained_layout=True)
-    shearStressPlots(folders, time, ax, **kwargs)
-    intm.exportIm(fn, fig) # export figure
-    
 #-------------------
     
-def nozzleLineTrace(folder:str, time:float, z:float) -> pd.DataFrame:
+def nozzleLineTrace(folder:str, time:float, zabove:float, zunits:str='mm') -> pd.DataFrame:
     '''Calculates mean shear stress across the width of the nozzle
     folder is the folder to do calculations on'''
     
     df,units = intm.importPtsNoz(folder, time) # get points in nozzle
     
-    
     if len(df)==0:
         return []
-    zvar = intm.closest(df['z'].unique(), z) # get constant z val
-    prec = -4
+    
+    le = fp.legendUnique(folder)
+    zbot = float(le['nozzle_bottom_coord'])
+    df['z'] =[i - zbot for i in df['z']] # put everything relative to the bottom of the nozzle
+    
+    if not zunits==units['z']:
+        # convert z units
+        if zunits in le:
+            con = float(le[zunits])
+            df['z'] = [i/con for i in df['z']]
+    
+    zvar = intm.closest(df['z'].unique(), zabove) # get constant z val
+    prec = -2
     df = df[(df['z']==zvar)&(df['y']>-1*(10**prec))&(df['y']<10**prec)] # get exact z value and y close to 0
+#     df = df[df['z']==zvar]
     
     
     le = fp.legendUnique(folder)
@@ -697,54 +686,8 @@ def nozzleLineTrace(folder:str, time:float, z:float) -> pd.DataFrame:
         
     return df
 
-def shearStressPlots(folders:List[str], time:float, ax, cvar:str='nozzle_angle',legendloc:str='overlay',  **kwargs) -> None:
-    '''Plot average shear stress over the nozzle
-    time is time in s
-    folders is list of folders to plot'''
 
-    
-    if not 'cm' in kwargs:
-        cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
-    else:
-        cm = kwargs['cm']
-    
-    _, u = extractTP(folders[0], units=True) # get units
-
-    tplist = pd.DataFrame([extractTP(folder) for folder in folders])
-    tplist.sort_values(by=cvar, inplace=True)
-    tplist.reset_index(drop=True, inplace=True)
-
-    for i,row in tplist.iterrows():
-        zstress = shearStressCalc(row['folder'], time)
-        if len(zstress)>0:
-            theta = row[cvar]
-            z0 = row['nozzle_bottom_coord']
-            zlist = z0 - zstress.index
-            stresslist = list(zstress)
-            if cvar=='nozzle_angle':
-                clabel = f'{int(theta)} $\degree$'
-            else:
-#                 clabel = f'{theta} {u[cvar]}'
-                clabel = theta
-            ax.plot(zlist, stresslist, label=clabel, c=cm[i], linewidth=0.75)
-            if legendloc=='overlay':
-                ax.text(zlist[-1], stresslist[-1], clabel, color=cm[i], horizontalalignment='right', verticalalignment='top') 
-            
-        
-    xvar = 'z position (mm)'
-    yvar = 'Shear Stress (Pa)'
-    ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--')
-    ax.text(-0.05,0, 'nozzle exit', horizontalalignment='right')
-    ax.set_xlabel(xvar)
-    ax.set_ylabel(yvar)
-    setSquare(ax)
-    
-    if not legendloc=='overlay':
-        ax.legend(loc='lower left', bbox_to_anchor=(0,1))
-    
-    return 
-
-def withinNozzle(folders:List[str], time:float, z:float, ax, cvar:str, yvar:str, legendloc:str='overlay',  **kwargs) -> None:
+def withinNozzle(folders:List[str], time:float, zabove:float, ax, cvar:str, yvar:str, legendloc:str='overlay', zunits:str='mm',  **kwargs) -> None:
     '''plot a line trace of value yvar across the nozzle at position z and time time, on axis ax, coloring the lines by variable cvar'''
     _, u = extractTP(folders[0], units=True) # get units
 
@@ -759,6 +702,8 @@ def withinNozzle(folders:List[str], time:float, z:float, ax, cvar:str, yvar:str,
     maxy = 0
  
     for i,row in tplist.iterrows():
+        
+        xlist = []
 
         # get data
         if yvar=='shearstressz':
@@ -770,7 +715,7 @@ def withinNozzle(folders:List[str], time:float, z:float, ax, cvar:str, yvar:str,
                 ylist = list(zstress)
                 li = int(len(zstress)/2)
         else:
-            zstress = nozzleLineTrace(row['folder'], time, z)
+            zstress = nozzleLineTrace(row['folder'], time, zabove, zunits=zunits)
             if len(zstress)>0:
                 theta = row[cvar]    
                 xlist = list(zstress['x'])
@@ -779,28 +724,29 @@ def withinNozzle(folders:List[str], time:float, z:float, ax, cvar:str, yvar:str,
                     li = int(len(zstress)/2)
                 else:
                     li = 0
-            
-        # set color label
-        if cvar=='nozzle_angle':
-            clabel = f'{int(theta)} $\degree$'
-        else:
-            clabel = theta
-           
-        # plot data
-        ax.plot(xlist, ylist, label=clabel, c=cm[i], linewidth=0.75)
-        maxy = max(maxy, max(ylist))
         
-        # label line
-        if legendloc=='overlay':
-            x0 = xlist[li]
-            y0 = ylist[li]
-            if li==0:
-                ha = 'right'
+        if len(xlist)>0:
+            # set color label
+            if cvar=='nozzle_angle':
+                clabel = f'{int(theta)} $\degree$'
             else:
-                ha = 'center'
-            ax.text(x0, y0, clabel, color=cm[i], horizontalalignment=ha, verticalalignment='top') 
+                clabel = theta
 
-    if yvar=='shearstressmag':
+            # plot data
+            ax.plot(xlist, ylist, label=clabel, c=cm[i], linewidth=0.75)
+            maxy = max(maxy, max(ylist))
+
+            # label line
+            if legendloc=='overlay':
+                x0 = xlist[li]
+                y0 = ylist[li]
+                if li==0:
+                    ha = 'right'
+                else:
+                    ha = 'center'
+                ax.text(x0, y0, clabel, color=cm[i], horizontalalignment=ha, verticalalignment='top') 
+
+    if yvar=='shearstressmag' or yvar=='shearstressz':
         ax.set_ylabel('Shear Stress (Pa)')
         ax.set_ylim([0, maxy])
     elif yvar=='nu_ink':
@@ -808,14 +754,23 @@ def withinNozzle(folders:List[str], time:float, z:float, ax, cvar:str, yvar:str,
         ax.set_yscale('log')
     elif yvar=='magu':
         ax.set_ylabel('Velocity (mm/s)')
-    ax.set_xlabel('x position (mm)')
+        
+    if yvar=='shearstressz':
+        ax.set_xlabel('$z$ position (mm)')
+        ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--')
+        ax.text(-0.05,0, 'nozzle exit', horizontalalignment='right', verticalalignment='bottom')
+        ax.set_title(f'{time} s')
+    else:
+        ax.set_xlabel('$x$ position (mm)')
+        zunname = zunits.replace('nozzle_inner_width', '$d_i$')
+        ax.set_title(f'{zabove} {zunname} before exit, {time} s')
     
     if not legendloc=='overlay':
         ax.legend(loc='lower left', bbox_to_anchor=(0,1))
     
     
     
-def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, cvar:str='nozzle_angle'
+def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, zunits:str='mm', cvar:str='nozzle_angle'
                   , overwrite:bool=False, export:bool=True, fontsize:int=8, **kwargs):
     '''plots line traces within the nozzle at a given z position and time. cvar is the variable to color by, yvar is the variable to plot, nu_ink or shear_stress'''
     
@@ -833,11 +788,10 @@ def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, cvar:str
     fig, axs = plt.subplots(1,3, figsize=(6.5,5))
     
     cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
-#     shearStressPlots(folders, time, axs[0], cvar=cvar, cm=cm, **kwargs)
     
     for j, yvar in enumerate(['shearstressz', 'shearstressmag', 'magu']):
         ax = axs[j]     
-        withinNozzle(folders, time, z, ax, cvar, yvar, cm=cm, **kwargs) # plot the values on the axis
+        withinNozzle(folders, time, z, ax, cvar, yvar, cm=cm, zunits=zunits, **kwargs) # plot the values on the axis
         
     for ax in axs:
         setSquare(ax)

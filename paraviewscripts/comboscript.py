@@ -50,9 +50,10 @@ loopTime = 6 #hours
 
 forceOverwrite = False 
 getCSVs = True
+csvTimes = [2.5, 5]
 
 # modes = ['nozzle', 'interface'] # CSVs to create
-modes = ['nozzle']
+modes = ['nozzle', 'interface']
 
 # screenshots
 
@@ -64,7 +65,7 @@ runList = []
 runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 # runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
 for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
-    runList.append(ss.ssVars(s, [1, 2.5]))
+    runList.append(ss.ssVars(s, [1, 2.5, 5]))
 # for s in ['py', 'uslicey', 'uzslicey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # for s in ['shearRatex', 'shearRatey']:
@@ -76,14 +77,14 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy'
 # folders
 folders = []
 # nlist = list(range(0,1000))
-nlist = [139]
+nlist = [209, 212]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'visc_speed']]
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'visc_speed', 'diameter']]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('cn'):
@@ -117,7 +118,7 @@ while True:
     for folder in folders:
         logging.debug('Checking '+folder)
         if getCSVs:
-            pc.csvFolder(folder, modes, forceOverwrite) # create csvs RG
+            pc.csvFolder(folder, modes, forceOverwrite, times0=csvTimes) # create csvs RG
         if getSSs:
             ss.folderScript(folder, runList)
     if not looping:

@@ -130,48 +130,54 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     ax.arrow(x0, y0, xmid-x0, ymid-y0,  head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
     
 
-def XSPlotIdeal(cp:comboPlot, fs:intm.folderStats) -> None:
+def XSPlotIdeal(cp:comboPlot, le:dict) -> None:
     '''this plots an ideal cross-section on the cross-section plot
-    fs is a folderStats object'''
+    fs is a dictionary holding metadata, from legendUnique'''
     x0 = cp.xrtot[0]+cp.dx/2
     y0 = cp.yrtot[-1]+cp.dy/2
     color='Black'
-    plotCircle(cp.axs[0], x0, y0, fs.niw/2, 'Ideal', color)
+    plotCircle(cp.axs[0], x0, y0, float(le['nozzle_inner_width'])/2, 'Ideal', color)
 
 
-def XSPlotf(folder:str, time:float, x:float, cp:comboPlot) -> None:
+def XSPlotf(folder:str, time:float, xbehind:float, cp:comboPlot, xunits:str='mm', ref:dict={'nozzle_inner_width':0, 'ink_velocity':0, 'bath_velocity':0}) -> None:
     '''plots cross-section from one file'''
-    ptsx = intm.importPtsSlice(folder, time, x)
+    ptsx = intm.importPtsSlice(folder, time, xbehind, xunits=xunits)
+    if float(ref['nozzle_inner_width'])>0:
+        # rescale the points so all cross-sections reference the same 
+        le = fp.legendUnique(folder)
+        dEst = float(le['nozzle_inner_width'])*np.sqrt(float(le['ink_velocity'])/float(le['bath_velocity'])) # ideal final diameter
+        dEst0 = float(ref['nozzle_inner_width'])*np.sqrt(float(ref['ink_velocity'])/float(ref['bath_velocity'])) # ideal final diameter
+        for s in ['y', 'z']:
+            ptsx[s] = [dEst0/dEst*i for i in ptsx[s]]
     if len(ptsx)>0:
         XSPlot(ptsx, folder, cp)
 
 
-def XSPlots0(topFolder:str, exportFolder:str, time:float, x:float, sigmalist0:List[float], overwrite:bool=False, **kwargs) -> None:
+def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:str='mm', overwrite:bool=False, **kwargs) -> None:
     '''plot all cross-sections together
     topFolder is the folder that holds all the files
     time is the time at which to take the cross-section
     x is the distance behind the center of the nozzle to take the cross-section
     sigmalist0 is the list of surface tensions to include in this plot'''
-    label = 'xs_'+str(x)+'_t_'+str(time)
+    label = f'xs_{xbehind}{xunits}_t_{time}'
     fn = intm.imFn(exportFolder, label, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):
         return
 
     dx = 0.7
-    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 12, sigmalist=sigmalist0, **kwargs)
-    cp.sigmalist = sigmalist0
+    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 12, **kwargs)
     
-    fs = intm.folderStats(cp.flist[0])
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
-    xvalue = fs.ncx + x
+    le0 = fp.legendUnique(cp.flist[0]) # use first file as reference dimensions
     for folder in cp.flist:
-        XSPlotf(folder, time, xvalue, cp)
-    cp.figtitle = f'Cross sections, {x} mm behind nozzle, t = {time} s'
+        XSPlotf(folder, time, xbehind, cp, xunits=xunits, ref=le0)
+    xunname = xunits.replace('nozzle_inner_width', '$d_i$')
+    cp.figtitle = f'Cross sections, {xbehind} {xunname} behind nozzle, t = {time} s'
     cp.clean()
     for ax in cp.axs:
         if len(cp.yrtot)>1: # RG
             ax.set_ylim([cp.yrtot[0], cp.yrtot[1]+1])
-    XSPlotIdeal(cp,fs)
+    XSPlotIdeal(cp,le0)
     for ax in cp.axs:
         ax.grid(linestyle='-', linewidth='0.25', color='#949494')
         

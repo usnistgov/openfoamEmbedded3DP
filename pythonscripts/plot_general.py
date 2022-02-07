@@ -497,10 +497,13 @@ class folderPlots:
                 # just one variable, can just pick the variable from transport properties
                 if normalize:
                     vals = self.tplists[f'{var}_list']
-                    maxval = max(vals)
-                    minval = min(vals)
-                    nvals = len(vals)
-                    func = lambda tp: (tpFunc(tp, var)-minval)/((maxval-minval)*((nvals+1)/nvals))
+                    if len(vals)<2:
+                        func = lambda tp: 1
+                    else:
+                        maxval = max(vals)
+                        minval = min(vals)
+                        nvals = len(vals)
+                        func = lambda tp: (tpFunc(tp, var)-minval)/((maxval-minval)*((nvals+1)/nvals))
                 else:
                     func = lambda tp: tpFunc(tp, var)
                 return func
@@ -611,10 +614,12 @@ class folderPlots:
         f,u = extractTP(self.flist[0], units=True)
         sigmaunits = u['sigma'].replace('\^2', '$\^2$')
         naunits = u['nozzle_angle']
+        niwunits = u['nozzle_inner_width']
         namedefs = {'sigma':f'Surface tension ({sigmaunits})' 
                     , 'product':'Support viscosity \u00d7 ink viscosity (Pa$^2\cdot$s$^2$)' 
                     , 'ratio':'Support viscosity / ink viscosity' 
-                    , 'nozzle_angle':f'Nozzle angle ({naunits})'}
+                    , 'nozzle_angle':f'Nozzle angle ({naunits})'
+                   , 'nozzle_inner_width': f'Nozzle inner diameter ({niwunits})'}
         defs = {'nu':'viscosity', 'tau0':'yield stress', 'k':'k', 'n':'n'}
         fluids = {'ink':'Ink', 'sup':'Support'}
         for s in defs:
@@ -935,7 +940,7 @@ def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float], dx:fl
         xlistreal = expFormatList(xlistreal)
         pos1 = xlist.index(min(xlistreal))
         pos2 = xlist.index(max(xlistreal))+1
-        dx = xr[1]-xr[0]
+        dx = (xr[1]-xr[0])
         xrtot = [xr[0]+pos1*dx, xr[0]+pos2*dx]
     else:
         xrtot = [-dx/2, dx/2]

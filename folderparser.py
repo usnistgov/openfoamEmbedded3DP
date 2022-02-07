@@ -514,6 +514,7 @@ def legendUnique(folder:str, units:bool=False) -> Union[Tuple[dict,dict], dict]:
             t[i] = t[i] +['']
     
     values = {a[0]:a[1] for a in t}
+    values['compare_to'] = os.path.basename(os.path.dirname(folder)) # name of the folder it's in
     if units:
         if len(t[2])==3:
             u = {a[0]:a[2] for a in t}

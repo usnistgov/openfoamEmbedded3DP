@@ -149,18 +149,30 @@ def importPtsNoz(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]]
     return importPointsFile(file)
 
 
-def importPtsSlice(folder:str, time:float, x:float) -> Union[pd.DataFrame, List[Any]]:
+def importPtsSlice(folder:str, time:float, xbehind:float, xunits:str='mm') -> Union[pd.DataFrame, List[Any]]:
     '''import points just from one slice. folder is full path name, time is in s, x is absolute position in mm. Finds the closest position to the requested position and gives up if there is no x value within 0.2 mm'''
     pts,units = importPoints(folder, time)
-    if len(pts)>0:
-        xlist = xpts(pts)
-        xreal = closest(xlist, x)
-        if abs(xreal-x)>0.2:
-            return []
-        ptsx = pts[pts['x']==xreal]
-        return ptsx
-    else:
+    if len(pts)==0:
         return []
+    le = fp.legendUnique(folder)
+    
+    # use relative coordinates
+    xc = float(le['nozzle_center_x_coord'])
+    pts['x'] =  [i-xc for i in pts['x']]
+    
+    if not xunits=='mm' and units['x']=='mm':
+        # convert the x units
+        if xunits=='niw':
+            pts['x'] = pts['x']/float(le['nozzle_inner_width'])
+        elif xunits in le:
+            pts['x'] = pts['x']/float(le[xunits])
+            
+    xlist = xpts(pts)
+    xreal = closest(xlist, xbehind)
+    if abs(xreal-xbehind)>0.2:
+        return []
+    ptsx = pts[pts['x']==xreal]
+    return ptsx
     
 def importSS(folder:str) -> pd.DataFrame:
     '''import slice summaries. folder is full path name'''
@@ -198,6 +210,18 @@ def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
 
 def exportIm(fn:str, fig, svg:bool=True, png:bool=True, **kwargs) -> None:
     '''export an image. fn is a full path name, without the extension. fig is a matplotlib figure'''
+    
+    # create folders if they don't exist
+    create = fn
+    clist = []
+    while not os.path.exists(os.path.dirname(create)):
+        clist.append(os.path.basename(create))
+        create = os.path.dirname(create)
+    while len(clist)>0:
+        os.mkdir(create)
+        logging.info(f'Created directory {create}')
+        create = os.path.join(create, clist.pop(-1))
+        
     if svg:
         slist = ['.svg']
     else:
@@ -205,7 +229,7 @@ def exportIm(fn:str, fig, svg:bool=True, png:bool=True, **kwargs) -> None:
     if png:
         slist.append('.png')
     for s in slist:
-        fig.savefig(fn+s, bbox_inches='tight', dpi=300)
+        fig.savefig(f'{fn}{s}', bbox_inches='tight', dpi=300)
     logging.info(f'Exported {fn}')
 
 

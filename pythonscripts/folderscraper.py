@@ -72,8 +72,8 @@ class scrape:
         self.shmtimem = ['snappyHexMesh time', '', 'min']
         self.iftimes = ['interFoam time s', '', 's'] 
             # how long it takes interfoam to run
-        self.iftimehr = ['interFoam time', '', 'hr']
-        self.simTime = ['simulation time s', '', 's'] 
+        self.iftimehr = ['interFoam time hr', '', 'hr']
+        self.simTime = ['simulation time', '', 's'] 
             # how many seconds within the simulation we ran
         self.simrate = ['simulation rate', '',  'hr/s'] 
             # how many real hours it takes to run each second within the simulation
