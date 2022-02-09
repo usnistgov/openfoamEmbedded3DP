@@ -71,6 +71,12 @@ def initSeriesNoz(sv:stateVars): # RG
     caseVTMSeries = initSeries0(sv)
     renderView1 = GetActiveViewOrCreate('RenderView')
 
+    le = fp.legendUnique(sv.folder)
+    ink_rho = float(le['ink_rho'])
+    sup_rho = float(le['sup_rho'])
+    xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
+    xmax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + xmin
+
     clip1 = Clip(Input=caseVTMSeries)
     clip1.Scalars = ['POINTS', 'alpha.ink'] # clips ink
     clip1.Value = 0.5
@@ -93,7 +99,7 @@ def initSeriesNoz(sv:stateVars): # RG
     cellDatatoPointData1.CellDataArraytoprocess = ['ScalarGradient', 'U', 'alpha.ink', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
     calculator2 = Calculator(Input=cellDatatoPointData1)
     calculator2.ResultArrayName = 'ShearStress'
-    calculator2.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient'
+    calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
     calculator3 = Calculator(Input=calculator2)
     calculator3.ResultArrayName = 'ShearStressMag'
     calculator3.Function = 'mag(ShearStress)'
@@ -101,7 +107,7 @@ def initSeriesNoz(sv:stateVars): # RG
     slice1 = Slice(Input=calculator3)
     slice1.SliceType = 'Plane'
     slice1.SliceOffsetValues = [0.0]
-    slice1.SliceType.Origin = [0, 0, 0.00205623] # 3% the length of the nozzle below the nozzle top to avoid innacurate shear stress at the ink-atmosphere interface
+    slice1.SliceType.Origin = [0, 0, xmax] # 3% the length of the nozzle below the nozzle top to avoid innacurate shear stress at the ink-atmosphere interface
     slice1.SliceType.Normal = [0, 0, 1] # look down the z axis
 
     Hide(caseVTMSeries, sv.renderView1)
@@ -166,6 +172,12 @@ def addToFile(x:float, tempFile:str, w:csv.writer, sv:stateVars, skipHeader:bool
 ####
 # script
 
+def ipFN(f1:str, mode:str, time:float) -> str:
+    '''get the filename for an interfacepoints file. f1 is the folder name, mode is interface or nozzle, time is actual time in s'''
+    tstr = int(time*10)
+    return os.path.join(f1, f"{mode}Points_t_{tstr}.csv")
+
+
 def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=[2.5]):
     '''goes through all the timesteps and generates either interfacePoints or nozzlePoints'''
     try:
@@ -181,7 +193,6 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
             dx = (xmax-xmin)/50
             # dx = 0.0002
             # times = fp.times(folder)
-            times = times0
         elif mode=='nozzle':
             
             xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
@@ -193,37 +204,49 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
         else:
             raise Exception("Valid modes are 'interface' and 'nozzle'")
 
+
+        f1 = os.path.join(folder, f'{mode}Points')
+
+        # only collect files that don't already exist, or overwrite if we're forced to
+        times = []
+        for time in times0:
+            ipfile =  ipFN(f1, mode, time) # this is the file that all points for this time will be saved in RG
+            if not os.path.exists(ipfile) or forceOverwrite:
+                times.append(time)
+        if len(times)==0:
+            return
+
         xchunk = 0.0015
         initialized = False
-        f1 = os.path.join(folder, mode+'Points')
         tempFile = os.path.join(f1, "temp.csv")
 
-        if len(times)>0:
-            for time in times:
-                ipfile = os.path.join(f1, mode+"Points_t_"+str(int(round(time*10)))+".csv")  # this is the file that all points for this time will be saved in RG
-                if not os.path.exists(ipfile) or forceOverwrite: # only run this if the file hasn't been created already or we're being forced to
-                    if not initialized: # if paraview hasn't already been initialized, initialize it
-                        sv = initializeAll(folder, mode)
-                        logging.info('-----'+str(times))
-                        sv.times = times
-                        initialized = True
-                    setTime(time, sv) 
-                    # error checking: sometimes we lose the ability to set the time, for inexplicable reasons.
-                    logging.info(f'--t {time}, file: {ipfile}' )
-                    if not sv.timeKeeper1.Time==time:
-                        raise Exception('Timekeeper broken. Start again.')
-                    with open(ipfile, mode='w', newline='') as f:
-                        w = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                        skipHeader = False # addToFile generates a list of points at a given x position, and each of those tables has a header. We only want to include the header once, so skipHeader tells us if we already have a header in w
-                        for x in (np.arange(xmin, xmax, dx)):
-                            skipHeader = addToFile(x, tempFile, w, sv, skipHeader, mode, xdisp=0)
-                    os.remove(tempFile)
-            ResetSession()
-            cleanSession()
-            try:
-                del sv
-            except:
-                return
+        for time in times:
+            ipfile =  ipFN(f1, mode, time)
+            if not initialized: # if paraview hasn't already been initialized, initialize it
+                sv = initializeAll(folder, mode)
+                times = [i for i in times if i in sv.times] # only select time steps that are in the file
+                logging.info(f'-----{times}, {sv.times}')
+                # sv.times = times
+                initialized = True
+            if time in times:
+                # if this time has now been eliminated from the list, skip it
+                setTime(time, sv) 
+                # error checking: sometimes we lose the ability to set the time, for inexplicable reasons.
+                logging.info(f'--t {time}, file: {ipfile}' )
+                if not sv.timeKeeper1.Time==time:
+                    raise Exception(f'{time}, {sv.timeKeeper1.Time}, Timekeeper broken. Start again.')
+                with open(ipfile, mode='w', newline='') as f:
+                    w = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                    skipHeader = False # addToFile generates a list of points at a given x position, and each of those tables has a header. We only want to include the header once, so skipHeader tells us if we already have a header in w
+                    for x in (np.arange(xmin, xmax, dx)):
+                        skipHeader = addToFile(x, tempFile, w, sv, skipHeader, mode, xdisp=0)
+                os.remove(tempFile)
+        ResetSession()
+        cleanSession()
+        try:
+            del sv
+        except:
+            return
     except Exception as e:
         logging.error(folder+': '+str(e))
         ResetSession()

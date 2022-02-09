@@ -54,42 +54,59 @@ class stateVars():
    
     def readVisc(self):
         '''Get viscosity settings from legend. This is necessary for making viscosity maps involving Newtonian fluids.'''
-        le = fp.importIf(self.folder)
+        # le = fp.importIf(self.folder)
+        le = fp.legendUnique(self.folder)
         if len(le)==0:
             return 1
-        i0 = 0
-        while not le[i0][0]=='transportProperties':
-            i0+=1 # find the index where the transport properties start
-        self.inkmodel = le[i0+2][1] # find the row that contains the ink model.
+
+        self.inkmodel = le['ink_transportModel']
         if self.inkmodel=='Newtonian':
-            # if it's newtonian, the viscosity is stored 3 rows below 'transportProperties'
-            nuinki = i0+3
             self.inkfunc = 'inknu'
+            self.inknu = le['ink_nu']
         else:
-            # otherwise the zero shear viscosity is 4 rows below
-            nuinki = i0+4
             self.inkfunc = 'nu1'
-        nuink = le[nuinki][1] # get the string viscosity in mPa s
-        self.inknu = nuink
-
-        # find the support transport properties
-        # in some legends, there are no Herschel Bulkley boxes, and in some there are
-        # we need to find where the support section starts
-        nusupi = nuinki 
-
-        # iterate through rows until we find the support transportmodel
-        while not le[nusupi][0]=='transportModel':
-            nusupi+=1
-
-        self.supmodel = le[nusupi][1]
+            self.inknu = le['ink_nu0']
+        self.supmodel = le['sup_transportModel']
         if self.supmodel=='Newtonian':
-            nusupi = nusupi+1
             self.supfunc = 'supnu'
+            self.supnu = le['sup_nu']
         else:
-            nusupi = nusupi+2
-            self.supfunc = 'nu2'
-        nusup = le[nusupi][1]
-        self.supnu = nusup
+            self.supfunc = 'nu1'
+            self.supnu = le['sup_nu0']
+
+
+        # while not le[i0][0]=='transportProperties':
+        #     i0+=1 # find the index where the transport properties start
+        # self.inkmodel = le[i0+2][1] # find the row that contains the ink model.
+        # if self.inkmodel=='Newtonian':
+        #     # if it's newtonian, the viscosity is stored 3 rows below 'transportProperties'
+        #     nuinki = i0+3
+        #     self.inkfunc = 'inknu'
+        # else:
+        #     # otherwise the zero shear viscosity is 4 rows below
+        #     nuinki = i0+4
+        #     self.inkfunc = 'nu1'
+        # nuink = le[nuinki][1] # get the string viscosity in mPa s
+        # self.inknu = nuink
+
+        # # find the support transport properties
+        # # in some legends, there are no Herschel Bulkley boxes, and in some there are
+        # # we need to find where the support section starts
+        # nusupi = nuinki 
+
+        # # iterate through rows until we find the support transportmodel
+        # while not le[nusupi][0]=='transportModel':
+        #     nusupi+=1
+
+        # self.supmodel = le[nusupi][1]
+        # if self.supmodel=='Newtonian':
+        #     nusupi = nusupi+1
+        #     self.supfunc = 'supnu'
+        # else:
+        #     nusupi = nusupi+2
+        #     self.supfunc = 'nu2'
+        # nusup = le[nusupi][1]
+        # self.supnu = nusup
         
         return 0   
 
@@ -166,6 +183,7 @@ def initSeries0(sv:stateVars) -> Any:
     else:
         bn = os.path.basename(sfile)
         caseVTMSeries = LegacyVTKReader(registrationName=bn, FileNames=[sfile])
+    sv.times = fp.parseVTKSeries(sv.folder) # read times from the VTK.series file
     return caseVTMSeries
     
 

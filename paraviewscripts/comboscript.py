@@ -50,7 +50,7 @@ loopTime = 6 #hours
 
 forceOverwrite = False 
 getCSVs = True
-csvTimes = [2.5, 5]
+csvTimes = [2.5]
 
 # modes = ['nozzle', 'interface'] # CSVs to create
 modes = ['nozzle', 'interface']
@@ -62,10 +62,10 @@ getSSs = True
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
 runList = []
-runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+runList.append(ss.ssVars('volumes', [1, 2.5], volViewList=['y']))
 # runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
 for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
-    runList.append(ss.ssVars(s, [1, 2.5, 5]))
+    runList.append(ss.ssVars(s, [1, 2.5]))
 # for s in ['py', 'uslicey', 'uzslicey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # for s in ['shearRatex', 'shearRatey']:
@@ -77,7 +77,7 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy'
 # folders
 folders = []
 # nlist = list(range(0,1000))
-nlist = [209, 212]
+nlist = [208]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
