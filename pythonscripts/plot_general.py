@@ -451,6 +451,7 @@ def vv(tp:Dict, xpv) -> Tuple[Any, float, float, int]:
         xpv.xlistreal.append(x)
     if y not in xpv.ylistreal:
         xpv.ylistreal.append(y)
+    xpv.indicesreal = xpv.indicesreal.append({'x':int(xpos), 'y':int(ypos)}, ignore_index=True)
     color = xpv.cfunc(tp)
     return color, x0, y0, sigmapos
 
@@ -583,6 +584,7 @@ class folderPlots:
             self.ylist = unqListFolders(self.flist, self.yfunc)
             self.xlistreal = []
             self.ylistreal = []
+            self.indicesreal = pd.DataFrame({'x':[],'y':[]})
             self.legendList()
         except Exception as e:
             print(e)
@@ -842,8 +844,8 @@ class comboPlot(folderPlots):
         # This step cuts out the space we set out for those folders that didn't end up in the final plot
         # if we were given adjustBounds=False during initialization, don't adjust the bounds
         if self.ab:
-            self.xrtot = adjustBounds(self.xlistreal, self.xr, self.xlist, self.dx)
-            self.yrtot = adjustBounds(self.ylistreal, self.yr, self.ylist, self.dy)
+            self.xrtot = adjustBounds(self.indicesreal.x, self.xr, self.dx)
+            self.yrtot = adjustBounds(self.indicesreal.y, self.yr, self.dy)
         else:
             self.xrtot[1] = self.xrtot[1]-self.dx
             self.yrtot[1] = self.yrtot[1]-self.dy
@@ -863,7 +865,10 @@ class comboPlot(folderPlots):
             ax.set_xticks(self.xmlist, minor=False)
             ax.set_yticks(self.ymlist, minor=False)
             
-            ax.set_xticklabels(expFormatList(self.xlist), fontname="Arial", fontsize=10)  
+            ax.set_xticklabels(expFormatList(self.xlist), fontname="Arial", fontsize=10)
+            
+            # make each section of the plot square
+            ax.set_aspect('equal', adjustable='box')
             
             #emptyYLabels(ax)
             if len(self.xrtot)==2:
@@ -871,9 +876,6 @@ class comboPlot(folderPlots):
             if len(self.yrtot)==2:
                 ax.set_ylim(self.yrtot)
 
-            # make each section of the plot square
-            ax.set_aspect('equal', adjustable='box')
-            
         if self.ncol>1:
             sigmalist = self.tplists['sigma_list']
             for i in range(len(sigmalist)):
@@ -884,20 +886,24 @@ class comboPlot(folderPlots):
         yticklabels = expFormatList(self.ylist)
         self.axs[0].set_yticklabels(yticklabels, fontname="Arial", fontsize=10)
         
-        # reset the figure size so the title is in the right place
-        if len(self.xlistreal)>0 and len(self.ylistreal)>0:
-            width = self.imsize
-            height = width*len(self.ylistreal)/(len(self.xlistreal)*len(self.axs))
-            self.fig.set_size_inches(width, height)
+        if self.ab:
+            # reset the figure size so the title is in the right place
+            if len(self.xlistreal)>0 and len(self.ylistreal)>0:
+                nx = self.indicesreal.x.max()-self.indicesreal.x.min() + 1
+                ny = self.indicesreal.y.max()-self.indicesreal.y.min() + 1
+                width = self.imsize
+                height = width*(ny)/(nx*len(self.axs))
+                self.fig.set_size_inches(width,h=height)
        
         # set position of titley
-        ylim = self.axs[0].get_ylim()
-        if ylim[1]-ylim[0]>2.5:
-            self.titley = 1.1
-        elif ylim[1]-ylim[0]>1.3:
-            self.titley = 0.9
-        else:
-            self.titley = 0.8
+#         ylim = self.axs[0].get_ylim()
+#         if ylim[1]-ylim[0]>2.5:
+#             self.titley = 1.1
+#         elif ylim[1]-ylim[0]>1.3:
+#             self.titley = 0.9
+#         else:
+#             self.titley = 0.8
+        self.titley = 1
         self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
 
         if len(self.ylistreal)==0: # since there is only one variable, remove y information RG
@@ -928,20 +934,17 @@ def addDots(ax:plt.Axes, xlist:List[float], ylist:List[float]):
     return
 
 
-def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float], dx:float):
+# def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float], dx:float):
+def adjustBounds(indices:List[int], xr:List[float], dx:float):
     '''adjust the bounds of the plot.
-    xlistreal is a list of x points to be included in the plot
+    indices is a list of indices which were included in the plot
     xr is the [min, max] position of each segment, e.g. [-0.7, 0.7]
-    xlist is the initial list of x points we included in the plot'''
-    if len(xlistreal)>1:
-        xmin = min(xlistreal)
-        xmax = max(xlistreal)
-        xlist = expFormatList(xlist)
-        xlistreal = expFormatList(xlistreal)
-        pos1 = xlist.index(min(xlistreal))
-        pos2 = xlist.index(max(xlistreal))+1
+    dx is the block size'''
+    if len(indices)>0:
+        pos1 = min(indices)
+        pos2 = max(indices)
         dx = (xr[1]-xr[0])
-        xrtot = [xr[0]+pos1*dx, xr[0]+pos2*dx]
+        xrtot = [xr[0]+pos1*dx, xr[0]+pos2*dx+dx]
     else:
         xrtot = [-dx/2, dx/2]
     return xrtot

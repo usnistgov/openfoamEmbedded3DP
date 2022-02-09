@@ -870,7 +870,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
         sv.tubeh = v.tubeh
     
     if len(v.tlist)>0:
-        tlist = [int(round(10*i)) for i in v.tlist]
+        tlist = [int(round(10*i)) for i in v.tlist if i in sv.times]
     else:
         tlist = [int(round(10*i)) for i in sv.times]
     

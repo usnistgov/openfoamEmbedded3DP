@@ -50,7 +50,7 @@ loopTime = 6 #hours
 
 forceOverwrite = False 
 getCSVs = True
-csvTimes = [2.5]
+csvTimes = [1, 2.5]
 
 # modes = ['nozzle', 'interface'] # CSVs to create
 modes = ['nozzle', 'interface']
@@ -77,7 +77,7 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy'
 # folders
 folders = []
 # nlist = list(range(0,1000))
-nlist = [208]
+nlist = [208, 209, 211, 212]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):

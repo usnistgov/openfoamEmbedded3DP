@@ -133,15 +133,22 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
 def XSPlotIdeal(cp:comboPlot, le:dict) -> None:
     '''this plots an ideal cross-section on the cross-section plot
     fs is a dictionary holding metadata, from legendUnique'''
-    x0 = cp.xrtot[0]+cp.dx/2
-    y0 = cp.yrtot[-1]+cp.dy/2
+#     x0 = cp.xrtot[0]+cp.dx/2
+#     y0 = cp.yrtot[-1]+cp.dy/2
+    xind = int(cp.indicesreal.x.min())
+    x0 = cp.xmlist[xind]
+    yind = int(cp.indicesreal[cp.indicesreal.x==xind].y.max())
+    y0 = cp.ymlist[yind]+cp.dy
     color='Black'
     plotCircle(cp.axs[0], x0, y0, float(le['nozzle_inner_width'])/2, 'Ideal', color)
+    cp.indicesreal = cp.indicesreal.append({'x':x0, 'y':y0}, ignore_index=True)
 
 
 def XSPlotf(folder:str, time:float, xbehind:float, cp:comboPlot, xunits:str='mm', ref:dict={'nozzle_inner_width':0, 'ink_velocity':0, 'bath_velocity':0}) -> None:
     '''plots cross-section from one file'''
     ptsx = intm.importPtsSlice(folder, time, xbehind, xunits=xunits)
+    if len(ptsx)==0:
+        return
     if float(ref['nozzle_inner_width'])>0:
         # rescale the points so all cross-sections reference the same 
         le = fp.legendUnique(folder)
@@ -153,7 +160,7 @@ def XSPlotf(folder:str, time:float, xbehind:float, cp:comboPlot, xunits:str='mm'
         XSPlot(ptsx, folder, cp)
 
 
-def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:str='mm', overwrite:bool=False, **kwargs) -> None:
+def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:str='mm', overwrite:bool=False, dx:float=0.5, **kwargs) -> None:
     '''plot all cross-sections together
     topFolder is the folder that holds all the files
     time is the time at which to take the cross-section
@@ -164,8 +171,7 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:
     if not overwrite and os.path.exists(fn+'.png'):
         return
 
-    dx = 0.7
-    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 12, **kwargs)
+    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, **kwargs)
     
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
     le0 = fp.legendUnique(cp.flist[0]) # use first file as reference dimensions
@@ -173,11 +179,12 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:
         XSPlotf(folder, time, xbehind, cp, xunits=xunits, ref=le0)
     xunname = xunits.replace('nozzle_inner_width', '$d_i$')
     cp.figtitle = f'Cross sections, {xbehind} {xunname} behind nozzle, t = {time} s'
-    cp.clean()
-    for ax in cp.axs:
-        if len(cp.yrtot)>1: # RG
-            ax.set_ylim([cp.yrtot[0], cp.yrtot[1]+1])
     XSPlotIdeal(cp,le0)
+#     for ax in cp.axs:
+#         if len(cp.yrtot)>1: # RG
+#             ax.set_ylim([cp.yrtot[0], cp.yrtot[1]+1])
+    cp.clean()
+
     for ax in cp.axs:
         ax.grid(linestyle='-', linewidth='0.25', color='#949494')
         
