@@ -33,7 +33,7 @@ for s in ['matplotlib', 'imageio', 'IPython', 'PIL']:
 # plotting
 matplotlib.rcParams['svg.fonttype'] = 'none'
 matplotlib.rc('font', family='Arial')
-matplotlib.rc('font', size='10.0')
+matplotlib.rc('font', size='8.0')
 
 # info
 __author__ = "Leanne Friedrich"
@@ -47,43 +47,20 @@ __status__ = "Production"
 
 #-------------------------------------------
 
+        
+def unitName(zunits:str) -> str:
+    '''convert the units name to something more readable and compact'''
+    if zunits=='nozzle_inner_width':
+        return '$d_i$'
+    elif zunits=='vsup':
+        return 'Translation speed'
+    else:
+        return zunits.replace('_', ' ')
+    
+
 def setSquare(ax):
     ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
-    
-# def subFigureLabel(ax, label:str, inside:bool=True) -> None:
-#     '''add a subfigure label to the top left corner'''
-#     if inside:
-#         x=0.05
-#         y = 0.95
-#         ha = 'left'
-#         va = 'top'
-#     else:
-#         x = -0.05
-#         y = 1.05
-#         ha = 'right'
-#         va = 'bottom'
-#     ax.text(x, y, label, fontsize=12, transform=ax.transAxes, horizontalalignment=ha, verticalalignment=va)
-    
-# def subFigureLabels(axs, horiz:bool=True, inside:bool=True) -> None:
-#     '''add subfigure labels to all axes'''
-#     alphabet_string = string.ascii_uppercase
-#     alphabet_list = list(alphabet_string)
-#     if len(axs.shape)==1:
-#         # single row
-#         for ax in axs:
-#             subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
-#     else:
-#         if horiz:
-#             # 2d array
-#             for axrow in axs:
-#                 for ax in axrow:
-#                     subFigureLabel(ax, alphabet_list.pop(0), inside=inside)
-#         else:
-#             w = len(axs[0])
-#             h = len(axs)
-#             for i in range(w):
-#                 for j in range(h):
-#                     subFigureLabel(axs[j][i], alphabet_list.pop(0), inside=inside)
+
 
 def plotSquare(ax:plt.Axes, x0:float, y0:float, dx:float, caption:str, color) -> None:
     '''plotSquare plots a square
@@ -506,7 +483,7 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     xbehind is the distance behind the center of the nozzle in mm
     label is the column label, e.g. 'maxz' '''
     
-    labeli = label+'_'+str(xbehind)+'_t_'+str(time)
+    labeli =f'{label}_{xbehind}_t_{time}'
     fn = intm.imFn(exportFolder, labeli, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):
         return
@@ -520,7 +497,7 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     except Exception as e:
         logging.error(str(e))
         return
-    cp.figtitle = label+', '+str(xbehind)+' mm behind nozzle, t = '+str(time)+' s'
+    cp.figtitle = f'{label}, {xbehind} mm behind nozzle, t = {time} s'
     cp.clean()
     valueLegend(cp, vpout)
     intm.exportIm(fn, cp.fig, **kwargs)
@@ -636,17 +613,325 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
 
 #--------------------------------
 
-def shearStressCalc(folder:str, time:float): # RG
+class survival:
+    '''holds info about survival over the length of the nozzle'''
+    
+    def __init__(self, rbar:float, a:float=10**-4, b:float=0.5, c:float=0.5):
+        '''rbar is the normalized radius'''
+        self.rbar = rbar
+        self.zlist = [] # this must be in mm
+        self.xlist = [] # this must be in mm
+        self.totalI = 1 # current survival fraction
+        self.Ilist = [1]
+        self.tlist = [0] # this is in s
+        self.dtlist = [0]
+        self.taulist = [0]
+        self.vlist = [0]
+        self.a = a
+        self.b = b
+        self.c = c
+        
+    def addStep(self, row:pd.Series) -> None:
+        '''add the point to the survival'''
+        if len(self.zlist)==0:
+            # start at 100% survival
+            self.zlist.append(row['z'])
+            self.xlist.append(row['x'])
+            return
+        else:
+            v = row['magu'] # velocity magnitude
+            traveled = np.sqrt((self.zlist[-1] - row['z'])**2 + (self.xlist[-1]-row['x'])**2)
+            dt = traveled/v # difference in time since last step
+            tau = row['shearstressmag'] 
+            if v<0.1*self.vlist[-1]:
+                # velocity discontinuity, abort
+                return
+            
+            Ii = np.exp(-self.a*tau**self.b*dt**self.c) # survival during this step
+            Ii = min(1, Ii)
+            self.totalI = self.totalI*Ii # survival overall
+            self.Ilist.append(self.totalI) # keep track of survival at each step
+            self.tlist.append(self.tlist[-1]+dt)
+            self.taulist.append(tau)
+            self.dtlist.append(dt)
+            self.xlist.append(row['x'])
+            self.zlist.append(row['z'])
+            self.vlist.append(v)
+                
+    def addUnits(self, normval:float) -> None:
+        '''divide the units of the z variable by the given value'''
+        self.zlist = [z/normval for z in self.zlist]
+
+
+def survivalCalc(folder:str, time:float=2.5, a:float=10**-2, b:float=0.5, c:float=0.5, zunits:str='mm', dr:float=0.05, fcrit:float=0.9, **kwargs):
+    '''calculate what cells will survive the process, if S=exp(-a*tau^b*t^c). fcrit is the min fraction of points required to get returned. Otherwise too many points were skipped, and the measurement is not valid'''
+    
+    df,units = intm.importPtsNoz(folder, time) # get points in nozzle
+    if len(df)==0:
+        return [] 
+    
+    le = fp.legendUnique(folder)
+    xc = float(le['nozzle_center_x_coord'])
+    yc = float(le['nozzle_center_y_coord'])
+    di = float(le['nozzle_inner_width'])
+    na = float(le['nozzle_angle'])
+    tana = np.tan(np.deg2rad(na))        # tangent of nozzle angle
+    zbot = float(le['nozzle_bottom_coord'])
+    df['z'] =[zbot - i for i in df['z']] # put everything relative to the bottom of the nozzle
+    ztop = float(le['nozzle_length'])
+    df = df[df['z']>-ztop*0.9]           # cut off the top 10% of the nozzle
+    
+    prec = -1
+    df = df[(df['y']>-1*(10**prec))&(df['y']<10**prec)&(df['x']<xc)] 
+        # only select y=0 plane, front half of nozzle
+    df['rbar'] = [np.sqrt((row['x']-xc)**2+(row['y']-yc)**2)/(di/2+abs(row['z'])*tana) for i,row in df.iterrows()]
+    df['rbar'] = [round(int(rbar/dr)*dr,5) for rbar in df['rbar']] # round to the closest dr
+        # radius as fraction of total radius at that z
+
+    if 'rbarlist' in kwargs:
+        rbarlist = kwargs['rbarlist']
+    else:
+        rbarlist = np.arange(0, 1, dr)                            # normalized radius evenly spaced from 0 to 1
+        rbarlist = [round(rbar,5) for rbar in rbarlist]           # round to avoid floating point error
+    rz = dict([[rbar,survival(rbar, a, b, c)] for rbar in rbarlist]) # table of survival as a function of r/r0 and z
+    zlist = list(df.z.unique())
+    zlist.sort()                  # put in order, where negative values are at top
+    for z in zlist:
+        df0 = df[df.z==z]         # select points in this plane
+        for rbar in rbarlist:
+            df1 = df0[(df0['rbar']==rbar)&(df0['magu']>0)]
+            if len(df1)>0:
+                row = df1.mean() # average all points
+                rz[rbar].addStep(row)
+                
+    # remove series that are too short
+    remlist = []
+    for key in rz.keys():
+        if len(rz[key].zlist)<0.9*len(zlist):
+            remlist.append(key)
+    for key in remlist:
+        rz.pop(key)
+            
+    if not zunits=='mm':
+        le = fp.legendUnique(folder)
+        if zunits in le:
+            normval = float(le[zunits])
+            for key in rz:
+                rz[key].addUnits(normval)
+            
+    return rz
+
+def survivalRateRZ(rz:dict, dr) -> float:
+    '''get the survival rate, given a dictionary rz that holds survival objects'''
+    weightedsum = 0
+    weight = 0
+    for rbar in rz:
+        area = (rbar**2 - (rbar-dr)**2)
+        weightedsum = weightedsum + rz[rbar].totalI*area # survival * area of ring
+        weight = weight + area
+    return weightedsum/weight
+    
+    
+def survivalRate(folder:str, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5, dr:float=0.05, **kwargs) -> float:
+    '''get the percentage of surviving cells at the end of the nozzle'''
+    rz = survivalCalc(folder, time=time, a=a, b=b, c=c, dr=dr, **kwargs)
+    return survivalRateRZ(rz, dr)
+
+def survivalzPlot(rz:dict, xvar:str, axs:np.array, zunits:str, cm):
+    '''plot the survival metrics as a function of z or t position. 
+    rz is a dctionary of survival objects created by survivalCalc. 
+    xvar is a string, z or t
+    axs is a list of matplotlib axes
+    zunits is a string, usually mm or nozzle_inner_width
+    cm is a colormap'''
+    for rbar in rz:
+        if xvar=='z':
+            xlist = rz[rbar].zlist
+        else:
+            xlist = rz[rbar].tlist
+        xlist = xlist[1:]
+        if len(xlist)>0: 
+            for i,yl in enumerate(['vlist', 'taulist', 'Ilist']):
+                ylist = getattr(rz[rbar], yl)[1:]
+                axs[i].plot(xlist, ylist, c=cm(rbar), linewidth=0.75)
+                xi = int(len(xlist)/2)
+                axs[i].text(xlist[xi], ylist[xi], rbar, color=cm(rbar), horizontalalignment='center', verticalalignment='top') 
+
+                if xvar=='z':
+                    zunname = unitName(zunits)
+                    axs[i].set_xlabel(f'$z$ position ({zunname})')
+                elif xvar=='t':
+                    axs[i].set_xlabel('Time (s)')
+                if yl=='Ilist':
+                    axs[i].set_ylabel('Surviving cells/initial cells')
+                elif yl=='taulist':
+                    axs[i].set_ylabel('Shear stress (Pa)')
+                elif yl=='dtlist':
+                    axs[i].set_ylabel('Time at step (s)')
+                elif yl=='vlist':
+                    axs[i].set_ylabel('Velocity (mm/s)')
+        
+    for ax in [axs[0], axs[1]]:
+        ax.set_ylim(bottom=0)
+        
+    for ax in axs:
+        setSquare(ax)
+        
+    
+        
+def survivalrPlot(folder:str, ax, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5, dr:float=0.05, xlabel:bool=True, ylabel:bool=True, fontsize:int=8, **kwargs):
+    '''plot cell survival as a function of normalized radius within the nozzle'''
+    xlist = []
+    ylist = []
+    rz = survivalCalc(folder, time=time, a=a, b=b, c=c, dr=dr, **kwargs)
+    for rbar in rz:
+        xlist.append(rbar)
+        ylist.append(rz[rbar].totalI)
+    if not 'color' in kwargs:
+        color='black'
+    else:
+        color = kwargs['color']
+    ax.plot(xlist, ylist, color=color, linewidth=0.75)
+    if 'label' in kwargs:
+        xi = int(len(xlist)/2)
+        ax.text(xlist[xi], ylist[xi], kwargs['label'], color=color, horizontalalignment='center', verticalalignment='top', fontsize=fontsize) 
+    if xlabel:
+        ax.set_xlabel('Radius/nozzle radius', fontsize=fontsize)
+    if ylabel:
+        ax.set_ylabel('Surviving cells/initial cells', fontsize=fontsize)
+    setSquare(ax)
+    return rz
+
+def survivalEqLabel(a,b,c):
+    '''get a label for the survival equation'''
+    a1 = '{-'+str(a)+'}'
+    b1 = '{'+str(b)+'}'
+    c1 = '{'+str(c)+'}'
+    return '$S=exp('+a1+'\\tau^'+b1+'t^'+c1+')$'
+    
+def survivalRMulti(topFolder:str, axs, cvar:str='nozzle_angle', time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5, dr:float=0.05, xlabel:bool=True, ylabel:bool=True, fontsize:int=8, **kwargs):
+    '''plot cell survival as a function of normalized radius within the nozzle, for multiple sims. axs should be an array of 2 axes'''
+    
+    plt.rc('font', size=fontsize)
+    
+    folders = fp.caseFolders(topFolder)       # all sims in folder
+    folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
+    
+    cm = sns.color_palette('viridis', n_colors=len(folders)) # uses viridis color scheme
+    
+    flist = []
+    for i,folder in enumerate(folders):
+        le, u = extractTP(folder, units=True)
+        nz = float(le[cvar])
+        flist.append({'folder':folder, 'cvar':nz})
+    flist = pd.DataFrame(flist)
+    flist.sort_values(by='cvar', inplace=True)
+    flist.reset_index(drop=True, inplace=True)
+    flist['cvar'] = expFormatList(list(flist['cvar']))
+    
+    
+    for i,row in flist.iterrows():
+        nz = row['cvar']
+        rz = survivalrPlot(row['folder'], axs[0], a=a, dr=dr, b=b, c=c, color=cm[i], label=nz, ylabel=ylabel, xlabel=xlabel)
+        rate = survivalRateRZ(rz, dr)
+        axs[1].scatter([nz], [rate], color=cm[i])
+       
+    if xlabel:
+        axs[1].set_xlabel(f'{unitName(cvar)} ({u[cvar]})', fontsize=fontsize)
+    if ylabel:
+        axs[1].set_ylabel('Surviving cells/initial cells', fontsize=fontsize)
+    setSquare(axs[1])
+
+    axs[0].set_title(survivalEqLabel(a,b,c), fontsize=fontsize)
+    
+def weights():
+    '''standard weights for the survival function'''
+    return [{'a':10**0, 'b':0, 'c':1}, {'a':10**-2, 'b':0.5, 'c':0.5}, {'a':10**-3, 'b':1, 'c':0}]
+    
+def survivalRMultiRow(topFolder:str, exportFolder:str, fontsize:int=8, export:bool=True, overwrite:bool=False, **kwargs):
+    '''plot cell survival as a function of radius in top row and cvar in bottom row, at three weights of the equation'''
+    
+    labels = ['survivalMulti']
+    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
+    if not overwrite and os.path.exists(fn+'.png'):
+        return
+    
+    fig,axs = plt.subplots(2,3, figsize=(6.5, 4.5))
+    plt.rc('font', size=fontsize) 
+    for i,d in enumerate(weights()):
+        survivalRMulti(topFolder, [axs[0][i], axs[1][i]], a=d['a'], b=d['b'], c=d['c'], **kwargs)
+#     survivalRMulti(topFolder, [axs[0][1], axs[1][1]], a=10**-2, b=0.5, c=0.5, **kwargs)
+#     survivalRMulti(topFolder, [axs[0][2], axs[1][2]], a=10**-3, b=1, c=0, **kwargs)
+    subFigureLabels(axs, inside=False)
+    fig.tight_layout()
+    
+    if export:
+        intm.exportIm(fn, fig) # export figure
+
+
+def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5
+                 , zunits:str='nozzle_inner_width', fontsize:int=8, dr:float=0.05, export:bool=True, overwrite:bool=False, **kwargs):
+    '''plot survival as a function of z position, relative radius, or get a single value.
+    value of xvar should be 'z', 't', 'rbar', or 'scalar' '''
+
+    labels = ['survival', xvar, os.path.basename(folder), str(a), str(b), str(c), zunits]
+    fn = intm.imFn(exportFolder, labels, os.path.dirname(folder), **kwargs) # output file name
+    if not overwrite and os.path.exists(fn+'.png'):
+        return
+    
+    plt.rc('font', size=fontsize) 
+    if not xvar=='scalar':
+        
+        if not 'cm' in kwargs:
+            cm = sns.color_palette('viridis', as_cmap=True) # uses viridis color scheme
+        else:
+            cm = kwargs['cm']
+        
+    if xvar=='z' or xvar=='t':
+        if 'figsize' in kwargs:
+            fig,axs = plt.subplots(1,3, figsize=kwargs['figsize'])
+        else:
+            fig,axs = plt.subplots(1,3, figsize=(6.5, 4))
+        rz = survivalCalc(folder, time=time, a=a, b=b, c=c, zunits=zunits, dr=dr, **kwargs)
+        survivalzPlot(rz, xvar, axs, zunits, cm)
+        axs[2].set_title(survivalEqLabel(a,b,c), fontsize=fontsize)
+        fig.tight_layout()
+            
+    elif xvar=='rbar':
+        fig,ax = plt.subplots(1,1)
+        survivalrPlot(folder, ax, time=time, a=a, b=b, c=c, zunits=zunits, dr=dr, **kwargs)
+    elif xvar=='scalar':
+        return survivalRate(folder, time=time, a=a, b=b, c=c, dr=dr, **kwargs)
+    
+    
+    if export:
+        intm.exportIm(fn, fig) # export figure
+    
+    
+    
+ #----------------------------------   
+    
+
+def shearStressCalc(folder:str, time:float, zunits:str, z0:float) -> Tuple[List[float], List[float]]: # RG
     '''Calculates mean shear stress across the length of the nozzle
     folder is the folder to do calculations on'''
     
     df,units = intm.importPtsNoz(folder, time) # get points in nozzle
     if len(df)==0:
         return []
+    
     vals = df.groupby(by='z').mean()['shearstressmag']
-        
-    return vals
+    
+    if len(vals)==0:
+        return [],[]
+    
+    xlist = list(z0 - vals.index)
+    ylist = list(vals)
+    if not zunits=='mm':
+        le = fp.legendUnique(folder)
+        xlist = [i/float(le[zunits]) for i in xlist]
 
+    return xlist, ylist
 #-------------------
     
 def nozzleLineTrace(folder:str, time:float, zabove:float, zunits:str='mm') -> pd.DataFrame:
@@ -676,7 +961,8 @@ def nozzleLineTrace(folder:str, time:float, zabove:float, zunits:str='mm') -> pd
     
     le = fp.legendUnique(folder)
     rho = float(le['ink_rho'])    
-    df['nu_ink'] = [rho*nu for nu in df['nu_ink']] # convert to dynamic
+    if 'nu_ink' in df:
+        df['nu_ink'] = [rho*nu for nu in df['nu_ink']] # convert to dynamic
     
 #     md = df.x.median()
     md = float(le['nozzle_center_x_coord'])
@@ -707,13 +993,10 @@ def withinNozzle(folders:List[str], time:float, zabove:float, ax, cvar:str, yvar
 
         # get data
         if yvar=='shearstressz':
-            zstress = shearStressCalc(row['folder'], time)
-            if len(zstress)>0:
-                theta = row[cvar]
-                z0 = row['nozzle_bottom_coord']
-                xlist = list(z0 - zstress.index)
-                ylist = list(zstress)
-                li = int(len(zstress)/2)
+            theta = row[cvar]
+            z0 = row['nozzle_bottom_coord']
+            xlist,ylist = shearStressCalc(row['folder'], time, zunits, z0)
+            li = int(len(xlist)/2)
         else:
             zstress = nozzleLineTrace(row['folder'], time, zabove, zunits=zunits)
             if len(zstress)>0:
@@ -748,26 +1031,27 @@ def withinNozzle(folders:List[str], time:float, zabove:float, ax, cvar:str, yvar
 
     if yvar=='shearstressmag' or yvar=='shearstressz':
         ax.set_ylabel('Shear Stress (Pa)')
-        ax.set_ylim([0, maxy])
+        ax.set_ylim(bottom=0)
     elif yvar=='nu_ink':
         ax.set_ylabel('Viscosity (Pa*s)')
         ax.set_yscale('log')
     elif yvar=='magu':
         ax.set_ylabel('Velocity (mm/s)')
         
+    zunname = unitName(zunits)
     if yvar=='shearstressz':
-        ax.set_xlabel('$z$ position (mm)')
+        ax.set_xlabel(f'$z$ position ({zunname})')
         ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--')
         ax.text(-0.05,0, 'nozzle exit', horizontalalignment='right', verticalalignment='bottom')
         ax.set_title(f'{time} s')
     else:
         ax.set_xlabel('$x$ position (mm)')
-        zunname = zunits.replace('nozzle_inner_width', '$d_i$')
+        
         ax.set_title(f'{zabove} {zunname} before exit, {time} s')
     
     if not legendloc=='overlay':
         ax.legend(loc='lower left', bbox_to_anchor=(0,1))
-    
+
     
     
 def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, zunits:str='mm', cvar:str='nozzle_angle'
@@ -784,6 +1068,9 @@ def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, zunits:s
     
     folders = fp.caseFolders(topFolder)
     folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
+    
+    if len(folders)==0:
+        return
 
     fig, axs = plt.subplots(1,3, figsize=(6.5,5))
     

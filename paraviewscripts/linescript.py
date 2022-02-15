@@ -42,30 +42,41 @@ __status__ = "Production"
 
 #------------------------------
 
-tlist = [1]        # times at which to collect the traces
+tlist = [2.5]        # times at which to collect the traces
 # xlist = [-0.001]      # positions at which to collect the trace
 xlist = [-0.001]
-zlist = [0.0005]
+# zlist = [0.0005]
+zlist = []
 
 forceOverwrite = False # True to overwrite existing files
 
 folders = []
-nlist = range(0,1000)  # list of nb folder numbers that we will search
+# nlist = range(0,1000)  # list of nb folder numbers that we will search
+nlist = [200, 201, 202, 219, 137, 138, 139, 140, 141, 142, 143]
 
 SERVERFOLDER = cfg.path.server
 # topfolders = [os.path.join(SERVERFOLDER, 'yieldingsweep', 'HBHByielded', s) for s in ['k', 'n', 'tau0']]
 # topfolders = topfolders + [os.path.join(SERVERFOLDER, 'yieldingsweep', 'LapRD')]
-topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'visc_speed']]
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'diameter', 'newtonian', 'k']]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
-        if f.startswith('nb') or f.startswith('cn'):
-#             n1 = float(f[2:])
-#             if n1 in nlist:
-            folders.append(os.path.join(topfolder, f))
+        if f.startswith('cn'):
+            if f.endswith('hor'):
+                try:
+                    n1 = float(f[2:-3])
+                except:
+                    n1 = f[2:-3]
+            else:
+                try:
+                    n1 = float(f[2:])
+                except:
+                    n1 = f[2:]
+            if n1 in nlist:
+                folders.append(os.path.join(topfolder, f))
                 
 logging.info(f'Exporting line traces.\n\
             X positions: {[convertToRelative(x) for x in xlist]} mm behind nozzle.\n\
-            Z positions: {[1000*(x) for x in zlist]} mm behind nozzle.\n\
+            Z positions: {[1000*(x) for x in zlist]} mm above nozzle bottom.\n\
             Time list: {tlist} s.\n\
             Folders:{[os.path.basename(f) for f in folders]}')
                 

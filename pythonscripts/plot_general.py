@@ -342,8 +342,9 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
     
     for k in tab.keys():
         if f'{k}_list' in kwargs:
+            l0 = expFormatList(kwargs[f'{k}_list'])
             tab[k] = expFormatList(list(tab[k]))  # round floats
-            tab = tab[tab[k].isin(kwargs[f'{k}_list'])] # only take rows that are in the list
+            tab = tab[tab[k].isin(l0)] # only take rows that are in the list
     flist2 = list(tab['folder'])
     try:
         lists = dict([[f'{k}_list', mixedSort(list(tab[k].unique()))] for k in tab.keys()[1:]])
@@ -906,7 +907,7 @@ class comboPlot(folderPlots):
         self.titley = 1
         self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
 
-        if len(self.ylistreal)==0: # since there is only one variable, remove y information RG
+        if len(self.ylistreal)<2: # since there is only one variable, remove y information RG
             ax.set_ylabel("")
             ax.set_yticks([])
 #             ax.set_xticklabels(self.xlist, fontname="Arial", fontsize=10) # 10 degree angle should not be 10^1

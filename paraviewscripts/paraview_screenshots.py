@@ -266,25 +266,31 @@ def timeStamp(sv:stateVars) -> stateVars:
 ###############
 # camera operations
 
+def resetCamera(sv:stateVars) -> None:
+    '''reset the view area'''
+    le0 = fp.legendUnique(sv.folder) # use first file as reference dimensions
+    s = float(le0['bath_width'])/9.668
+    sv.renderView1.ResetCamera(-0.005*s, 0.005*s, -0.002*s, 0.002*s, -0.002*s, 0.002*s)
+
 
 def resetCam(sv:stateVars, time:float) -> None:
     '''go to a specific view area, at a given time'''
     setTime(time, sv)
-    sv.renderView1.ResetCamera(-0.005, 0.005, -0.002, 0.002, -0.002, 0.002)
+    resetCamera(sv)
 
 def setView(st:str, sv:stateVars) -> None:
     '''go to a specific view point, out of [x,y,z,a,b]. a and b are views from an angle, where a is downstream of the nozzle, and b is upstream of the nozzle.'''
     if st=="z":
-        sv.renderView1.CameraFocalPoint = [0.001, 0,0]
-        sv.renderView1.CameraPosition = [0.001, 0, 10]
+        sv.renderView1.CameraFocalPoint = [0, 0,0]
+        sv.renderView1.CameraPosition = [0, 0, 10]
         sv.renderView1.CameraViewUp = [0,1,0]
     elif st=="y":
-        sv.renderView1.CameraFocalPoint = [0.001, 0,0]
-        sv.renderView1.CameraPosition = [0.001, -10, 0]
+        sv.renderView1.CameraFocalPoint = [0, 0,0]
+        sv.renderView1.CameraPosition = [0, -10, 0]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="x":
-        sv.renderView1.CameraFocalPoint = [0.001, 0,0]
-        sv.renderView1.CameraPosition = [-10, 0.001, 0]
+        sv.renderView1.CameraFocalPoint = [0, 0,0]
+        sv.renderView1.CameraPosition = [-10, 0, 0]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="a":
         sv.renderView1.CameraFocalPoint = [0.0006, -0.0002, 0.0005]
@@ -300,7 +306,7 @@ def setAndUpdate(st:str, sv:stateVars) -> None:
     '''go to a specific viewpoint and view area'''
     setView(st, sv)
     sv.renderView1.Update()
-    sv.renderView1.ResetCamera(-0.005, 0.005, -0.002, 0.002, -0.002, 0.002)
+    resetCamera(sv)
 
 
 #### annotations
@@ -818,8 +824,11 @@ def sliceandyarrows(sv):
     
 def tube(sv):
     '''Streamlines at the given z position tubeh'''
-    
-    streamTracer1 = StreamTracer(Input=sv.caseVTMSeries, SeedType='Line') # RG
+    try:
+        streamTracer1 = StreamTracer(registrationName='StreamTracer1', Input=sv.caseVTMSeries, SeedType='Line') # RG
+    except:
+        streamTracer1 = StreamTracer(registrationName='StreamTracer1', Input=sv.caseVTMSeries)
+        # unclear why SeedType Line throws an exception in PV 5.10.0, but it may have to do with version control.
     streamTracer1.Vectors = ['POINTS', 'U']
     streamTracer1.MaximumStreamlineLength = 0.01 # was 0.006 RG
     streamTracer1.SeedType.Point1 = [-0.003014999907463789, -0.0021104998886585236, sv.tubeh]
@@ -868,7 +877,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
     '''For a given folder, generate all the images'''
     if v.tag=='tubes':
         sv.tubeh = v.tubeh
-    
+ 
     if len(v.tlist)>0:
         tlist = [int(round(10*i)) for i in v.tlist if i in sv.times]
     else:
@@ -878,6 +887,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
     fnlist = []
     viewlist = []
     # get a list of files to create
+
     
     for view in v.volList:
         for t in tlist:

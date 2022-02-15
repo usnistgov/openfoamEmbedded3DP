@@ -44,14 +44,14 @@ __status__ = "Production"
   
     
 
-def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode:str='vx', **kwargs) -> None:
+def linePlot(folder:str, time:float, ax:plt.Axes, color, mode:str='vx', label:str='', **kwargs) -> None:
     '''plot the result of a line trace collected with paraview
         colorf is the function to use to determne the color of the plotted line, e.g. sigfunc
         rang is the total list of values that you get when you evaluate colorf over the whole folder
         mode is 0 to plot velocities, 1 to plot viscosities'''
     t1,units = intm.importLine(folder, time, **kwargs)
     if len(t1)==0:
-        print('File is missing in ', folder)
+        logging.warning(f'Line file is missing in {folder}')
         return 
     t1 = t1.sort_values(by='z')
     if mode in t1:
@@ -87,32 +87,45 @@ def linePlot(folder:str, time:float, ax:plt.Axes, colorf, rang:List[float], mode
     supPtsLeft = t1[t1['z']<minx]
     supPtsRight = t1[t1['z']>maxx]
     
-    val = folderToFunc(folder, colorf)
-    cmap = sns.diverging_palette(220, 20, as_cmap=True)
-    fracval = decideRatio(val, rang)
-    if fracval==0.5:
-        color = 'gray'
-    else:
-        color = cmap(fracval)
     for suppts in [supPtsLeft, supPtsRight]:
         ax.plot(suppts['z'], suppts[ystrsup], color=color)
     ax.plot(inkPts['z'], inkPts[ystrink], color=color, linestyle='--')
     pts = t1[(t1['z']==minx) | (t1['z']==maxx)]
-    ax.scatter(pts['z'], pts[ystrink], color=color, label=decideFormat(val))
+    ax.scatter(pts['z'], pts[ystrink], color=color, label=label)
     ax.scatter(pts['z'], pts[ystrsup], color=color)
     
     
     
     
 
-def linePlots(folders:List[str], func, time:float, imsize:int, mode:str='vx', **kwargs) -> plt.Figure:
+def linePlots(folders:List[str], cvar, time:float, imsize:int, mode:str='vx', **kwargs) -> plt.Figure:
     '''files is a list of folders (e.g. nb16, nb17) to include in the plot
-    func is the function to use for deciding plot colors. func should be as a function of transport properties dictionary
+    cvar is the function to use for deciding plot colors. func should be as a function of transport properties dictionary or a string
     e.g. func could be multfunc'''
-    funcvals = unqListFolders(folders, func)
+    
     fig, ax = plt.subplots(nrows=1, ncols=1, sharex=False, figsize=(imsize, imsize))
-    for f in folders:
-        linePlot(f, time, ax, func, funcvals, mode, **kwargs)
+    
+    if type(cvar) is str: 
+        # this is a column header from extractTP
+        tplist = pd.DataFrame([extractTP(folder) for folder in folders])
+        tplist.sort_values(by=cvar, inplace=True)
+        tplist.reset_index(drop=True, inplace=True)
+        tplist[cvar] = expFormatList(tplist[cvar])
+        cm = sns.color_palette('viridis', as_cmap=True) # uses viridis color scheme
+        for i,row in tplist.iterrows():
+            linePlot(row['folder'], time, ax, cm(i/len(tplist)), mode, cmap=cm, label=row[cvar], **kwargs)
+    else:
+        # this is a function operated on extractTP
+        funcvals = unqListFolders(folders, cvar)
+        cmap = sns.diverging_palette(220, 20, as_cmap=True)
+        for f in folders:
+            val = folderToFunc(folder, colorf)
+            fracval = decideRatio(val, rang)
+            if fracval==0.5:
+                color = 'gray'
+            else:
+                color = cmap(fracval)
+            linePlot(f, time, ax, color, mode, label=decideFormat(val), **kwargs)
     ax.legend(bbox_to_anchor=(1, 1), loc='upper left', ncol=1)
     ax.set_xlabel('z (mm)')
     if mode=='vx':
@@ -125,6 +138,23 @@ def linePlots(folders:List[str], func, time:float, imsize:int, mode:str='vx', **
         if mode=='shearrate':
             ax.set_yscale('log')
     return fig
+
+def linePlots0(topFolder:str, exportFolder:str, cvar:str, time:float, imsize:float, mode:str='vx', overwrite:bool=False, export:bool=True, **kwargs) -> plt.Figure:
+    '''plot the value over the line trace'''
+
+    
+    labels = ['line', time, mode, cvar]
+    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
+    if not overwrite and os.path.exists(fn+'.png'):
+        return
+
+    
+    folders = fp.caseFolders(topFolder)
+    folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
+    
+    fig = linePlots(folders, cvar, time, imsize, mode, **kwargs)
+    if export:
+        intm.exportIm(fn, fig) # export figure
 
 
 

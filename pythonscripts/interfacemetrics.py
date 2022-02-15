@@ -105,7 +105,7 @@ def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[An
         return d,units
     
 
-def importLine(folder:str, time:float, x:float=1.5) -> pd.DataFrame:
+def importLine(folder:str, time:float, x:float=1.5, **kwargs) -> pd.DataFrame:
     '''import a csv of a line trace pulled from ParaView. time and x are the time and position the line trace are taken at'''
     file = os.path.join(folder, f'line_t_{int(round(time*10))}_x_{x}.csv')
     try:
@@ -140,12 +140,13 @@ def importPointsFile(file:str) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
 
 def importPoints(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
     '''import all points in the interface at a given time'''
-    file = os.path.join(folder, 'interfacePoints', 'interfacePoints_t_'+str(int(round(time*10)))+'.csv')
+    file = os.path.join(folder, 'interfacePoints', f'interfacePoints_t_{int(round(time*10))}.csv')
     return importPointsFile(file)
 
 def importPtsNoz(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]: # RG
     '''import all points in the nozzle at a given time'''
-    file = os.path.join(folder, 'nozzlePoints', 'nozzlePoints_t_'+str(int(round(time*10)))+'.csv')
+    
+    file = os.path.join(folder, 'nozzlePoints', f'nozzlePoints_t_{int(round(time*10))}.csv')
     return importPointsFile(file)
 
 
@@ -203,7 +204,7 @@ def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
     label = ''
     labels = [labels] if isinstance(labels, str) else labels
     for i in labels:
-        label += i+'_'
+        label += str(i)+'_'
     
     return os.path.join(exportfolder, bn, label+bn+'_'+s) # RG
 

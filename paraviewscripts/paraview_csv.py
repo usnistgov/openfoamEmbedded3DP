@@ -77,6 +77,7 @@ def initSeriesNoz(sv:stateVars): # RG
     xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
     xmax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + xmin
 
+
     clip1 = Clip(Input=caseVTMSeries)
     clip1.Scalars = ['POINTS', 'alpha.ink'] # clips ink
     clip1.Value = 0.5
@@ -99,7 +100,21 @@ def initSeriesNoz(sv:stateVars): # RG
     cellDatatoPointData1.CellDataArraytoprocess = ['ScalarGradient', 'U', 'alpha.ink', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
     calculator2 = Calculator(Input=cellDatatoPointData1)
     calculator2.ResultArrayName = 'ShearStress'
-    calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
+    if le['ink_transportModel']=='Newtonian':
+        nuink = float(le['ink_nu'])
+        if le['sup_transportModel']=='Newtonian':
+            nusup = float(le['sup_nu'])
+            calculator2.Function = f'({ink_rho}*{nuink}*alpha.ink+{sup_rho}*{nusup}*(1-alpha.ink))*ScalarGradient'
+        else:
+            calculator2.Function = f'({ink_rho}*{nuink}*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
+    else:
+        if le['sup_transportModel']=='Newtonian':
+            nusup = float(le['sup_nu'])
+            calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*{nusup}*(1-alpha.ink))*ScalarGradient'
+        else:
+            calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
+
+    # calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
     calculator3 = Calculator(Input=calculator2)
     calculator3.ResultArrayName = 'ShearStressMag'
     calculator3.Function = 'mag(ShearStress)'

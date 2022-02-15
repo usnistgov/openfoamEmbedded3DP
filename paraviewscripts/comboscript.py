@@ -12,6 +12,7 @@ import logging
 from paraview_general import *
 import paraview_csv as pc
 import paraview_screenshots as ss
+import paraview_line as pl
 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
@@ -46,23 +47,25 @@ __status__ = "Development"
 looping = False
 loopTime = 6 #hours
 
+#------
 ## csv
 
 forceOverwrite = False 
 getCSVs = True
-csvTimes = [1, 2.5]
+csvTimes = [2.5]
 
 # modes = ['nozzle', 'interface'] # CSVs to create
 modes = ['nozzle', 'interface']
 
-# screenshots
+#------
+## screenshots
 
 getSSs = True
 # for help, see ssVars in paraview_screenshots
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
 runList = []
-runList.append(ss.ssVars('volumes', [1, 2.5], volViewList=['y']))
+runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 # runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
 for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
     runList.append(ss.ssVars(s, [1, 2.5]))
@@ -72,19 +75,34 @@ for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy'
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
 # runlist.append(ss.ssVars('vectors', [2.5]))
-# runlist.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
+runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
+
+#------
+## line traces
+
+getLine = True
+
+pl_tlist = [2.5]        # times at which to collect the traces
+# xlist = [-0.001]      # positions at which to collect the trace
+pl_xlist = [-0.001]
+# zlist = [0.0005]
+pl_zlist = []
+
+pl_forceOverwrite = False # True to overwrite existing files
+
+#----------------------------------
 
 # folders
 folders = []
 # nlist = list(range(0,1000))
-nlist = [208, 209, 211, 212]
+nlist = [200, 201, 202, 219, 137, 138, 139, 140, 141, 142, 143]
 
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'visc_speed', 'diameter']]
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'diameter', 'newtonian', 'k']]
 for topfolder in topfolders:
     for f in os.listdir(topfolder):
         if f.startswith('cn'):
@@ -113,14 +131,25 @@ for r in runList:
 logging.info(f'CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
 logging.info(f'Folders: {[os.path.basename(f) for f in folders]}')
 logging.info(f'Modes: {modes}')
+logging.info(f'Line traces:\n\
+            X positions: {[pl.convertToRelative(x) for x in pl_xlist]} mm behind nozzle.\n\
+            Z positions: {[1000*(x) for x in pl_zlist]} mm above nozzle bottom.\n\
+            Time list: {pl_tlist} s.\n\
+            Folders:{[os.path.basename(f) for f in folders]}')
 
 while True:
+
     for folder in folders:
         logging.debug('Checking '+folder)
         if getCSVs:
             pc.csvFolder(folder, modes, forceOverwrite, times0=csvTimes) # create csvs RG
         if getSSs:
             ss.folderScript(folder, runList)
+        if getLine:
+            for xpos in pl_xlist:
+                pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite)
+            for zpos in pl_zlist:
+                pl.csvfolder(folder, 'z', zpos, pl_tlist, forceOverwrite=pl_forceOverwrite)
     if not looping:
         break
     now = datetime.now()
@@ -128,3 +157,4 @@ while True:
     logging.info('Waiting '+str(loopTime)+' hours for more files...')
     logging.info("------ Current Time ="+str(current_time))
     time.sleep(60*60*loopTime)
+

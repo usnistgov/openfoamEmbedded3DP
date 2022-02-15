@@ -133,15 +133,13 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
 def XSPlotIdeal(cp:comboPlot, le:dict) -> None:
     '''this plots an ideal cross-section on the cross-section plot
     fs is a dictionary holding metadata, from legendUnique'''
-#     x0 = cp.xrtot[0]+cp.dx/2
-#     y0 = cp.yrtot[-1]+cp.dy/2
     xind = int(cp.indicesreal.x.min())
     x0 = cp.xmlist[xind]
     yind = int(cp.indicesreal[cp.indicesreal.x==xind].y.max())
     y0 = cp.ymlist[yind]+cp.dy
     color='Black'
     plotCircle(cp.axs[0], x0, y0, float(le['nozzle_inner_width'])/2, 'Ideal', color)
-    cp.indicesreal = cp.indicesreal.append({'x':x0, 'y':y0}, ignore_index=True)
+    cp.indicesreal = cp.indicesreal.append({'x':xind, 'y':yind+1}, ignore_index=True)
 
 
 def XSPlotf(folder:str, time:float, xbehind:float, cp:comboPlot, xunits:str='mm', ref:dict={'nozzle_inner_width':0, 'ink_velocity':0, 'bath_velocity':0}) -> None:
@@ -180,9 +178,6 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:
     xunname = xunits.replace('nozzle_inner_width', '$d_i$')
     cp.figtitle = f'Cross sections, {xbehind} {xunname} behind nozzle, t = {time} s'
     XSPlotIdeal(cp,le0)
-#     for ax in cp.axs:
-#         if len(cp.yrtot)>1: # RG
-#             ax.set_ylim([cp.yrtot[0], cp.yrtot[1]+1])
     cp.clean()
 
     for ax in cp.axs:
