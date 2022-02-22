@@ -6,6 +6,7 @@ from plot_pic import *
 from plot_steady import *
 from plot_slices import *
 from plot_metrics import *
+from plot_survival import *
 
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"

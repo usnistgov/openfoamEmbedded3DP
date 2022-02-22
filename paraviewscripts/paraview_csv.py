@@ -33,8 +33,10 @@ def initializeAll(folder, mode:str):
     sv =  initializeP(sv)        # initialize Paraview
     if mode=='interface': # RG
         sv =  initSeriesInter(sv) # import the vtk series files
-    else:
-        sv =  initSeriesNoz(sv) # import the vtk series files
+    elif mode=='nozzle':
+        sv =  initSeriesNoz(sv, mode='volume') # import the vtk series files
+    elif mode=='nozzleSlice':
+        sv =  initSeriesNoz(sv, mode='slice') # import the vtk series files
     return sv
 
 
@@ -65,31 +67,78 @@ def initSeriesInter(sv:stateVars):
     slice1Display = Show(slice1, sv.renderView1, 'GeometryRepresentation')
     return sv
 
-
-def initSeriesNoz(sv:stateVars): # RG
-    '''Import the case.vtm.series file and just get the ink in the nozzle'''
+def initSeriesNoz(sv:stateVars, mode:str='slice'): # RG
+    '''Import the case.vtm.series file and just get the ink in the nozzle. edges mode uses planar boundaries around the '''
     caseVTMSeries = initSeries0(sv)
     renderView1 = GetActiveViewOrCreate('RenderView')
 
     le = fp.legendUnique(sv.folder)
     ink_rho = float(le['ink_rho'])
     sup_rho = float(le['sup_rho'])
-    xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
-    xmax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + xmin
+    di = float(le['nozzle_inner_width'])/1000 # inner diameter
+    z0 = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
+    zf = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + z0
+    x0 = float(le['nozzle_center_x_coord'])/1000
+    y0 = float(le['nozzle_center_y_coord'])/1000
+    xr = x0+di/2
+    xl = x0-di/2
+    na = np.deg2rad(float(le['nozzle_angle'])) # nozzle angle in radians
 
-
+    # clips ink
     clip1 = Clip(Input=caseVTMSeries)
-    clip1.Scalars = ['POINTS', 'alpha.ink'] # clips ink
-    clip1.Value = 0.5
+    clip1.Scalars = ['POINTS', 'alpha.ink'] 
+    clip1.Value = 0.01
     clip1.ClipType = 'Scalar'
     clip1.Invert = 0
-    clip2 = Clip(Input=clip1)
-    clip2.Scalars = ['POINTS', 'p'] # clips ink more than just in nozzle, but the excess is ignored in processing
-    clip2.Value = 70.0 # may need to change value if max value of pressure in nozzle is low or in bath is high
-    clip2.ClipType = 'Scalar'
-    clip2.Invert = 0
-    # below here is specific to shear stress and should be changed/removed if not looking at shear stress
-    calculator1 = Calculator(Input=clip2)
+
+    if mode=='slice':
+
+        # # clip bottom of nozzle
+        # clip2 = Clip(Input=clip1)
+        # clip2.ClipType = 'Plane'
+        # clip2.HyperTreeGridClipper = 'Plane'
+        # clip2.ClipType.Origin = [0, 0, z0]
+        # clip2.HyperTreeGridClipper.Origin = [0, 0, z0]
+        # clip2.Invert = 0
+        # clip2.ClipType.Normal = [0.0, 0.0, 1.0]
+        # Hide3DWidgets(proxy=clip2.ClipType)
+
+        # clip right edge
+        clip3 = Clip(Input=clip1)
+        clip3.ClipType = 'Plane'
+        clip3.HyperTreeGridClipper = 'Plane'
+        clip3.ClipType.Origin = [xr, 0, z0]
+        clip3.HyperTreeGridClipper.Origin = [xr, 0, z0]
+        clip3.Invert = 0
+        clip3.ClipType.Normal = [-np.cos(na), 0.0, np.sin(na)]
+        Hide3DWidgets(proxy=clip3.ClipType)
+
+        # clip left edge
+        clip4 = Clip(Input=clip3)
+        clip4.ClipType = 'Plane'
+        clip4.HyperTreeGridClipper = 'Plane'
+        clip4.ClipType.Origin = [xl, 0, z0]
+        clip4.HyperTreeGridClipper.Origin = [xl, 0, z0]
+        clip4.Invert = 0
+        clip4.ClipType.Normal = [np.cos(na), 0.0, np.sin(na)]
+        Hide3DWidgets(proxy=clip4.ClipType)
+
+        
+
+
+        # below here is specific to shear stress and should be changed/removed if not looking at shear stress
+        calculator1 = Calculator(Input=clip4)
+
+    else:
+        # take whole volume
+        clip2 = Clip(Input=clip1)
+        clip2.Scalars = ['POINTS', 'p'] # clips ink more than just in nozzle, but the excess is ignored in processing
+        clip2.Value = 70.0 # may need to change value if max value of pressure in nozzle is low or in bath is high
+        clip2.ClipType = 'Scalar'
+        clip2.Invert = 0
+        # below here is specific to shear stress and should be changed/removed if not looking at shear stress
+        calculator1 = Calculator(Input=clip2)
+
     calculator1.ResultArrayName = 'magU'
     calculator1.Function = 'mag(U)'
     computeDerivatives1 = ComputeDerivatives(Input=calculator1)
@@ -100,42 +149,47 @@ def initSeriesNoz(sv:stateVars): # RG
     cellDatatoPointData1.CellDataArraytoprocess = ['ScalarGradient', 'U', 'alpha.ink', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
     calculator2 = Calculator(Input=cellDatatoPointData1)
     calculator2.ResultArrayName = 'ShearStress'
-    if le['ink_transportModel']=='Newtonian':
-        nuink = float(le['ink_nu'])
-        if le['sup_transportModel']=='Newtonian':
-            nusup = float(le['sup_nu'])
-            calculator2.Function = f'({ink_rho}*{nuink}*alpha.ink+{sup_rho}*{nusup}*(1-alpha.ink))*ScalarGradient'
-        else:
-            calculator2.Function = f'({ink_rho}*{nuink}*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
-    else:
-        if le['sup_transportModel']=='Newtonian':
-            nusup = float(le['sup_nu'])
-            calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*{nusup}*(1-alpha.ink))*ScalarGradient'
-        else:
-            calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
-
-    # calculator2.Function = f'({ink_rho}*nu1*alpha.ink+{sup_rho}*nu2*(1-alpha.ink))*ScalarGradient'
+    calculator2.Function = stressFunc(le)
     calculator3 = Calculator(Input=calculator2)
     calculator3.ResultArrayName = 'ShearStressMag'
     calculator3.Function = 'mag(ShearStress)'
-    # below here is needed
-    slice1 = Slice(Input=calculator3)
-    slice1.SliceType = 'Plane'
-    slice1.SliceOffsetValues = [0.0]
-    slice1.SliceType.Origin = [0, 0, xmax] # 3% the length of the nozzle below the nozzle top to avoid innacurate shear stress at the ink-atmosphere interface
-    slice1.SliceType.Normal = [0, 0, 1] # look down the z axis
+
+
+    if mode=='slice':
+        # slice through y center of nozzle
+        slice1 = Slice(registrationName='Slice1', Input=calculator3)
+        slice1.SliceType = 'Plane'
+        slice1.HyperTreeGridSlicer = 'Plane'
+        slice1.SliceOffsetValues = [0.0]
+        slice1.SliceType.Origin = [0,0,0]
+        slice1.HyperTreeGridSlicer.Origin = [0,0,0]
+        slice1.SliceType.Normal = [0.0, 1.0, 0.0]
+        Hide3DWidgets(proxy=slice1.SliceType)
+
+        # below here is needed
+        slice2 = Slice(Input=slice1)
+
+    else:
+        slice2 = Slice(Input=calculator3)
+    slice2.SliceType = 'Plane'
+    slice2.SliceOffsetValues = [0.0]
+    slice2.SliceType.Origin = [0, 0, zf] # 3% the length of the nozzle below the nozzle top to avoid innacurate shear stress at the ink-atmosphere interface
+    slice2.SliceType.Normal = [0, 0, 1] # look down the z axis
 
     Hide(caseVTMSeries, sv.renderView1)
-    Hide(clip1, sv.renderView1)
-    Hide(clip2, sv.renderView1)
+    # Hide(clip1, sv.renderView1)
+    # Hide(clip2, sv.renderView1)
+    # Hide(clip3, sv.renderView1)
+    # Hide(clip4, sv.renderView1)
+    # Hide(slice1, sv.renderView1)
     Hide(calculator1, sv.renderView1)
     Hide(computeDerivatives1, sv.renderView1)
     Hide(cellDatatoPointData1, sv.renderView1)
     Hide(calculator2, sv.renderView1)
     Hide(calculator3, sv.renderView1)
     sv.caseVTMSeries = caseVTMSeries
-    sv.slice = slice1
-    slice1Display = Show(slice1, sv.renderView1, 'GeometryRepresentation')
+    sv.slice = slice2
+    slice1Display = Show(slice2, sv.renderView1, 'GeometryRepresentation')
     return sv
 
 
@@ -145,6 +199,7 @@ def initSeriesNoz(sv:stateVars): # RG
 
 def addToFile(x:float, tempFile:str, w:csv.writer, sv:stateVars, skipHeader:bool, mode:str, xdisp:float=0) -> bool:
     '''Add more points to the file. x is the x position that we take the slice at. tempFile is the full path of the temp file that we store points in temporarily before we put them into the actual csv file. We already opened a csvwriter w in csvFolder. sv is a stateVars object that holds the actual Paraview objects that we need to analyze. skipHeader is true if we don't want to include the header and false if we want to write the header to w. mode is either interface or nozzle. xdisp is a displacement that we can add to the saved x values, if we want to make x relative to a certain point. It is best to leave this at 0.'''
+
     ret = skipHeader
     if mode=='interface':
         sv.slice.SliceType.Origin = [x, 0, 0]
@@ -163,9 +218,9 @@ def addToFile(x:float, tempFile:str, w:csv.writer, sv:stateVars, skipHeader:bool
                 headerdict = {'alpha.ink':'alpha', 'Points:0':'x', 'Points:1':'y', 'Points:2':'z', 'U:0':'vx', 'U:1':'vy', 'U:2':'vz', 'Time':'time', 'nu1':'nu_ink', 'nu2':'nu_sup'}
                 if not xdisp==0:
                     if xdisp>0:
-                        headerdict['Points:0'] = 'x'+'+'+str(xdisp)
+                        headerdict['Points:0'] = f'x+{xdisp}'
                     else:
-                        headerdict['Points:0'] = 'x'+'-'+str(abs(xdisp))
+                        headerdict['Points:0'] = f'x-{abs(xdisp)}'
                 header2 = [headerdict.get(h,h) for h in header]
                 if mode=='interface':
                     unitdict = {'time':'s', 'x':'m', 'y':'m', 'z':'m', 'vx':'m/s', 'vy':'m/s', 'vz':'m/s', 'alpha':'', 'nu1':'m^2/s', 'nu2':'m^2/s', 'nu_ink':'m^2/s', 'nu_sup':'m^2/s', 'p':'kg/(m*s^2)', 'p_rgh':'kg/(m*s^2)', 'rAU':'m^3*s/kg'}
@@ -208,7 +263,7 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
             dx = (xmax-xmin)/50
             # dx = 0.0002
             # times = fp.times(folder)
-        elif mode=='nozzle':
+        elif mode=='nozzleSlice' or mode=='nozzle':
             
             xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
             # xmin = 0.0003015 # tip of nozzle RG
@@ -217,8 +272,7 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
             dx = (xmax-xmin)/35
             times = times0 # very storage intensive to do all 25 timesteps
         else:
-            raise Exception("Valid modes are 'interface' and 'nozzle'")
-
+            raise Exception("Valid modes are 'interface' and 'nozzleSlice'")
 
         f1 = os.path.join(folder, f'{mode}Points')
 

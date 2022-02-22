@@ -144,10 +144,58 @@ def importPoints(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]]
     return importPointsFile(file)
 
 def importPtsNoz(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]: # RG
-    '''import all points in the nozzle at a given time'''
+    '''import all points in the center y slice of the nozzle at a given time'''
     
     file = os.path.join(folder, 'nozzlePoints', f'nozzlePoints_t_{int(round(time*10))}.csv')
     return importPointsFile(file)
+
+def importSliceNoz(folder:str, time:float) -> Tuple[Union[pd.DataFrame, List[Any]], Dict]:
+    '''import all points in the center y slice of the nozzle at a given time'''
+    
+    file = os.path.join(folder, 'nozzleSlicePoints', f'nozzleSlicePoints_t_{int(round(time*10))}.csv')
+    return importPointsFile(file)
+
+    
+def takePlane(df:pd.DataFrame, folder:str, dr:float=0.05, xhalf:bool=True) -> pd.DataFrame:
+    '''add an rbar column to the dataframe and only take the center plane'''
+    le = fp.legendUnique(folder)
+    xc = float(le['nozzle_center_x_coord'])
+    yc = float(le['nozzle_center_y_coord'])
+    di = float(le['nozzle_inner_width'])
+    na = float(le['nozzle_angle'])
+    tana = np.tan(np.deg2rad(na))        # tangent of nozzle angle
+    zbot = float(le['nozzle_bottom_coord'])
+    df['z'] =[zbot - i for i in df['z']] # put everything relative to the bottom of the nozzle
+    ztop = float(le['nozzle_length'])
+    df = df[df['z']>-ztop*0.9]           # cut off the top 10% of the nozzle
+    
+    dy = di/3                           # take middle y portion of nozzle
+    df = df[(df['y']>-1*(dy))&(df['y']<dy)] # only select y portion
+    if xhalf:
+        df = df[(df['x']>xc)] # back half of nozzle
+    
+    
+    df['rbar'] = [np.sqrt((row['x']-xc)**2+(row['y']-yc)**2)/(di/2+abs(row['z'])*tana) for i,row in df.iterrows()]
+    df['rbar'] = [round(int(rbar/dr)*dr,5) for rbar in df['rbar']] # round to the closest dr
+        # radius as fraction of total radius at that z
+    df = df[df['rbar']<0.95]
+        
+    return df
+
+
+def averageRings(df:pd.DataFrame) -> pd.DataFrame:
+    '''given a list of points, group them by z and rbar, and take the average values by group'''
+    vals = df.groupby(by=['z', 'rbar'])
+    
+    
+
+def removeOutliers(df:pd.DataFrame, col:str, sigma:int=3) -> pd.DataFrame:
+    '''remove outliers from the list based on column col'''
+    med = df[col].median()
+    stdev = df[col].std()
+    return df[(df[col]>med-sigma*stdev)&(df[col]<med+sigma*stdev)]
+    
+    
 
 
 def importPtsSlice(folder:str, time:float, xbehind:float, xunits:str='mm') -> Union[pd.DataFrame, List[Any]]:
@@ -194,7 +242,7 @@ def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
     bn = os.path.basename(topfolder)
     s = ''
     for k in kwargs:
-        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split']:
+        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split', 'crops']:
             s = s + k + '_'+str(kwargs[k])+'_'
     s = s[0:-1]
     s = s.replace('*', 'x')

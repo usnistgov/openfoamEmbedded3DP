@@ -722,7 +722,10 @@ def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:
     
     calculator = Calculator(Input=slice1)
     calculator.ResultArrayName = 'shearStress'
-    calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
+    le = fp.legendUnique(sv.folder)
+
+    calculator.Function = stressFunc(le)
+ #   calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
     sv.hideAll()
     
     d1 = inkClip(sv, calculator, name, 0, clipVal = 0.9)

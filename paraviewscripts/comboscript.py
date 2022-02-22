@@ -50,12 +50,12 @@ loopTime = 6 #hours
 #------
 ## csv
 
-forceOverwrite = False 
+forceOverwrite = False
 getCSVs = True
 csvTimes = [2.5]
 
 # modes = ['nozzle', 'interface'] # CSVs to create
-modes = ['nozzle', 'interface']
+modes = ['nozzleSlice', 'interface']
 
 #------
 ## screenshots
@@ -93,34 +93,20 @@ pl_forceOverwrite = False # True to overwrite existing files
 #----------------------------------
 
 # folders
-folders = []
-# nlist = list(range(0,1000))
-nlist = [200, 201, 202, 219, 137, 138, 139, 140, 141, 142, 143]
-
 SERVERFOLDER = cfg.path.server
 if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
+
+# nlist = list(range(0,1000))
+# nlist = [43, 53, 63, 487]
+nlist = [208]
 topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'diameter', 'newtonian', 'k']]
-for topfolder in topfolders:
-    for f in os.listdir(topfolder):
-        if f.startswith('cn'):
-            if f.endswith('hor'):
-                try:
-                    n1 = float(f[2:-3])
-                except:
-                    n1 = f[2:-3]
-            else:
-                try:
-                    n1 = float(f[2:])
-                except:
-                    n1 = f[2:]
-            if n1 in nlist:
-                folders.append(os.path.join(topfolder, f))
+# topfolders = [os.path.join(cfg.path.server, 'viscositysweep', s) for s in ['newtnewtsweep']]
 
+folders = filterSimNums(topfolders, nlist)
 
-        
 ######################################################
 ####################### SCRIPT #######################
 
@@ -134,13 +120,12 @@ logging.info(f'Modes: {modes}')
 logging.info(f'Line traces:\n\
             X positions: {[pl.convertToRelative(x) for x in pl_xlist]} mm behind nozzle.\n\
             Z positions: {[1000*(x) for x in pl_zlist]} mm above nozzle bottom.\n\
-            Time list: {pl_tlist} s.\n\
-            Folders:{[os.path.basename(f) for f in folders]}')
+            Time list: {pl_tlist} s.')
 
 while True:
 
     for folder in folders:
-        logging.debug('Checking '+folder)
+        logging.debug(f'Checking {folder}')
         if getCSVs:
             pc.csvFolder(folder, modes, forceOverwrite, times0=csvTimes) # create csvs RG
         if getSSs:
@@ -154,7 +139,7 @@ while True:
         break
     now = datetime.now()
     current_time = now.strftime("%D, %H:%M:%S")
-    logging.info('Waiting '+str(loopTime)+' hours for more files...')
-    logging.info("------ Current Time ="+str(current_time))
+    logging.info(f'Waiting {looptime} hours for more files...')
+    logging.info(f'------ Current Time ={current_time}')
     time.sleep(60*60*loopTime)
 

@@ -100,17 +100,22 @@ def decideFormat(x:float) -> Tuple[Union[float, str], bool]:
         return expFormat(x),True
 
 
-def expFormatList(xlist:List[float], returnPrecision:bool=False) -> List[Any]:
+def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:bool=False) -> List[Any]:
     '''put the whole list in exponential or appropriate format'''
     xout = []
     useExp = True
+    if len(xlist)<2 and not forceFormat:
+        if returnPrecision:
+            return xlist, -1000   # not formatted
+        else:
+            return xlist
     for x in xlist:
         if useExp:
             x1, useExp = decideFormat(x)
         else:
             x1 = x
         xout.append(x1)
-        prec = None
+        prec = 1000    # exponent format
     if not useExp:
         ints = True
         i = 0
@@ -120,7 +125,7 @@ def expFormatList(xlist:List[float], returnPrecision:bool=False) -> List[Any]:
             i+=1
         if ints:
             prec = 0
-            return [int(xi) for xi in xlist]
+            xout = [int(xi) for xi in xlist]
         else:
             # determine precision of float
             xsort = xlist.copy()
@@ -237,26 +242,6 @@ def logRatioFunc(tp:Dict, func, rang:List[float]) -> float:
 #--------- 
 # get transport properties
 
-# def extractTPfluid(le:pd.DataFrame, nui:int, getHB:bool) -> Tuple[float]:
-#     '''Extract transport properties from a legend. 
-#         le is the legend
-#         nui is the index of the viscosity
-#         getHB is true to get herschel-bulkley parameters
-#         used by extractTP'''
-#     nuj = nui
-#     while not le.loc[nuj,'title']=='rho' and nuj<len(le):
-#         nuj+=1
-#     rho = float(le.loc[nuj, 'val']) # kg/m^3
-#     nu = kinToDyn(float(le.loc[nui, 'val']), density=rho) # get the actual viscosity in Pa s
-#     if getHB:
-#         tau0 = kinToDyn(float(le.loc[nui+1, 'val']), density=rho)
-#         k = kinToDyn(float(le.loc[nui+2, 'val']), density=rho)
-#         n = float(le.loc[nui+3, 'val'])
-#     else:
-#         tau0 = 0
-#         k = 0
-#         n = 0
-#     return nu, tau0, k, n, rho
 
 def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
     '''extractTP gets the metadata for a folder
@@ -279,7 +264,7 @@ def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
         except:
             pass
     le['folder'] = folder
-        
+    le['bn'] = os.path.basename(folder)
     if u['ink_velocity'] == 'm/s':
         le['vink'] = 1000*le['ink_velocity']
         u['vink'] = 'mm/s'
@@ -339,11 +324,12 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
     
     tab = [extractTP(folder) for folder in flist]
     tab = pd.DataFrame(tab)
-    
+
     for k in tab.keys():
         if f'{k}_list' in kwargs:
-            l0 = expFormatList(kwargs[f'{k}_list'])
-            tab[k] = expFormatList(list(tab[k]))  # round floats
+#             print(k, kwargs[f'{k}_list'], list(tab[k]), list(tab['bn']))
+            tab[k], prec = expFormatList(list(tab[k]), returnPrecision=True)  # round floats
+            l0 = expFormatList(kwargs[f'{k}_list'], forceFormat=(prec>-20))
             tab = tab[tab[k].isin(l0)] # only take rows that are in the list
     flist2 = list(tab['folder'])
     try:
@@ -409,11 +395,14 @@ def findPos(l:List, v:Any) -> Any:
     if type(v) is float and not int(v)==v:
         # float. round both the list and the value to eliminate rounding errors
         formatted, prec = expFormatList(l, returnPrecision=True)
-        try:
-            vf = round(v, prec)
-        except:
-            traceback.print_exc()
-            pass
+        if prec>-20:
+            try:
+                vf = round(v, prec)
+            except:
+                traceback.print_exc()
+                pass
+        else:
+            vf = v
     else:
         formatted = l
         vf = v
@@ -487,7 +476,7 @@ class folderPlots:
         self.split = split
         self.plotsLists(**kwargs)
         
-    def convertFunc(self, var, normalize:bool=False):
+    def convertFunc(self, var, normalize:bool=False, byIndices:bool=True):
         '''Convert a variable name or expression, e.g. 'nuink' or 'nusup/nuink' into a lambda function to be used on transport properties dict'''
         strs = self.strings.copy()
         if 'sup' in strs:
@@ -499,13 +488,17 @@ class folderPlots:
                 # just one variable, can just pick the variable from transport properties
                 if normalize:
                     vals = self.tplists[f'{var}_list']
+                    vals.sort()
                     if len(vals)<2:
                         func = lambda tp: 1
                     else:
-                        maxval = max(vals)
-                        minval = min(vals)
-                        nvals = len(vals)
-                        func = lambda tp: (tpFunc(tp, var)-minval)/((maxval-minval)*((nvals+1)/nvals))
+                        if byIndices:
+                            func = lambda tp: vals.index(tpFunc(tp,var))/(len(vals))
+                        else:
+                            maxval = max(vals)
+                            minval = min(vals)
+                            nvals = len(vals)
+                            func = lambda tp: (tpFunc(tp, var)-minval)/((maxval-minval)*((nvals+1)/nvals))
                 else:
                     func = lambda tp: tpFunc(tp, var)
                 return func
@@ -801,6 +794,7 @@ class comboPlot(folderPlots):
         self.yr = yr
         self.dx = xr[1]-xr[0] # size of each plot chunk
         self.dy = yr[1]-yr[0]
+        self.legdy = 0
         self.xrtot = [xr[0], xr[0]+(len(self.xlist)+1)*self.dx] # total bounds of the whole plot
         self.yrtot = [yr[0], yr[0]+(len(self.ylist)+1)*self.dy]
         self.xmlist = [xr[0]+(i+1/2)*self.dx for i in range(len(self.xlist))] 
@@ -810,7 +804,10 @@ class comboPlot(folderPlots):
         # if split, make a row of 3 plots. If not split, make one plot
         
         self.imsize = imsize
-        fig, axs = plt.subplots(nrows=1, ncols=self.ncol, figsize=(imsize,imsize*len(self.ylist)/len(self.xlist)), sharey=True)
+        width = imsize
+        ar = (len(self.ymlist)*self.dy)/(len(self.xmlist)*self.dx)
+        height = width*ar
+        fig, axs = plt.subplots(nrows=1, ncols=self.ncol, figsize=(width,height), sharey=True)
         fig.subplots_adjust(wspace=0)
         
         if self.ncol==1:
@@ -830,7 +827,7 @@ class comboPlot(folderPlots):
         
     def addLegend(self):
         '''Add a surface tension legend'''
-        if not self.ncol==1 and not self.xvar=='nozzle_angle': # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
+        if self.ncol>1: # surface tension legend was not needed for conical nozzles bc only sigma=0 was used RG
             self.axs[0].legend(handles=self.plist, loc='upper center', ncol=4, bbox_to_anchor=(0.5, self.titley+0.1))
         
     def clean(self):
@@ -844,12 +841,14 @@ class comboPlot(folderPlots):
         # values produce filaments which curl up on the nozzle, so they don't produce cross-sections.
         # This step cuts out the space we set out for those folders that didn't end up in the final plot
         # if we were given adjustBounds=False during initialization, don't adjust the bounds
+        
         if self.ab:
-            self.xrtot = adjustBounds(self.indicesreal.x, self.xr, self.dx)
-            self.yrtot = adjustBounds(self.indicesreal.y, self.yr, self.dy)
+            self.xrtot = adjustBounds(self.indicesreal.x, self.xr, 0)
+            self.yrtot = adjustBounds(self.indicesreal.y, self.yr, self.legdy)
         else:
             self.xrtot[1] = self.xrtot[1]-self.dx
             self.yrtot[1] = self.yrtot[1]-self.dy
+            self.yrtot[0] = self.yrtot[0]/2+self.indicesreal.y.min()*self.dy
         
         # put x labels on all plots
         for ax in self.axs:
@@ -871,49 +870,36 @@ class comboPlot(folderPlots):
             # make each section of the plot square
             ax.set_aspect('equal', adjustable='box')
             
-            #emptyYLabels(ax)
             if len(self.xrtot)==2:
                 ax.set_xlim(self.xrtot) # set the limits to the whole bounds
             if len(self.yrtot)==2:
                 ax.set_ylim(self.yrtot)
-
+                
+            
         if self.ncol>1:
             sigmalist = self.tplists['sigma_list']
             for i in range(len(sigmalist)):
                 self.axs[i].set_title('\u03C3='+str(sigmalist[i])+' mJ/m$^2$', fontname="Arial", fontsize=10)
 
-        self.axs[0].set_ylabel(self.getLabel('y', False), fontname="Arial", fontsize=10)
-        
-        yticklabels = expFormatList(self.ylist)
-        self.axs[0].set_yticklabels(yticklabels, fontname="Arial", fontsize=10)
+        if len(self.ylistreal)<2: # since there is only one variable, remove y information RG
+            for ax in self.axs:
+                ax.set_ylabel("")
+                ax.set_yticks([])
+        else:
+            self.axs[0].set_ylabel(self.getLabel('y', False), fontname="Arial", fontsize=10)
+            yticklabels = expFormatList(self.ylist)
+            self.axs[0].set_yticklabels(yticklabels, fontname="Arial", fontsize=10)
+            
+        self.titley = 1
+        self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
         
         if self.ab:
             # reset the figure size so the title is in the right place
             if len(self.xlistreal)>0 and len(self.ylistreal)>0:
-                nx = self.indicesreal.x.max()-self.indicesreal.x.min() + 1
-                ny = self.indicesreal.y.max()-self.indicesreal.y.min() + 1
                 width = self.imsize
-                height = width*(ny)/(nx*len(self.axs))
-                self.fig.set_size_inches(width,h=height)
-       
-        # set position of titley
-#         ylim = self.axs[0].get_ylim()
-#         if ylim[1]-ylim[0]>2.5:
-#             self.titley = 1.1
-#         elif ylim[1]-ylim[0]>1.3:
-#             self.titley = 0.9
-#         else:
-#             self.titley = 0.8
-        self.titley = 1
-        self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
+                height = width*(self.yrtot[1]-self.yrtot[0])/(self.xrtot[1]-self.xrtot[0])
+                self.fig.set_size_inches(width,h=height, forward=True)
 
-        if len(self.ylistreal)<2: # since there is only one variable, remove y information RG
-            ax.set_ylabel("")
-            ax.set_yticks([])
-#             ax.set_xticklabels(self.xlist, fontname="Arial", fontsize=10) # 10 degree angle should not be 10^1
-
-#         self.fig.tight_layout()
-        
         return
     
 #---------------------------------------
@@ -936,18 +922,22 @@ def addDots(ax:plt.Axes, xlist:List[float], ylist:List[float]):
 
 
 # def adjustBounds(xlistreal:List[float], xr:List[float], xlist:List[float], dx:float):
-def adjustBounds(indices:List[int], xr:List[float], dx:float):
+def adjustBounds(indices:List[int], xr:List[float], legdy:float):
     '''adjust the bounds of the plot.
     indices is a list of indices which were included in the plot
     xr is the [min, max] position of each segment, e.g. [-0.7, 0.7]
-    dx is the block size'''
+    legdy is the block height for the legend'''
     if len(indices)>0:
         pos1 = min(indices)
         pos2 = max(indices)
         dx = (xr[1]-xr[0])
-        xrtot = [xr[0]+pos1*dx, xr[0]+pos2*dx+dx]
+        if legdy>0:
+            x0 = pos1-legdy/2
+        else:
+            x0 = xr[0]+pos1*dx
+        xrtot = [x0, xr[0]+pos2*dx+dx]
     else:
-        xrtot = [-dx/2, dx/2]
+        xrtot = xr
     return xrtot
 
 def emptyYLabels(ax:plt.Axes):
@@ -987,6 +977,24 @@ def plotCircle(ax:plt.Axes, x0:float, y0:float, radius:float, caption:str, color
             
 def setSquare(ax):         
     ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
+    
+def multiPlots(nvars:int, imsize:float=6.5, sharey:bool=False, sharex:bool=False):
+    '''set up a plot, given nvars number of plots'''
+    if sharey:
+        minw = 6.5/4 # plots for a full width image
+    else:
+        minw = 6.5/3 # plots for a full width image
+        
+    cols = int(np.floor(imsize/minw))
+    rows = int(np.ceil(nvars/cols))
+
+    fig, axs = plt.subplots(rows, cols, sharex=sharex, sharey=sharey, figsize=(imsize, imsize*rows/cols))
+    if rows==1:
+        if cols>1:
+            axs = np.array([axs])
+        else:
+            axs = np.array([[axs]])
+    return fig,axs
             
             
 #--------------------------------------

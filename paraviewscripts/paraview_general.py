@@ -35,6 +35,34 @@ __status__ = "Production"
 
 #################################################################
 
+def isNum(s:str) -> bool:
+    '''check if the character is a number'''
+    if s in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+        return True
+    else:
+        return False
+
+def simNum(f:str) -> int:
+    '''extract the simulation number from the folder'''
+    i = 0
+    while i<len(f) and not isNum(f[i]):
+        i+=1
+    j = i
+    while j<len(f) and isNum(f[j]):
+        j+=1
+    return int(f[i:j])
+
+
+def filterSimNums(topfolders:List[str], nlist:List[int]) -> List[str]:
+    '''get a list of folders that have sim numbers in the list'''
+    folders = []
+    for topfolder in topfolders:
+        for f in fp.caseFolders(topfolder):
+            if simNum(os.path.basename(f)) in nlist:
+                folders.append(f)
+    return folders
+
+
 class stateVars():
     '''This object holds important information about the folder and paraview objects that are used across functions'''
     
@@ -124,8 +152,25 @@ def mksubdirs(folder:str) -> None:
     # fp.mkdirif(os.path.join(folder, 'interfacePoints'))
     os.makedirs(os.path.join(folder, 'images'), exist_ok = True)
     os.makedirs(os.path.join(folder, 'interfacePoints'), exist_ok = True)
-    os.makedirs(os.path.join(folder, 'nozzlePoints'), exist_ok = True) # RG
+    os.makedirs(os.path.join(folder, 'nozzleSlicePoints'), exist_ok = True) # RG
 
+def stressFunc(le:dict) -> str:
+    '''get the stress function from the legend dictionary'''
+    ink_rho = le['ink_rho']
+    sup_rho = le['sup_rho']
+    if le['ink_transportModel']=='Newtonian':
+        nuink = float(le['ink_nu'])
+        if le['sup_transportModel']=='Newtonian':
+            nusup = float(le['sup_nu'])
+            return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
+        else:
+            return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
+    else:
+        if le['sup_transportModel']=='Newtonian':
+            nusup = float(le['sup_nu'])
+            return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
+        else:
+            return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
 
 
         

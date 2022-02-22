@@ -78,21 +78,22 @@ def picPlot(folder:str, cp:comboPlot, t:float, dx:float, crops, tag:str='y_umag'
     try:
         im = picFromFolder(folder, t, tag=tag)
         width, height = im.size 
-        im = im.crop((int(crops['cropxl']*width), int(height*crops['cropyb']), int(width*crops['cropxr']), int(height*crops['cropyt'])))
+        im = im.crop((int(crops['cropxl']*width), int(height*crops['cropyt']), int(width*crops['cropxr']), int(height*crops['cropyb']))) # left, top, right, bottom
         width, height = im.size 
-    except:
-        return
+    except Exception as e:
+        return 0,0
     ar = height/width
     dy = dx*ar
     try:
         color, x0, y0, sigmapos = vvplot(folder, cp)
     except Exception as e:
-        return
-    
-    cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2])
+        return dx,dy
+
+    cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2], aspect='auto')
+    return dx,dy
         
 
-def picPlotLegend(folder:str, cp:comboPlot, t:float, tag:str):
+def picPlotLegend(folder:str, cp:comboPlot, t:float, imdy:float, crops:dict, tag:str):
     '''Crops the legend from the image and puts it on the plot.
     folder is a full path name
     cp holds the plot
@@ -100,23 +101,24 @@ def picPlotLegend(folder:str, cp:comboPlot, t:float, tag:str):
     try:
         im = picFromFolder(folder, t, tag=tag)
         im = im.crop((im.size[0]*0.1, im.size[0]*0.9, im.size[1]*0.9, im.size[1])) # RG
-    except:
+    except Exception as e:
         return
 
-    dx = cp.dx*2 # image size RG
-    x0 = (max(cp.xmlist)+min(cp.xmlist))/2
-    y0 = min(cp.ymlist)-cp.dy/2
-    # dx = cp.dx
-    width, height = im.size 
+    dx = (max(cp.xmlist)-min(cp.xmlist))+cp.dx*0.9 # width in plot space
+    width, height = im.size              # height in px
+    dy = dx/(width/height)               # height in plot space
+    
+    x0 = (max(cp.xmlist)+min(cp.xmlist))/2 # x midpoint
+    y0 = min(cp.ymlist)-imdy/2-dy/2-0.1    # y midpoint
+    y0ind = y0/cp.dy       # index of y midpoint
+    
+    cp.legdy = dy
 
-    dy = dx*(height/width)
-#     x0 = cp.xmlist[-1]/2 # center the legend RG
-#     y0 = -0.55 # put the legend at the bottom of the plot RG
-    cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2])
-    cp.indicesreal = cp.indicesreal.append({'x':0, 'y':-0.25}, ignore_index=True)
+    cp.axs[0].imshow(im, extent=[x0-dx/2, x0+dx/2, y0-dy/2, y0+dy/2], aspect='auto')
+    cp.indicesreal = cp.indicesreal.append({'x':0, 'y':y0ind}, ignore_index=True)
 
 
-def picPlots(folderList:List[str], cp:comboPlot, t:float, dx:float, crops:dict, tag:str='y_umag',**kwargs) -> None:
+def picPlots(folderList:List[str], cp:comboPlot, t:float, dx:float, crops:dict, tag:str='y_umag', legend:bool=True, **kwargs) -> None:
     '''plot all pictures for simulations in a folder
     folderList is a list of paths
     cp holds the plot
@@ -125,14 +127,45 @@ def picPlots(folderList:List[str], cp:comboPlot, t:float, dx:float, crops:dict, 
     cropx is the size to crop from the left and right edges of the piture in px
     cropy is the size to crop from top and bottom in px
     tag is the name of the image type, e.g. 'y_umag'. Used to find images. '''
+    imdy0 = 0
     for folder in folderList:
-        picPlot(folder, cp, t, dx, crops, tag=tag, **kwargs)
+        imdx, imdy = picPlot(folder, cp, t, dx, crops, tag=tag, **kwargs)
+        if not imdy==0:
+            imdy0 = imdy
     cp.figtitle = f't = {t} s'
-    picPlotLegend(folderList[0], cp, t, tag=tag)
+    if legend:
+        picPlotLegend(folderList[0], cp, t, imdy0, crops, tag=tag)
     cp.clean()
 
+def picCrops(tag:str, **kwargs) -> dict:
+    '''get the crop range as a percentage of the image size. cropxl is crop size from left side, cropxr is on right side measured from the left, cropyt is on top measured from top, cropyb is from bottom
+    xl = left
+    yb = bottom
+    xr = right
+    yt = top
+    '''
+    if 'crops' in kwargs:
+        crops = kwargs['crops']
+    else:
+        if tag=='y_shearStressy' or tag=='y_viscy':
+            crops = {'cropxl':60/1216, 'cropxr':(1216-600)/1216, 'cropyb':(1216-120)/1216, 'cropyt':240/1216}
+        elif tag=='a_stre':
+            crops = {'cropxl':600/1216, 'cropxr':(1216-300)/1216, 'cropyb':(550)/1216, 'cropyt':240/1216}
+        else:
+            if tag.startswith('y'):
+                cropx = 60/1216 # RG
+                cropy = 240/1216
+            elif tag.startswith('x'):
+                cropx = 350/1216 # RG
+                cropy = 375/1216
+            else:
+                cropx = 100/1216
+                cropy = 120/1216
+            crops = {'cropxl':cropx, 'cropxr':1-cropx, 'cropyt':1-cropy, 'cropyb':cropy}
+    return crops
+    
 
-def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str='y_umag', overwrite:bool=False, **kwargs) -> None:
+def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str='y_umag', overwrite:bool=False, imsize:float=6.5, **kwargs) -> None:
     '''plot all pictures for simulations in a folder, but use automatic settings for cropping and spacing and export the result
     topFolder is the folder that holds the simulations
     exportFolder is the folder to export the images to
@@ -152,24 +185,20 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
         return
     
     
-    if tag=='y_shearStressy' or tag=='y_viscy':
-        crops = {'cropxl':60/1216, 'cropxr':(1216-600)/1216, 'cropyt':(1216-120)/1216, 'cropyb':240/1216}
+    crops = picCrops(tag, **kwargs)
+    if 'crops' in kwargs:
+        kwargs.pop('crops')
+
+    ar = (crops['cropyb']-crops['cropyt'])/(crops['cropxr']-crops['cropxl'])
+    if ar>1:
+        dy = 0.5
+        dx = dy/ar
     else:
-        if tag.startswith('y'):
-            cropx = 60/1216 # RG
-            cropy = 240/1216
-        elif tag.startswith('x'):
-            cropx = 350/1216 # RG
-            cropy = 375/1216
-        else:
-            cropx = 100/1216
-            cropy = 120/1216
-        crops = {'cropxl':cropx, 'cropxr':1-cropx, 'cropyt':1-cropy, 'cropyb':cropy}
-        
-    dx = 0.5
-    ar = (crops['cropyt']-crops['cropyb'])/(crops['cropxr']-crops['cropxl'])
-    cp = comboPlot(topFolder, [-dx, dx], [-dx*ar, dx*ar], 6.5, gridlines=False, sigmalist=[sigma], **kwargs)
+        dx = 0.5
+        dy = dx*ar
+    cp = comboPlot(topFolder, [-dx, dx], [-dy, dy], imsize, gridlines=False, sigmalist=[sigma], **kwargs)
     dx = dx*2
+
     if len(cp.flist)==0:
         return
     cp.legendList()

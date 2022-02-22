@@ -89,6 +89,13 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
         return
 #     xlist = list(xs['y']+x0)
 #     ylist = list(xs['z']+y0)
+    if xs.z.max()>cp.dy/2:
+        # xs is going to fall outside of the plot bounds
+        xind = cp.xmlist.index(x0)
+        yind = cp.ymlist.index(y0)
+        zout = (xs.z.max()-(cp.dy/2))/cp.dy + cp.dy/10
+        cp.indicesreal = cp.indicesreal.append({'x':xind, 'y':yind+zout}, ignore_index=True)
+
     xs['y'] = xs['y']+x0
     xs['z'] = xs['z']+y0
     try:
@@ -124,8 +131,7 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     
     for pts in [leftpts, toppts, botpts, rightpts]:
         ax.plot(pts['y'], pts['z'], color=color, linewidth=1, marker=None)
-    
-    
+
 #     ax.scatter(xlist, ylist, color=color, s=0.01, marker='.', facecolor=color, edgecolor=None, rasterized=True)
     ax.arrow(x0, y0, xmid-x0, ymid-y0,  head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
     
@@ -169,7 +175,11 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:
     if not overwrite and os.path.exists(fn+'.png'):
         return
 
-    cp = comboPlot(topFolder, [-dx, dx], [-dx, dx], 6.5, **kwargs)
+    if 'dy' in kwargs:
+        dy = kwargs['dy']
+    else:
+        dy = dx
+    cp = comboPlot(topFolder, [-dx, dx], [-dy, dy], 6.5, **kwargs)
     
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
     le0 = fp.legendUnique(cp.flist[0]) # use first file as reference dimensions
