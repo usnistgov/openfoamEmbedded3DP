@@ -99,7 +99,7 @@ class stateVars():
             self.supfunc = 'supnu'
             self.supnu = le['sup_nu']
         else:
-            self.supfunc = 'nu1'
+            self.supfunc = 'nu2'
             self.supnu = le['sup_nu0']
 
 

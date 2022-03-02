@@ -69,9 +69,9 @@ def get_time(filename:str) -> float:
 
 def saveVid(folder:str, s:str, p:str, diag:bool=True) -> None:
     '''compile images into a video, where images contain the string {s}_{p}.png'''
-    zfiles = glob.glob(os.path.join(folder,'images', '*'+s+'_'+p+'.png'))
+    zfiles = glob.glob(os.path.join(folder,'images', f'*{s}_{p}.png'))
     if len(zfiles)>0:
-        fn = os.path.join(folder,'images',  s+'_'+p+'.mp4')
+        fn = os.path.join(folder,'images',  f'{s}_{p}.mp4')
         if os.path.exists(fn):
             fnlength = get_length(fn)
             times = [get_time(f) for f in zfiles]

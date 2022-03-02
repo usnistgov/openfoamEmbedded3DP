@@ -368,20 +368,22 @@ def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float
     
 def stressInPlane(df0:pd.DataFrame) -> float:
     '''get the average shear stress in the plane, where df0 holds points in the plane'''
+    errorRet = -1
     if len(df0)==0:
-        return
-    
-    weightedsum = 0
-    weight = 0
-    
-    # remove outliers
+        return errorRet
     
     if not 'shearstressmag' in df0:
         raise ValueError('No shearstressmag in table')
     
-    df0 = intm.removeOutliers(df0, 'shearstressmag', sigma=6)
+    weightedsum = 0
+    weight = 0
+
+    df0 = intm.removeOutliers(df0, 'shearstressmag', sigma=6) # remove outliers
     
     rbarlist = list(df0.rbar.unique())
+    if len(rbarlist)<2:
+        return errorRet # not enough points in ring. return
+    
     rbarlist.sort()
     dr = rbarlist[1]-rbarlist[0]
     for rbar in rbarlist:
@@ -438,7 +440,7 @@ def shearStressCalcSlice(folder:str, time:float, zunits:str) -> Tuple[List[float
         df0 = df[df.z==zi]
         if len(df0)>0:
             sip = stressInPlane(df0)
-            if len(stresslist)==0 or sip<10*stresslist[-1]: # filter out spikes
+            if sip>0 and (len(stresslist)==0 or sip<10*stresslist[-1]): # filter out spikes
                 stresslist.append(sip)
                 zlist.append(zi)
     
@@ -525,7 +527,7 @@ def getDataWithinNozzle(yvar:str, row:pd.Series, time:float, zunits:str, zabove:
     return theta, li, zstress, xlist, ylist
 
 
-def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, cvar:str, yvar:str, cm, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=True, zstress:List=[], **kwargs) -> None:
+def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, cvar:str, yvar:str, cm, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=False, zstress:List=[], **kwargs) -> None:
     '''get data and plot it for a single folder'''
     xlist = []
     if len(zstress)==0:
@@ -534,6 +536,8 @@ def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, cvar:
         theta, li, xlist, ylist = getListsFromTrace(row, zstress, xvar, yvar, cvar)
 
     if len(xlist)==0:
+        folder = row['folder']
+        logging.warning(f'No data collected in {folder}')
         return zstress
     
     # set color label
@@ -588,7 +592,7 @@ def labelNozAxs(ax, yvar:str, zunits:str, xvar:str, zabove:float, time:float, le
         ax.legend(loc='lower left', bbox_to_anchor=(0,1))
         
 
-def withinNozzle(folders:List[str], time:float, zabove:float, axs, cvar:str, yvars:str, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=True,  **kwargs) -> None:
+def withinNozzle(folders:List[str], time:float, zabove:float, axs, cvar:str, yvars:str, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=False,  **kwargs) -> None:
     '''plot a line trace of value yvar across the nozzle as a function of xvar at position zabove relative to the bottom of the nozzle in zunits and time time, on axis ax, coloring the lines by variable cvar
     volume=True to use points from the whole nozzle volume, False to use only a slice at y=0
     '''
@@ -602,6 +606,7 @@ def withinNozzle(folders:List[str], time:float, zabove:float, axs, cvar:str, yva
     tplist = pd.DataFrame([extractTP(folder) for folder in folders])
     tplist.sort_values(by=cvar, inplace=True)
     tplist.reset_index(drop=True, inplace=True)
+    tplist[cvar] = expFormatList(tplist[cvar])
     maxy = 0
     
     for i,row in tplist.iterrows():

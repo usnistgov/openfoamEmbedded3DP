@@ -115,7 +115,7 @@ def txtPlot(folder:str, cp:folderPlots, dt:float) -> None:
     cp.axs[axnum].text(xmid, ymid, b, horizontalalignment='center', verticalalignment='center', c=color) # put the folder name on the plot
    
     
-def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -> None:
+def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, export:bool=False, **kwargs) -> None:
     '''write names of a list of folders on one big plot
     topFolder is the folder that holds all of the folders
     exportFolder is the folder to export the figure to
@@ -136,8 +136,9 @@ def txtPlots0(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
         txtPlot(folder, cp, dt)
     cp.figtitle = 'Folder names'
     cp.clean()
-    intm.exportIm(fn, cp.fig, **kwargs)
-    return cp.fig
+    if export:
+        intm.exportIm(fn, cp.fig, **kwargs)
+    return
 
 #------------------------------------------   
 # run time plot: how long the simulation ran in simulation seconds
@@ -405,7 +406,7 @@ def summaryTable(topfolders:str, time:float, xbehind:float, exportFolder:str, fi
     return tt,u
 
 
-def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bool=False) -> Dict:
+def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bool=False, xunits:str='mm') -> Dict:
     '''Find the value of slice summary metrics for a single simulation.
     folder is the full path name to a simulation folder
     time is the time of the slice
@@ -419,8 +420,16 @@ def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bo
     if len(ss)<2:
         raise ValueError(f"Slice summaries too short: {folder}")
         
+    ss = ss[ss['time']==time]
+    
+    if len(ss)<2:
+        raise ValueError(f"Slice summaries too short: {folder}")
+        
     try:
-        xreal = intm.closest(list(ss['xbehind'].unique()), xbehind) 
+        if not xunits=='mm':
+            le = fp.legendUnique(folder)
+            xbehind = round(xbehind*float(le[xunits]), 5) # convert xbehind to mm
+        xreal = intm.closest(list(ss['xbehind'].unique()), xbehind)
         # this is the actual x value that we measured that's 
         # closest to the one we're asking for
     except Exception as e:
@@ -546,12 +555,10 @@ def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', xvar:st
             setSquare(ax)
             
     for ax in axs[-1]:
-        if xvar=='nozzle_angle':
-            ax.set_xlabel('Nozzle angle ($\degree$)')
-        elif 'xvarlabel' in kwargs:
+        if 'xvarlabel' in kwargs:
             ax.set_xlabel(kwargs['xvarlabel'])
         else:
-            ax.set_xlabel(xvar)
+            ax.set_xlabel(varNickname(xvar))
     return fig
 
     
@@ -579,10 +586,10 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
     for folder in folders:
         meta, u = extractTP(folder, units=True)
         d = {xvar:meta[xvar]}
-        kwargs['xvarlabel'] = xvar.replace('_', ' ') + f' ({u[xvar]})'
+        kwargs['xvarlabel'] = varNickname(s) + f' ({u[xvar]})'
         if cvar in meta:
             d[cvar] = meta[cvar]
-            kwargs['cvarlabel'] = cvar.replace('_', ' ') + f' ({u[cvar]})'
+            kwargs['cvarlabel'] = varNickname(s) + f' ({u[cvar]})'
         try:
             value = metricVals(folder, time, xbehind, labels, units=False)
         except Exception as e:
@@ -594,5 +601,69 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
     fig = qualityPlots(pd.DataFrame(xlist), time, xbehind, cvar=cvar, xvar=xvar, **kwargs)
 
     intm.exportIm(fn, fig) # export figure
-
     
+    
+#------------------------------------------------
+
+def viscRatioPlot(folders:str, time:float, xbehind:float, xunits:str='mm', xvar:str='viscRatio', yvar:str='aspectratio', cvar:str='', fontsize:int=8, **kwargs) -> None:
+    '''plot viscosity ratio vs. metrics'''
+    
+    dlist = []
+    for f in folders:
+        try:
+            d = metricVals(f, time, xbehind, [yvar], xunits=xunits) # get the metric value
+        except Exception as e:
+            pass
+        else:
+            vr = intm.viscRatio(f)   # get the viscosity ratio
+            d = {**d, **vr}
+            if not cvar=='':
+                le, u = extractTP(f, units=True)
+                d['cvar'] = float(le[cvar])  # get the color
+            else:
+                d['cvar'] = 0
+            dlist.append(d)   # save these values to list
+    df = pd.DataFrame(dlist)
+    
+    if len(df)==0:
+        return
+    
+    if 'figsize' in kwargs:
+        figsize = kwargs['figsize']
+    else:
+        figsize = (3,3)
+    plt.rc('font', size=fontsize) 
+    fig,ax = plt.subplots(1,1, figsize=figsize)
+    
+    if not cvar=='':
+        clist = list(df['cvar'].unique())
+        cm = sns.color_palette('viridis', n_colors=len(clist))
+        clist.sort()
+        for j,cval in enumerate(clist):
+            dfi = df[df['cvar']==cval]
+            ax.scatter(dfi[xvar], dfi[yvar], color=cm[j], label=cval)
+        ax.legend(title=varNickname(cvar, short=True, units=u))
+    else:
+        ax.scatter(df[xvar], df[yvar])
+        
+    setSquare(ax)
+    ax.set_xlabel(varNickname(xvar, short=False, units=u))
+    ax.set_ylabel(varNickname(yvar, short=False, units=u))
+    return fig
+    
+def viscRatioPlot0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:str='mm', xvar:str='viscRatio', yvar:str='aspectratio', overwrite:bool=False, export:bool=False, cvar:str='', **kwargs) -> None:
+    
+    fn = intm.imFn(exportFolder, [yvar, xvar], topFolder, **kwargs) # output file name
+    if export and (not overwrite and os.path.exists(fn+'.png')):
+        return
+    
+    folders = fp.caseFolders(topFolder) # names of folders to plot
+    if len(folders)==0:
+        logging.warning('No folders found')
+        return
+    folders, _ = listTPvalues(folders, **kwargs) # list of transport property lists
+    
+    fig = viscRatioPlot(folders, time, xbehind, xvar=xvar, xunits=xunits, yvar=yvar, cvar=cvar, **kwargs)
+    
+    if export:
+        intm.exportIm(fn, fig) # export figure

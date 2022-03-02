@@ -139,13 +139,23 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
 def XSPlotIdeal(cp:comboPlot, le:dict) -> None:
     '''this plots an ideal cross-section on the cross-section plot
     fs is a dictionary holding metadata, from legendUnique'''
-    xind = int(cp.indicesreal.x.min())
-    x0 = cp.xmlist[xind]
-    yind = int(cp.indicesreal[cp.indicesreal.x==xind].y.max())
-    y0 = cp.ymlist[yind]+cp.dy
+    if len(cp.ylistreal)==1:
+        # put to the left
+        xind = int(cp.indicesreal.x.min())
+        x0 = cp.xmlist[xind]-cp.dx
+        xind = xind-1
+        yind = int(cp.indicesreal.y.max())
+        y0 = cp.ymlist[yind]
+    else:
+        # put above
+        xind = int(cp.indicesreal.x.min())
+        x0 = cp.xmlist[xind]
+        yind = int(cp.indicesreal[cp.indicesreal.x==xind].y.max())
+        y0 = cp.ymlist[yind]+cp.dy
+        yind = yind+1
     color='Black'
     plotCircle(cp.axs[0], x0, y0, float(le['nozzle_inner_width'])/2, 'Ideal', color)
-    cp.indicesreal = cp.indicesreal.append({'x':xind, 'y':yind+1}, ignore_index=True)
+    cp.indicesreal = cp.indicesreal.append({'x':xind, 'y':yind}, ignore_index=True)
 
 
 def XSPlotf(folder:str, time:float, xbehind:float, cp:comboPlot, xunits:str='mm', ref:dict={'nozzle_inner_width':0, 'ink_velocity':0, 'bath_velocity':0}) -> None:
@@ -179,7 +189,12 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:
         dy = kwargs['dy']
     else:
         dy = dx
-    cp = comboPlot(topFolder, [-dx, dx], [-dy, dy], 6.5, **kwargs)
+    if 'imsize' in kwargs:
+        imsize = kwargs['imsize']
+        kwargs.pop('imsize')
+    else:
+        imsize = 6.5
+    cp = comboPlot(topFolder, [-dx, dx], [-dy, dy], imsize, **kwargs)
     
     (cp.flist).sort(key=lambda folder:extractTP(folder)['sigma']) # sort folders by sigma value so they are stacked in the right order
     le0 = fp.legendUnique(cp.flist[0]) # use first file as reference dimensions

@@ -46,6 +46,59 @@ __status__ = "Production"
 
 #-------------------------------------------
 
+def varNickname(s:str, short:bool=False, units:dict={}) -> str:
+    '''get a name to display for the variable'''
+    if s=='nozzle_angle':
+        if short:
+            var= '$\\theta$'
+        else:
+            var = 'Nozzle angle'
+    elif s=='viscRatio':
+        if short:
+            var = '$\eta_{ink}/\eta_{sup}$'
+        else:
+            var = 'Ink viscosity/support viscosity'
+    elif s=='ReRatio':
+        var = '$Re_{ink}/Re_{sup}$'
+    elif s=='aspectratio':
+        if short:
+            var = 'h/w'
+        else:
+            var = 'Height/width'
+    elif s=='speeddecay':
+        var = 'Speed/intended'
+    elif s=='vertdispn':
+        if short:
+            var = 'Pos/intended'
+        else:
+            var = 'Bottom position/intended'
+    elif s=='arean':
+        var = 'Area/intended'
+    elif s=='nuink':
+        if short:
+            var = '$\eta_{ink}$'
+        else:
+            var = 'Ink viscosity'
+    elif s=='nusup':
+        if short:
+            var = '$\eta_{sup}$'
+        else:
+            var = 'Support viscosity'
+    elif s=='nozzle_inner_width':
+        if short:
+            var = '$d_i$'
+        else:
+            var = 'Inner diameter'
+    else:
+        var = s.replace('_', ' ')
+        
+    # final output
+    if s in units:
+        unit = units[s]
+        unit = unit.replace(' degrees', '$\degree$')
+        return f'{var} ({unit})'
+    else:
+        return var
 
 # formatting units
 
@@ -100,11 +153,12 @@ def decideFormat(x:float) -> Tuple[Union[float, str], bool]:
         return expFormat(x),True
 
 
-def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:bool=False) -> List[Any]:
+def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:bool=False, useExp:bool=True) -> List[Any]:
     '''put the whole list in exponential or appropriate format'''
     xout = []
-    useExp = True
+    xlist = list(xlist)
     if len(xlist)<2 and not forceFormat:
+        # only one element in list, don't format it
         if returnPrecision:
             return xlist, -1000   # not formatted
         else:
@@ -120,8 +174,11 @@ def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:boo
         ints = True
         i = 0
         while i<len(xlist) and ints:
-            if not round(xlist[i])==xlist[i]:
-                ints=False
+            try:
+                if not round(xlist[i])==xlist[i]:
+                    ints=False
+            except:
+                return xlist, -1000 # not a number, return list
             i+=1
         if ints:
             prec = 0

@@ -39,10 +39,16 @@ def initializeAll(folder:str, constDir:str, pos:float):
     print(' Initializing paraview ')
     sv = stateVars(folder)        # make subdirectories
     sv =  initializeP(sv)        # initialize Paraview
+    le = fp.legendUnique(folder)
+
     if constDir=='x':
-        sv = initSeries(sv, x0=pos, xf=pos)        # import the vtk series files  
+        btc = float(le['bath_top_coord'])/1000 * 0.97
+        bbc = float(le['bath_bottom_coord'])/1000 * 0.97
+        sv = initSeries(sv, x0=pos, xf=pos, z0=btc, zf=bbc)       # import the vtk series files  
     elif constDir=='z':
-        sv = initSeries(sv, z0=pos, zf=pos)
+        blc = float(le['bath_left_coord'])/1000 * 0.97
+        brc = float(le['bath_right_coord'])/1000 * 0.97
+        sv = initSeries(sv, x0=blc, xf=brc, z0=pos, zf=pos)
     return sv
 
 
@@ -106,9 +112,10 @@ def exportEmpty(file:str) -> None:
         writer.writerow(['time', 'vx', 'vy', 'vz', 'alpha', 'p', 'rAU', 'vtkValidPointMask', 'arc_length', 'x', 'y', 'z'])
         writer.writerow(['s', 'm/s', 'm/s', 'm/s', '', 'kg/(m*s^2)', 'm^3*s/kg', '', 'm', 'm', 'm', 'm'])
         
-def convertToRelative(x:float) -> float:
+def convertToRelative(x:float, folder:str) -> float:
     '''convert an absolute x position in m to its position relative to the nozzle in mm'''
-    return x*1000+2.412
+    le = fp.legendUnique(folder)
+    return x*1000+float(le['nozzle_center_x_coord'])
 
 def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
     '''Export line trace for the folder. 
@@ -122,17 +129,20 @@ def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverw
         if len(times)>0:
             for time in tlist:
                 if time in times:
-                    if constDir=='x':
-                        xstr = '{:.1f}'.format(convertToRelative(pos))
-                    else:
-                        xstr = '{:.1f}'.format(1000*pos)
+                    # if constDir=='x':
+                    #     xstr = '{:.1f}'.format(convertToRelative(pos, folder))
+                    # else:
+                    #     xstr = '{:.1f}'.format(1000*pos)
+                    xstr = '{:.1f}'.format(pos)
                     tstr = str(int(round(time*10)))
-                    ipfile = os.path.join(folder, f"line_t_{tstr}_{constDir}_{xstr}.csv")
+                    ipfile = os.path.join(folder, f"line_t_{tstr}_{constDir}_{xstr}_di.csv")
                         # this is the file that all points for this time will be saved in
                     if not os.path.exists(ipfile) or forceOverwrite: 
                         # only run this if the file hasn't been created already or we're being forced to
                         if not initialized: # if paraview hasn't already been initialized, initialize it
-                            sv = initializeAll(folder, constDir, pos)
+                            le = fp.legendUnique(folder)
+                            posabs = (float(le['nozzle_center_x_coord']) + pos*float(le['nozzle_inner_width']))/1000
+                            sv = initializeAll(folder, constDir, posabs)
                             sv.times = times
                             initialized = True
                         setTime(time, sv) 

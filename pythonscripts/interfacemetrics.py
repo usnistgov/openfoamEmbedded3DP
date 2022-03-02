@@ -105,9 +105,13 @@ def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[An
         return d,units
     
 
-def importLine(folder:str, time:float, x:float=1.5, **kwargs) -> pd.DataFrame:
+def importLine(folder:str, time:float, x:float=1.4, xunits:str='mm', **kwargs) -> pd.DataFrame:
     '''import a csv of a line trace pulled from ParaView. time and x are the time and position the line trace are taken at'''
-    file = os.path.join(folder, f'line_t_{int(round(time*10))}_x_{x}.csv')
+    if xunits=='mm':
+        file = os.path.join(folder, f'line_t_{int(round(time*10))}_x_{x}.csv')
+    else:
+        xform = '{:.1f}'.format(x)
+        file = os.path.join(folder, f'line_t_{int(round(time*10))}_x_{xform}_di.csv')
     try:
         data, units = importPointsFile(file) 
     except:
@@ -194,9 +198,61 @@ def removeOutliers(df:pd.DataFrame, col:str, sigma:int=3) -> pd.DataFrame:
     med = df[col].median()
     stdev = df[col].std()
     return df[(df[col]>med-sigma*stdev)&(df[col]<med+sigma*stdev)]
-    
-    
 
+def localVisc(le:dict, u:dict, fluid:str, **kwargs) -> float:
+    '''get the local viscosity of a single fluid'''
+    out = {}
+    tm = le[f'{fluid}_transportModel']
+
+    rho = float(le[f'{fluid}_rho'])
+    out[f'{fluid}_rho'] = rho
+    
+    if fluid=='ink':
+        vstr = 'ink_velocity'
+        if 'di' in kwargs:
+            d = kwargs['di']
+        else:
+            d = float(le['nozzle_inner_width'])
+    else:
+        vstr = 'bath_velocity'
+        if 'do' in kwargs:
+            d = kwargs['do']
+        else:
+            d = float(le['nozzle_inner_width']) + 2*float(le['nozzle_thickness'])
+    v = float(le[vstr])
+    if u[vstr]=='m/s' and u['nozzle_inner_width']=='mm':
+        v = v*1000 # convert to mm/s
+    
+    if tm=='Newtonian':
+        out[f'{fluid}_visc'] = float(le[f'{fluid}_nu'])*rho # dynamic viscosity
+        
+    else:
+        # Herschel-Bulkley
+        nu0 = float(le[f'{fluid}_nu0'])*rho   # dynamic plateau viscosity
+        tau0 = float(le[f'{fluid}_tau0'])*rho # yield stress
+        k = float(le[f'{fluid}_k'])*rho       # consistency index
+        n = float(le[f'{fluid}_n'])           # power law index
+        
+        gdot = v/d # shear rate in 1/s
+        out[f'{fluid}_gdot'] = gdot
+        visc = min([nu0, tau0/gdot+k*gdot**(n-1)]) # HB equation
+        out[f'{fluid}_visc'] = visc
+    
+    # reynolds number
+    out[f'{fluid}_Re'] = (rho*(v/1000)*(d/1000))/out[f'{fluid}_visc']
+    return out
+
+def viscRatio(folder:str, **kwargs) -> float:
+    '''get the local viscosity ratio at the nozzle outlet'''
+    
+    le, u = fp.legendUnique(folder, units=True)
+    nuink = localVisc(le, u, 'ink', **kwargs)
+    nusup = localVisc(le, u, 'sup', **kwargs)
+    viscratio = {'folder':folder
+                 , 'viscRatio':nuink['ink_visc']/nusup['sup_visc']
+                , 'ReRatio':nuink['ink_Re']/nusup['sup_Re']}
+    return {**nuink, **nusup, **viscratio}
+    
 
 def importPtsSlice(folder:str, time:float, xbehind:float, xunits:str='mm') -> Union[pd.DataFrame, List[Any]]:
     '''import points just from one slice. folder is full path name, time is in s, x is absolute position in mm. Finds the closest position to the requested position and gives up if there is no x value within 0.2 mm'''
@@ -242,7 +298,7 @@ def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
     bn = os.path.basename(topfolder)
     s = ''
     for k in kwargs:
-        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split', 'crops']:
+        if not k in ['adjustBounds', 'svg', 'png', 'overwrite', 'split', 'crops', 'export']:
             s = s + k + '_'+str(kwargs[k])+'_'
     s = s[0:-1]
     s = s.replace('*', 'x')

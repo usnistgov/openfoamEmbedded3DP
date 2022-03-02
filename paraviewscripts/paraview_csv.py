@@ -206,7 +206,8 @@ def addToFile(x:float, tempFile:str, w:csv.writer, sv:stateVars, skipHeader:bool
         SaveData(tempFile, FieldAssociation="Point Data", ChooseArraysToWrite=1, AddTime=1) # saves the slice to the temp file
     else:
         sv.slice.SliceType.Origin = [0, 0, x] # moving down the z axis
-        SaveData(tempFile, FieldAssociation="Point Data", ChooseArraysToWrite=1, AddTime=1, PointDataArrays=['alpha.ink', 'ShearStressMag', 'magU', 'nu1', 'nu2', 'p']) # RG
+        SaveData(tempFile, FieldAssociation="Point Data", ChooseArraysToWrite=1, AddTime=1
+        , PointDataArrays=['alpha.ink', 'ShearStressMag', 'magU', 'nu1', 'nu2', 'p']) # RG
     with open(tempFile, mode='r') as f2: # scrape the data out of the temp file and move it to the permanent file
         ftemp = csv.reader(f2)
         header=next(ftemp)

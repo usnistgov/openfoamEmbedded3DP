@@ -254,7 +254,7 @@ def header(cl:str, obj:str) -> str:
     s = ("/*--------------------------------*- C++ -*----------------------------------*\n"
         +"| =========                 |                                                 |\n"
         +"| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n"
-        +"|  \\\\    /   O peration     | Version:  v1912                                 |\n"
+        +"|  \\\\    /   O peration     | Version:  8                               |\n"
         +"|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n"
         +"|    \\\\/     M anipulation  |                                                 |\n"
         +"*---------------------------------------------------------------------------*/\n"
@@ -1793,7 +1793,10 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
             folder = os.path.join(topFolder, folderBase+str(ii))
 
     geo = NozVars(**kwargs)
-    mv = MeshVars(meshSize=geo.niw/3) # make the initial mesh size 1/3 of the inner nozzle diameter
+    if 'meshSize' in kwargs:
+        mv = MeshVars(meshSize=kwargs['meshSize'])
+    else:
+        mv = MeshVars(meshSize=geo.niw/3) # make the initial mesh size 1/3 of the inner nozzle diameter
     out = createNozzleBlockFile(geo, mv, folder, exportMesh, onlyMesh, **kwargs)
 
     cdv, fvv = solverObjects(startTime, endTime, dt, writeDt, solver)

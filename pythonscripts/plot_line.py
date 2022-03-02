@@ -44,7 +44,7 @@ __status__ = "Production"
   
     
 
-def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:str='', **kwargs) -> None:
+def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:str='', zname:str='z', zunits:str='mm', **kwargs) -> None:
     '''plot the result of a line trace collected with paraview
         colorf is the function to use to determne the color of the plotted line, e.g. sigfunc
         rang is the total list of values that you get when you evaluate colorf over the whole folder
@@ -53,7 +53,11 @@ def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:st
     if len(t1)==0:
         logging.warning(f'Line file is missing in {folder}')
         return 
-    t1 = t1.sort_values(by='z')
+    t1 = t1.sort_values(by=zname)
+    if zunits=='nozzle_inner_width':
+        le = fp.legendUnique(folder)
+        t1[zname] = t1[zname]/float(le['nozzle_inner_width'])
+    
     if yvar in t1:
         ystrink = yvar
         ystrsup = yvar
@@ -81,18 +85,18 @@ def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:st
 
     inkPts = t1[t1['alpha']>0.5]
 
-    zname = 'z'
-    minx = min(inkPts['z'])
-    maxx = max(inkPts['z'])
-    supPtsLeft = t1[t1['z']<minx]
-    supPtsRight = t1[t1['z']>maxx]
+    
+    minx = min(inkPts[zname])
+    maxx = max(inkPts[zname])
+    supPtsLeft = t1[t1[zname]<minx]
+    supPtsRight = t1[t1[zname]>maxx]
     
     for suppts in [supPtsLeft, supPtsRight]:
-        ax.plot(suppts['z'], suppts[ystrsup], color=color, linewidth=0.75)
-    ax.plot(inkPts['z'], inkPts[ystrink], color=color, linestyle='--', linewidth=0.75)
-    pts = t1[(t1['z']==minx) | (t1['z']==maxx)]
-    ax.scatter(pts['z'], pts[ystrink], color=color, label=label)
-    ax.scatter(pts['z'], pts[ystrsup], color=color)
+        ax.plot(suppts[zname], suppts[ystrsup], color=color, linewidth=0.75)
+    ax.plot(inkPts[zname], inkPts[ystrink], color=color, linestyle='--', linewidth=0.75)
+    pts = t1[(t1[zname]==minx) | (t1[zname]==maxx)]
+    ax.scatter(pts[zname], pts[ystrink], color=color, label=label)
+    ax.scatter(pts[zname], pts[ystrsup], color=color)
     
     
 def labDict(yvar:str) -> str:
@@ -108,10 +112,11 @@ def labDict(yvar:str) -> str:
     else:
         return (yvar)
 
-def linePlots(folders:List[str], cvar, time:float=2.5, imsize:float=3.25, yvar:str='vx', legend:bool=True, xlabel:bool=True, ylabel:bool=True, **kwargs) -> plt.Figure:
+def linePlots(folders:List[str], cvar, time:float=2.5, imsize:float=3.25, yvar:str='vx', legend:bool=True, xlabel:bool=True, ylabel:bool=True, zunits:str='mm', **kwargs) -> plt.Figure:
     '''files is a list of folders (e.g. nb16, nb17) to include in the plot
     cvar is the function to use for deciding plot colors. func should be as a function of transport properties dictionary or a string
     e.g. func could be multfunc'''
+    
     
     if 'ax' in kwargs and 'fig' in kwargs:
         ax = kwargs['ax']
@@ -125,10 +130,10 @@ def linePlots(folders:List[str], cvar, time:float=2.5, imsize:float=3.25, yvar:s
         tplist = pd.DataFrame([extractTP(folder) for folder in folders])
         tplist.sort_values(by=cvar, inplace=True)
         tplist.reset_index(drop=True, inplace=True)
-        tplist[cvar] = expFormatList(tplist[cvar])
+        tplist[cvar] = expFormatList(list(tplist[cvar]))
         cm = sns.color_palette('viridis', as_cmap=True) # uses viridis color scheme
         for i,row in tplist.iterrows():
-            linePlot(row['folder'], time, ax, cm(i/len(tplist)), yvar, cmap=cm, label=row[cvar], **kwargs)
+            linePlot(row['folder'], time, ax, cm(i/len(tplist)), yvar, cmap=cm, label=row[cvar], zunits=zunits, **kwargs)
     else:
         # this is a function operated on extractTP
         funcvals = unqListFolders(folders, cvar)
@@ -144,7 +149,8 @@ def linePlots(folders:List[str], cvar, time:float=2.5, imsize:float=3.25, yvar:s
     if legend:
         ax.legend(bbox_to_anchor=(1, 1), loc='upper right', ncol=1)
     if xlabel:
-        ax.set_xlabel('$z$ (mm)')
+        zunits = varNickname(zunits, short=True)
+        ax.set_xlabel(f'$z$ ({zunits})')
     if ylabel:
         ax.set_ylabel(labDict(yvar))
     if yvar=='nu' or yvar=='shearrate':
@@ -165,16 +171,28 @@ def linePlots0(topFolder:str, exportFolder:str, cvar:str, time:float, imsize:flo
     folders = fp.caseFolders(topFolder)
     folders, _ = listTPvalues(folders, **kwargs) # remove any values that don't match
     
+    if len(folders)==0:
+        return
+
     if type(yvar) is list:
+        # get bottom of nozzle
+        le = fp.legendUnique(folders[0])
+        nb = float(le['nozzle_bottom_coord'])
+        
+        # create plots
         fig, axs = multiPlots(len(yvar), sharex=True, imsize=imsize)
         cols = len(axs[0])
         rows = len(axs)
         axlist = axs.flatten()
+        
+        # iterate through y variables
         for i,m in enumerate(yvar):
             xlabel = ((i/cols+1)>=np.floor(len(yvar)/cols))
             legend = (i==(len(yvar)-1))
+            # plot line
             linePlots(folders, cvar, time=time, yvar=m, ax=axlist[i], fig=fig, legend=legend, xlabel=xlabel, **kwargs)
         for ax in axlist:
+            ax.vlines([nb], 0, 1, transform=ax.get_xaxis_transform(),  color='#888888', linestyle='--', linewidth=0.75)
             setSquare(ax)
         subFigureLabels(axs)
         plt.subplots_adjust(hspace=0)

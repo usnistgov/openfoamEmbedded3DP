@@ -161,7 +161,7 @@ def picCrops(tag:str, **kwargs) -> dict:
             else:
                 cropx = 100/1216
                 cropy = 120/1216
-            crops = {'cropxl':cropx, 'cropxr':1-cropx, 'cropyt':1-cropy, 'cropyb':cropy}
+            crops = {'cropxl':cropx, 'cropxr':1-cropx, 'cropyb':1-cropy, 'cropyt':cropy}
     return crops
     
 
