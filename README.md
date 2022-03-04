@@ -6,9 +6,10 @@ Version 1.0.0
 - Leanne Friedrich
     - National Institute of Standards and Technology, MML
     - Leanne.Friedrich@nist.gov
+- Ross Gunther
+    - Georgia Institute of Technology
 - Jonathan E. Seppala
     - National Institute of Standards and Technology, MML
-    - Jonathan.Seppala@nist.gov
 
 ### Contact:
 - Leanne Friedrich
