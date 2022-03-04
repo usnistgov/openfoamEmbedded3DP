@@ -42,7 +42,7 @@ fair use and licensing; see
 https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software
 
 You may cite the use of this code as follows:
-Friedrich, L., & Seppala, J.E. (2021), OpenFOAM simulations of filament shapes in embedded 3D printing, Version 1.0.0, National Institute of Standards and Technology, doi:10.18434/mds2-2392 (Accessed XXXX-XX-XX)
+Friedrich, L.M., Gunther, R.T., & Seppala, J.E. (2022), OpenFOAM simulations of filament shapes in embedded 3D printing, Version 1.0.0, National Institute of Standards and Technology, doi:10.18434/mds2-2392 (Accessed XXXX-XX-XX)
 
 The OpenFOAM input file tools are compatible with OpenFOAM v1912 and OpenFOAM v8. Between the two versions, OpenFOAM did change the syntax on a couple of input variables, so you may need to update ncreate3d.py for future versions of OpenFOAM. Between the two versions, OpenFOAM also modified the way they output paraview files. In v1912, OpenFOAM generated a .vtm file and folder for each time step, and compiled all of the timesteps into a .vtm.series file that could easily be imported into Paraview. In v8, OpenFOAM generates a .vtk file for each time step but does not generate a .series file. folderparser.py has a function generateVTKSeries that generates these .series files, which make it easy to load the whole time series in Paraview.
 
