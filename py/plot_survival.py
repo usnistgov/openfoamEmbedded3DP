@@ -78,7 +78,8 @@ class survival:
     '''holds info about survival over the length of the nozzle'''
     
     def __init__(self, rbar:float, a:float=10**-4, b:float=0.5, c:float=0.5):
-        '''rbar is the normalized radius'''
+        '''rbar is the normalized radius
+        a,b,c are model parameters'''
         self.rbar = rbar
         self.zlist = [] # this must be in mm
         self.xlist = [] # this must be in mm
@@ -125,7 +126,13 @@ class survival:
 
         
 def survivalCalc(folder:str, time:float=2.5, a:float=10**-2, b:float=0.5, c:float=0.5, zunits:str='mm', dr:float=0.05, fcrit:float=0.9, volume:bool=True, **kwargs):
-    '''calculate what cells will survive the process, if S=exp(-a*tau^b*t^c). fcrit is the min fraction of points required to get returned. Otherwise too many points were skipped, and the measurement is not valid'''
+    '''calculate what cells will survive the process, if S=exp(-a*tau^b*t^c). 
+    time is the time at which to collect stress data
+    zunits is a string, usually mm or nozzle_inner_width
+    dr is the spacing between relative radial positions to group by, as a fraction
+    fcrit is the min fraction of points required to get returned. Otherwise too many points were skipped, and the measurement is not valid
+    volume = True to use the whole volume of the nozzle, if there is a file. otherwise, use a slice collected from the center of the nozzle
+    '''
     
     if volume:
         df,units = intm.importPtsNoz(folder, time) # get points in nozzle
@@ -171,7 +178,9 @@ def survivalCalc(folder:str, time:float=2.5, a:float=10**-2, b:float=0.5, c:floa
     return rz
 
 def survivalRateRZ(rz:dict, dr) -> float:
-    '''get the survival rate, given a dictionary rz that holds survival objects'''
+    '''get the survival rate, given a dictionary rz that holds survival objects
+    dr is the spacing between relative radial positions to group by, as a fraction
+    '''
     weightedsum = 0
     weight = 0
     for rbar in rz:
@@ -185,7 +194,11 @@ def survivalRateRZ(rz:dict, dr) -> float:
     
     
 def survivalRate(folder:str, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5, dr:float=0.05, **kwargs) -> float:
-    '''get the percentage of surviving cells at the end of the nozzle'''
+    '''get the percentage of surviving cells at the end of the nozzle
+    time is the time at which to collect stress data
+    a,b,c are survival model parameters
+    dr is the spacing between relative radial positions to group by, as a fraction
+    '''
     rz = survivalCalc(folder, time=time, a=a, b=b, c=c, dr=dr, **kwargs)
     return survivalRateRZ(rz, dr)
 
@@ -232,7 +245,14 @@ def survivalzPlot(rz:dict, xvar:str, axs:np.array, zunits:str, cm):
     
         
 def survivalrPlot(folder:str, ax, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5, dr:float=0.05, xlabel:bool=True, ylabel:bool=True, fontsize:int=8, **kwargs):
-    '''plot cell survival as a function of normalized radius within the nozzle'''
+    '''plot cell survival as a function of normalized radius within the nozzle
+    ax is the axis to plot on
+    time is the time at which to collect stress data
+    a,b,c are survival model parameters
+    dr is the spacing between relative radial positions, as a fraction
+    xlabel = True to label the x axis
+    ylabel = True to label the y axis
+    '''
     xlist = []
     ylist = []
     rz = survivalCalc(folder, time=time, a=a, b=b, c=c, dr=dr, **kwargs)
@@ -257,7 +277,16 @@ def survivalrPlot(folder:str, ax, time:float=2.5, a:float=10**-3, b:float=0.5, c
 
     
 def survivalRMulti(topFolder:str, axs, cvar:str='nozzle_angle', time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5, dr:float=0.05, xlabel:bool=True, ylabel:bool=True, fontsize:int=8, **kwargs):
-    '''plot cell survival as a function of normalized radius within the nozzle, for multiple sims. axs should be an array of 2 axes'''
+    '''plot cell survival as a function of normalized radius within the nozzle, for multiple sims. axs should be an array of 2 axes
+    topFolder holds multiple simulations
+    axs is the list of axes to plot on
+    cvar is the variable to color by
+    time is the time at which to collect stress data
+    a,b,c are survival model parameters
+    dr is the spacing between relative radial positions, as a fraction
+    xlabel = True to label the x axis
+    ylabel = True to label the y axis
+    '''
     
     plt.rc('font', size=fontsize)
     
@@ -301,11 +330,16 @@ def survivalRMulti(topFolder:str, axs, cvar:str='nozzle_angle', time:float=2.5, 
 
     
 def survivalRMultiRow(topFolder:str, exportFolder:str, fontsize:int=8, export:bool=True, overwrite:bool=False, **kwargs):
-    '''plot cell survival as a function of radius in top row and cvar in bottom row, at three weights of the equation'''
+    '''plot cell survival as a function of radius, at three weights of the equation
+    topFolder holds multiple simulations
+    exportFolder is the folder to export figures to
+    export=True to export images to file
+    overwrite=True to overwrite existing files
+    '''
     
     labels = ['survivalMulti']
     fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
-    if not overwrite and os.path.exists(fn+'.png'):
+    if not overwrite and os.path.exists(f'{fn}.png'):
         return
     
     fig,axs = plt.subplots(2,3, figsize=(6.5, 4.5))
@@ -315,8 +349,6 @@ def survivalRMultiRow(topFolder:str, exportFolder:str, fontsize:int=8, export:bo
     plt.rc('font', size=fontsize) 
     for i,d in enumerate(weights(**kwargs)):
         survivalRMulti(topFolder, [axs[0][i], axs[1][i]], a=d['a'], b=d['b'], c=d['c'], **kwargs)
-#     survivalRMulti(topFolder, [axs[0][1], axs[1][1]], a=10**-2, b=0.5, c=0.5, **kwargs)
-#     survivalRMulti(topFolder, [axs[0][2], axs[1][2]], a=10**-3, b=1, c=0, **kwargs)
     subFigureLabels(axs, inside=False)
     fig.tight_layout()
     
@@ -327,11 +359,20 @@ def survivalRMultiRow(topFolder:str, exportFolder:str, fontsize:int=8, export:bo
 def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5
                  , zunits:str='nozzle_inner_width', fontsize:int=8, dr:float=0.05, export:bool=True, overwrite:bool=False, **kwargs):
     '''plot survival as a function of z position, relative radius, or get a single value.
-    value of xvar should be 'z', 't', 'rbar', or 'scalar' '''
+    folder is the simulation folder
+    exportFolder is the folder to export results to
+    xvar is the variable on the x axis. value of xvar should be 'z', 't', 'rbar', or 'scalar' 
+    time is the time at which we evaluate survival
+    a,b, and c are model parameters for the cell survival
+    zunits = mm or nozzle_inner_width
+    dr is the spacing between relative r values, as a fraction
+    export True to export images
+    overwrite True to export images even if the file already exists    
+    '''
 
     labels = ['survival', xvar, os.path.basename(folder), str(a), str(b), str(c), zunits]
     fn = intm.imFn(exportFolder, labels, os.path.dirname(folder), **kwargs) # output file name
-    if not overwrite and os.path.exists(fn+'.png'):
+    if not overwrite and os.path.exists(f'{fn}.png'):
         return
     
     plt.rc('font', size=fontsize) 
@@ -398,7 +439,11 @@ def stressInPlane(df0:pd.DataFrame) -> float:
 
 
 def shearStressCalcVolume(folder:str, time:float, zunits:str, z0:float) -> Tuple[List[float], List[float]]: # RG
-    '''calculate mean shear stress across the length of the nozzle, from all points in nozzle'''
+    '''calculate mean shear stress across the length of the nozzle, from all points in nozzle
+    time is the time at which we collect the shear stress
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    z0 is the bottom z position of the nozzle, or any value in mm to set the z position relative to
+    '''
     
     df,units = intm.importPtsNoz(folder, time) # get points in nozzle
     if len(df)==0:
@@ -420,7 +465,10 @@ def shearStressCalcVolume(folder:str, time:float, zunits:str, z0:float) -> Tuple
 
 def shearStressCalcSlice(folder:str, time:float, zunits:str) -> Tuple[List[float], List[float]]: 
     '''Calculates mean shear stress across the length of the nozzle, from slice
-    folder is the folder to do calculations on'''
+    folder is the folder to do calculations on
+    time is the time at which to calculate the shear stress
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    '''
     
     df,units = intm.importSliceNoz(folder, time) # get points in nozzle
     if len(df)==0:
@@ -455,7 +503,12 @@ def shearStressCalcSlice(folder:str, time:float, zunits:str) -> Tuple[List[float
     
 def nozzleLineTrace(folder:str, time:float, zabove:float, zunits:str='mm', volume:bool=False) -> pd.DataFrame:
     '''Calculates mean shear stress across the width of the nozzle
-    folder is the folder to do calculations on'''
+    folder is the folder to do calculations on
+    time is the time at which to collect the stress
+    zabove is the z position relative to the bottom of the nozzle, in units of zunits
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    volume = True to use the whole volume of the nozzle, if there is a file. otherwise, use a slice collected from the center of the nozzle
+    '''
     
     if volume:
         df,units = intm.importPtsNoz(folder, time) # get points in nozzle
@@ -495,7 +548,13 @@ def nozzleLineTrace(folder:str, time:float, zabove:float, zunits:str='mm', volum
 
 
 def getListsFromTrace(row:pd.Series, zstress:pd.DataFrame, xvar:str, yvar:str, cvar:str):
-    '''from a dataframe tracing values, get x and y points to plot'''
+    '''from a dataframe tracing values, get x and y points to plot
+    row is a row from a dataframe
+    zstress is the trace holding the mean shear stress across the width of the nozzle
+    xvar is the variable to plot on the x axis
+    yvar is the variable to plot on the y axis
+    cvar is the variable to color by    
+    '''
     if len(zstress)>0:
         theta = row[cvar]    
         xlist = list(zstress[xvar])
@@ -509,8 +568,17 @@ def getListsFromTrace(row:pd.Series, zstress:pd.DataFrame, xvar:str, yvar:str, c
         return '', 0, [], []
     
 
-def getDataWithinNozzle(yvar:str, row:pd.Series, time:float, zunits:str, zabove:float, volume:bool, cvar:str, xvar:str):
-    '''get point data within the nozzle for the intended metrics'''
+def getDataWithinNozzle(xvar:str, yvar:str, cvar:str, row:pd.Series, time:float, zabove:float, zunits:str, volume:bool):
+    '''get point data within the nozzle for the intended metrics
+    xvar is the variable to plot on the x axis
+    yvar is the variable to plot on the y axis
+    cvar is the variable to color by   
+    row holds metadata about the simulation
+    time is the time at which to collect the stress
+    zabove is the z position relative to the bottom of the nozzle, in units of zunits
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    volume = True to use the whole volume of the nozzle, if there is a file. otherwise, use a slice collected from the center of the nozzle
+    '''
     # get data
     if yvar=='shearstressz':
         theta = row[cvar]
@@ -527,11 +595,24 @@ def getDataWithinNozzle(yvar:str, row:pd.Series, time:float, zunits:str, zabove:
     return theta, li, zstress, xlist, ylist
 
 
-def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, cvar:str, yvar:str, cm, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=False, zstress:List=[], **kwargs) -> None:
-    '''get data and plot it for a single folder'''
+def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, yvar:str, cvar:str, cm, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=False, zstress:List=[], **kwargs) -> None:
+    '''get data from inside the nozzle and plot it for a single folder
+    i is the row number, used for determining color
+    row holds metadata about the simulation
+    time is the time at which to collect the stress
+    zabove is the z position relative to the bottom of the nozzle, in units of zunits
+    ax is the axis to plot the data on
+    yvar is the variable to plot on the y axis
+    cvar is the variable to color by   
+    legendloc= overlay, right, or center legend location
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    xvar is the variable to plot on the x axis
+    volume = True to use the whole volume of the nozzle, if there is a file. otherwise, use a slice collected from the center of the nozzle
+    if zstress is empty, this calculates the stress list using getDataWithinNozzle, otherwise it uses the already collected zstress
+    '''
     xlist = []
     if len(zstress)==0:
-        theta, li, zstress, xlist, ylist = getDataWithinNozzle(yvar, row, time, zunits, zabove, volume, cvar, xvar)
+        theta, li, zstress, xlist, ylist = getDataWithinNozzle(xvar, yvar, cvar, row, time, zabove, zunits, volume)
     else:
         theta, li, xlist, ylist = getListsFromTrace(row, zstress, xvar, yvar, cvar)
 
@@ -563,6 +644,15 @@ def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, cvar:
     
     
 def labelNozAxs(ax, yvar:str, zunits:str, xvar:str, zabove:float, time:float, legendloc:str, **kwargs):
+    '''put plot labels on the axis
+    ax is the axis to plot the data on
+    yvar is the variable to plot on the y axis
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    xvar is the variable to plot on the x axis
+    zabove is the z position relative to the bottom of the nozzle, in units of zunits
+    time is the time at which to collect the stress
+    legendloc= overlay, right, or center legend location
+    '''
     if yvar=='shearstressmag' or yvar=='shearstressz':
         ax.set_ylabel('Shear Stress (Pa)')
         if not ('logy' in kwargs and kwargs['logy']):
@@ -593,7 +683,8 @@ def labelNozAxs(ax, yvar:str, zunits:str, xvar:str, zabove:float, time:float, le
         
 
 def withinNozzle(folders:List[str], time:float, zabove:float, axs, cvar:str, yvars:str, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=False,  **kwargs) -> None:
-    '''plot a line trace of value yvar across the nozzle as a function of xvar at position zabove relative to the bottom of the nozzle in zunits and time time, on axis ax, coloring the lines by variable cvar
+    '''plot line traces of value yvars across the nozzle as a function of xvar at position zabove relative to the bottom of the nozzle in zunits and time time, on axes axs, coloring the lines by variable cvar
+     zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
     volume=True to use points from the whole nozzle volume, False to use only a slice at y=0
     '''
     _, u = extractTP(folders[0], units=True) # get units
@@ -612,21 +703,30 @@ def withinNozzle(folders:List[str], time:float, zabove:float, axs, cvar:str, yva
     for i,row in tplist.iterrows():
         zstress =  []
         for j,yvar in enumerate(yvars):
-            zstress = withinNozzleFolder(i, row, time, zabove, axs[j], cvar, yvar, cm, legendloc=legendloc, zunits=zunits, xvar=xvar, volume=volume, zstress = zstress, **kwargs)
+            zstress = withinNozzleFolder(i, row, time, zabove, axs[j], yvar, cvar, cm, legendloc=legendloc, zunits=zunits, xvar=xvar, volume=volume, zstress = zstress, **kwargs)
             
     # add labels
     for j,yvar in enumerate(yvars):
         labelNozAxs(axs[j], yvar, zunits, xvar, zabove, time, legendloc, **kwargs)
 
     
-def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, zunits:str='mm', cvar:str='nozzle_angle'
+def withinNozzle0(topFolder:str, exportFolder:str, time:float, zabove:float, zunits:str='mm', cvar:str='nozzle_angle'
                   , overwrite:bool=False, export:bool=True, fontsize:int=8, **kwargs):
-    '''plots line traces within the nozzle at a given z position and time. cvar is the variable to color by, yvar is the variable to plot, nu_ink or shear_stress'''
+    '''plots line traces within the nozzle at a given z position and time. 
+    topfolder is the folder holding the simulations. you can filter the folder using **kwargs, as described in plot_general.listTPvalues
+    exportFolder is the folder to export figures to
+    time is the time at which to collect the stress
+    zabove is the z position relative to the bottom of the nozzle, in units of zunits
+    zunits is 'mm' or any parameter in legend, e.g. 'nozzle_inner_width'
+    cvar is the variable to color by
+    overwrite True to overwrite existing files
+    export True to export figures
+    '''
     
 
     labels = ['trace_across']
     fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
-    if (not overwrite and export) and os.path.exists(fn+'.png'):
+    if (not overwrite and export) and os.path.exists(f'{fn}.png'):
         return
 
     plt.rc('font', size=fontsize) 
@@ -645,7 +745,7 @@ def withinNozzle0(topFolder:str, exportFolder:str, time:float, z:float, zunits:s
             for ax in [axs[0], axs[1]]:
                 ax.set_yscale('log')
     
-    withinNozzle(folders, time, z, axs, cvar, ['shearstressz', 'shearstressmag', 'magu'], zunits=zunits, **kwargs) # plot the values on the axis
+    withinNozzle(folders, time, zabove, axs, cvar, ['shearstressz', 'shearstressmag', 'magu'], zunits=zunits, **kwargs) # plot the values on the axis
    
     for ax in axs:
         setSquare(ax)

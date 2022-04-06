@@ -46,17 +46,23 @@ __status__ = "Production"
 
 def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:str='', zname:str='z', zunits:str='mm', **kwargs) -> None:
     '''plot the result of a line trace collected with paraview
-        colorf is the function to use to determne the color of the plotted line, e.g. sigfunc
-        rang is the total list of values that you get when you evaluate colorf over the whole folder
-        yvar is 0 to plot velocities, 1 to plot viscosities'''
+        folder is the simulation to plot
+        time is the time at which to collect the line
+        ax is the axis to plot on
+        color is the color of the line
+        yvar is 0 to plot velocities, 1 to plot viscosities
+        label is the label to write on the line
+        zname is the variable to plot on the x axis
+        zunits = 'mm' or any other value in legendUnique, e.g. 'nozzle_inner_width'
+        '''
     t1,units = intm.importLine(folder, time, **kwargs)
     if len(t1)==0:
         logging.warning(f'Line file is missing in {folder}')
         return 
     t1 = t1.sort_values(by=zname)
-    if zunits=='nozzle_inner_width':
+    if not zunits=='mm':
         le = fp.legendUnique(folder)
-        t1[zname] = t1[zname]/float(le['nozzle_inner_width'])
+        t1[zname] = t1[zname]/float(le[zunits])
     
     if yvar in t1:
         ystrink = yvar
@@ -113,9 +119,17 @@ def labDict(yvar:str) -> str:
         return (yvar)
 
 def linePlots(folders:List[str], cvar, time:float=2.5, imsize:float=3.25, yvar:str='vx', legend:bool=True, xlabel:bool=True, ylabel:bool=True, zunits:str='mm', **kwargs) -> plt.Figure:
-    '''files is a list of folders (e.g. nb16, nb17) to include in the plot
-    cvar is the function to use for deciding plot colors. func should be as a function of transport properties dictionary or a string
-    e.g. func could be multfunc'''
+    ''' plot line traces for multiple folders
+    folders is a list of folders (e.g. nb16, nb17) to include in the plot
+    cvar is the function to use for deciding plot colors. func should be as a function of transport properties dictionary or a string e.g. func could be multfunc or func could be 'nozzle_angle'
+    time is the time at which to collect the line trace
+    imsize is the total size of the figure
+    yvar is the variable to plot on the y axis, e.g. 'nu' or 'shearrate'
+    legend=True to put a legend on the plot
+    xlabel=True to put a label on the x axis
+    ylabel=True to put a label on the y axis
+    zunits = 'mm' or any value in legendUnique, e.g. 'nozzle_inner_width'
+    '''
     
     
     if 'ax' in kwargs and 'fig' in kwargs:
@@ -158,7 +172,16 @@ def linePlots(folders:List[str], cvar, time:float=2.5, imsize:float=3.25, yvar:s
     return fig
 
 def linePlots0(topFolder:str, exportFolder:str, cvar:str, time:float, imsize:float=6.5, yvar:str='vx', overwrite:bool=False, export:bool=True, fontsize:int=8, **kwargs) -> plt.Figure:
-    '''plot the value over the line trace'''
+    '''plot the value over the line trace
+    topFolder holds all of the simulations
+    exportFolder is the folder to export data to
+    cvar is the function to use for deciding plot colors. func should be as a function of transport properties dictionary or a string e.g. func could be multfunc or func could be 'nozzle_angle'
+    time is the time at which to collect the line trace
+    imsize is the total size of the figure
+    yvar is the variable to plot on the y axis, e.g. 'nu' or 'shearrate'
+    overwrite=True to overwrite existing files
+    export=True to export values
+    '''
 
     
     labels = ['line', time, yvar, cvar]
@@ -241,7 +264,7 @@ def linePressureRecursive(folder:str) -> dict:
         return rlist, units
 
 def linePressures(topfolder:str, exportFolder:str, filename:str) -> dict:
-    '''find line pressures for all sims in folder and export'''
+    '''find pressure differential between upstream and downstream surface of nozzle along the line traces for all sims in folder and export'''
     rlist, units = linePressureRecursive(topfolder)
     tt = pd.DataFrame(rlist)
     if os.path.exists(exportFolder):

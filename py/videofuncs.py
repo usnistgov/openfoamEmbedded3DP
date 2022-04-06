@@ -89,7 +89,9 @@ def saveVid(folder:str, s:str, p:str, diag:bool=True) -> None:
             mp4writer.close()
             
 def saveFramesToWriter(mp4writer, folder:str, tags:List[str], subfolder:str='images', debug:bool=False) -> None:
-    '''For a given folder, given an angle s (e.g. 'y', 'a') and a coloring (e.g. 'umag') to an imageio writer'''
+    '''For a given folder, save frames to an imageio writer
+    tags should be a list for each folder, and within each list, a list of tags that should be in every file. For example, to get all sigma=0 and then all sigma=40, tags could be [['sigma_0', 'y_umag'],['sigma_40', 'y_umag']]. 
+    subfolder is the folder inside of the simulation folder where the images are stored'''
     zfiles = []
     if len(subfolder)>0:
         searchFolder = os.path.join(folder, subfolder)
@@ -124,7 +126,10 @@ def saveTitleCardToWriter(mp4writer, folder:str, n:int, subfolder:str='images') 
         raise NameError(f'No title card in {folder}')
             
 def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=True) -> None:
-    '''Compile all of the time series for all of the simulations into one big video. folderList is a list of the folders to include. filename is the name of the video to save. titleLength is the time that the title cards are up, in s'''
+    '''Compile all of the time series for all of the simulations into one big video. 
+    folderList is a list of the folders to include. 
+    filename is the name of the video to save. 
+    titleLength is the time that the title cards are up, in s'''
     fps = 10
     mp4writer = imageio.get_writer(filename, fps=fps)
     try:
@@ -145,7 +150,11 @@ def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=Tr
     
     
 def saveFigureVideo(topfolderList:str, filename:str, tags:List[List[str]], titleLength:float=1, diag:bool=True) -> None:
-    '''Compile a time series of the combined picture plots for all of the simulations into one big video. folderList is a list of the topfolders to include. filename is the name of the video to save. tags should be a list for each folder, and within each list, a list of tags that should be in every file. For example, to get all sigma=0 and then all sigma=40, tags could be [['sigma_0', 'y_umag'],['sigma_40', 'y_umag']]. titleLength is the time that the title cards are up, in s'''
+    '''Compile a time series of the combined picture plots for all of the simulations into one big video. 
+    folderList is a list of the topfolders to include.
+    filename is the name of the video to save. 
+    tags should be a list for each folder, and within each list, a list of tags that should be in every file. For example, to get all sigma=0 and then all sigma=40, tags could be [['sigma_0', 'y_umag'],['sigma_40', 'y_umag']]. 
+    titleLength is the time that the title cards are up, in s'''
     fps = 10
     mp4writer = imageio.get_writer(filename, fps=fps)
     try:
@@ -198,7 +207,7 @@ def exp(n:float) -> str:
 #--------------------------------
 
 def checkSimRate(folder:str, fix:bool=True) -> str:
-    '''Check if the simulation rate makes sense'''
+    '''Check if the simulation rate makes sense. fix=True to rescrape the legend if the simulation rate doesn't make sense'''
     leg = fp.legendUnique(folder) # legend
     shortname = os.path.join(os.path.basename(os.path.dirname(folder)), os.path.basename(folder))
     simrate = leg['simulation_rate_(hr/s)']

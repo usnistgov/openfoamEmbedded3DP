@@ -101,7 +101,8 @@ def plotSteadyColor(ax, st:pd.DataFrame, sp:pd.DataFrame, c, labels:bool=False) 
     ax is the axis to plot the results on
     st is a dataframe where the filament is steady in time, as produced by steadytime
     sp is a dataframe where the filament is steady in position, as produced by steadypos
-    c is a color'''
+    c is a color
+    labels=True to label the plot'''
     # plot steady in position
     c = '#940f0f'
     if len(sp)>0:

@@ -272,10 +272,6 @@ def header(cl:str, obj:str) -> str:
 
 def compileAllClean(endTime:float, writeDt:float) -> str:
     '''this removes residual data from previous runs'''
-#     s = ("cd \"${0%/*}\" || exit                                # Run from this directory"
-#          + ". $WM_PROJECT_DIR/bin/tools/CleanFunctions; "
-#          + "cleanCase"
-#         )
     s = "#!/bin/bash\n\n"
     s = s + 'cd \"$(dirname \"$0\")\"\n'
     s = s + 'rm -f -r 0.* '
@@ -311,18 +307,6 @@ def fListLoop(s:str, functionlist:List[str], folder:str, ifstarted:bool=False) -
     return s
 
 
-# def compileAllRun(folder:str, solver:str) -> str:
-#     '''this is the allrun bash script for the case folder'''
-#     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " \
-#          + "echo \""+folder+"\"; "
-#           + "cd \"${0%/*}\" || exit; ")
-#     s = (s + '[ ! d \"0.1\"] && ('\
-#          + "cp -r ../../mesh/constant/polyMesh constant; " 
-#          + "cp 0/alpha.ink.orig 0/alpha.ink); " )
-#     s = fListLoop(s, ["setFields"], folder, ifstarted=True)
-#     s = s = fListLoop(s, [solver, "foamToVTK"], folder, ifstarted=False)
-#     return s
-
 def compileAllRun(folder:str, solver:str) -> str: # RG
     '''this is the allrun bash script for the case folder'''
     f = os.path.basename(folder)
@@ -345,17 +329,6 @@ def compileSlurm(folder:str, parentdir:str) -> str:
     s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --workdir={workdir}\n#SBATCH --partition=local\n\n'
     s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash mesh/Allrun.sh\nsrun bash case/Allrun.sh'
     return s
-
-
-# def compileContinue(folder:str, solver:str) -> str:
-#     '''this script picks up in the middle of a solve and keeps solving'''
-#     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
-#           + "cd \"${0%/*}\" || exit; "
-#          )
-#     functionlist = [solver, "foamToVTK"]
-#     s = fListLoop(s, functionlist, folder)
-#     return s
-
 
 def compileAllRunMesh(folder:str) -> str:
     '''this script runs the meshing functions in the mesh folder'''
@@ -911,20 +884,6 @@ def compileSurfaceFeaturesDict(bl:List[BoundaryInput]) -> str:
     s = s + DictList("", 0, [["writeObj", "yes"]]).prnt(-1)
     s = s + CLOSELINE
     return s
-
-
-#    bnames = [o.label for o in bl]
-#    s = header("dictionary", "surfaceFeaturesDict")
-#    s = s + "surfaces",\
-#                     "("
-#    s = s + DictList("", 0, \
-#                     list(map(lambda x: DictList(x+".stl", 0, \))).prnt(-1)
-#                     ");", \
-#                     DictList(["includedAngle", 180], \
-#                     ["writeObj", "yes"]),
-
-#    s = s + CLOSELINE
-#    return s
 
 
 

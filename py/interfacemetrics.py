@@ -98,7 +98,9 @@ def importFilemm(file:str, slist:List[str]) -> Tuple[Union[pd.DataFrame, List[An
     
 
 def importLine(folder:str, time:float, x:float=1.4, xunits:str='mm', **kwargs) -> pd.DataFrame:
-    '''import a csv of a line trace pulled from ParaView. time and x are the time and position the line trace are taken at'''
+    '''import a csv of a line trace pulled from ParaView. 
+    time and x are the time and position the line trace are taken at. 
+    xunits can be mm or nozzle_inner_width'''
     if xunits=='mm':
         file = os.path.join(folder, f'line_t_{int(round(time*10))}_x_{x}.csv')
     else:
@@ -247,7 +249,11 @@ def viscRatio(folder:str, **kwargs) -> float:
     
 
 def importPtsSlice(folder:str, time:float, xbehind:float, xunits:str='mm') -> Union[pd.DataFrame, List[Any]]:
-    '''import points just from one slice. folder is full path name, time is in s, x is absolute position in mm. Finds the closest position to the requested position and gives up if there is no x value within 0.2 mm'''
+    '''import points just from one slice. 
+    folder is full path name
+    time is in s
+    xbehind is distance behind nozzle in xunits. 
+    Finds the closest position to the requested position and gives up if there is no x value within 0.2 xunits'''
     pts,units = importPoints(folder, time)
     if len(pts)==0:
         return []
@@ -259,7 +265,7 @@ def importPtsSlice(folder:str, time:float, xbehind:float, xunits:str='mm') -> Un
     
     if not xunits=='mm' and units['x']=='mm':
         # convert the x units
-        if xunits=='niw':
+        if xunits=='niw' or xunits=='nozzle_inner_width':
             pts['x'] = pts['x']/float(le['nozzle_inner_width'])
         elif xunits in le:
             pts['x'] = pts['x']/float(le[xunits])

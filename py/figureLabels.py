@@ -34,7 +34,8 @@ __status__ = "Development"
 
     
 def subFigureLabel(ax, label:str, inside:bool=True) -> None:
-    '''add a subfigure label to the top left corner'''
+    '''add a subfigure label to the top left corner. 
+    inside=True to put inside the frame, inside=False to put outside the frame'''
     if inside:
         x=0.05
         y = 0.95
@@ -48,7 +49,9 @@ def subFigureLabel(ax, label:str, inside:bool=True) -> None:
     ax.text(x, y, label, fontsize=12, transform=ax.transAxes, horizontalalignment=ha, verticalalignment=va)
     
 def subFigureLabels(axs, horiz:bool=True, inside:bool=True) -> None:
-    '''add subfigure labels to all axes'''
+    '''add subfigure labels to all axes
+    horiz=True to order within rows, then columns. False to order by columns, then rows
+    inside=True to put inside the frame, inside=False to put outside the frame'''
     alphabet_string = string.ascii_uppercase
     alphabet_list = list(alphabet_string)
     if len(axs.shape)==1:

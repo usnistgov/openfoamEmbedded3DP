@@ -48,7 +48,11 @@ __status__ = "Production"
 #-------------------------------------------
 
 def varNickname(s:str, short:bool=False, units:dict={}) -> str:
-    '''get a name to display for the variable'''
+    '''get a name to display for the variable
+    s is the variable
+    short = True to use short version of name
+    units holds the units for the variables
+    '''
     if s=='nozzle_angle':
         if short:
             var= '$\\theta$'
@@ -155,7 +159,11 @@ def decideFormat(x:float) -> Tuple[Union[float, str], bool]:
 
 
 def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:bool=False, useExp:bool=True) -> List[Any]:
-    '''put the whole list in exponential or appropriate format'''
+    '''put the whole list in exponential or appropriate format
+    returnPrecision=True to return an int that describes the precision of the list. if -1000, then not formatted. if 1000, then exponent format.
+    forceFormat forces the list to be formatted even if there is only one element in the list
+    useExp=True to use exponential form, otherwise do not allow exponential
+    '''
     xout = []
     xlist = list(xlist)
     if len(xlist)<2 and not forceFormat:
@@ -1059,7 +1067,8 @@ def plotCircle(ax:plt.Axes, x0:float, y0:float, radius:float, caption:str, color
             txty = arrowy+dar*np.sin(angle)
             ax.annotate(caption, (arrowx, arrowy), color=color, xytext=(txtx, txty), ha='center', arrowprops={'arrowstyle':'->', 'color':color})
             
-def setSquare(ax):         
+def setSquare(ax):      
+    '''make the axis square'''
     ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
     
 def multiPlots(nvars:int, imsize:float=6.5, sharey:bool=False, sharex:bool=False):

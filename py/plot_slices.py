@@ -91,38 +91,6 @@ def plotXSOnAx(pts:pd.DataFrame, ax, color) -> None:
     pts.sort_values(by='theta', inplace=True, ignore_index=True)
     ax.plot(pts['y'], pts['z'], color=color, linewidth=1, marker=None)
 
-# def plotXSOnAx(xs:pd.DataFrame, ax, color) -> None:
-#     '''plot the cross-section on the axis'''
-#     bottom = xs.z.min()
-#     height= xs.z.max() - bottom
-#     left = xs.y.min()
-#     width = xs.y.max() - left
-    
-#     leftpts = xs.copy()
-#     leftpts = leftpts[(leftpts.y<left+0.25*width)]
-#     leftpts.sort_values(by='z', inplace=True, ignore_index=True)
-
-#     if not leftpts.z.max()==leftpts.iloc[-1]['z']:
-#         # doubled over. split this
-#         leftptsleft = leftpts[:]
-    
-    
-#     toppts = xs.copy()
-#     toppts = toppts[(toppts.y>left+0.25*width)&(toppts.y<left+0.75*width)&(toppts.z>leftpts.z.median())]
-#     toppts.sort_values(by='y', inplace=True, ignore_index=True)
-#     botpts = xs.copy()
-#     botpts = botpts[(botpts.y>left+0.25*width)&(botpts.y<left+0.75*width)&(botpts.z<leftpts.z.median())]
-#     botpts.sort_values(by='y', inplace=True, ignore_index=True)
-#     rightpts = xs.copy()
-#     rightpts = rightpts[(rightpts.y>left+0.55*width)]
-#     rightpts.sort_values(by='z', inplace=True, ignore_index=True)
-    
-#     for pts in [leftpts, toppts, botpts, rightpts]:
-#         ax.plot(pts['y'], pts['z'], color=color, linewidth=1, marker=None)
-
-#     ax.scatter(xlist, ylist, color=color, s=0.01, marker='.', facecolor=color, edgecolor=None, rasterized=True)
-    
-
 def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
     '''plot cross-sections for whole folder
     xs is a pandas DataFrame holding points
@@ -134,8 +102,6 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
         logging.info(folder)
         traceback.print_exc()
         return
-#     xlist = list(xs['y']+x0)
-#     ylist = list(xs['z']+y0)
     if xs.z.max()>cp.dy/2:
         # xs is going to fall outside of the plot bounds
         xind = cp.xmlist.index(x0)
@@ -143,20 +109,16 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
         zout = (xs.z.max()-(cp.dy/2))/cp.dy + cp.dy/10
         cp.indicesreal = cp.indicesreal.append({'x':xind, 'y':yind+zout}, ignore_index=True)
 
-    xs['y'] = xs['y']+x0
+    xs['y'] = xs['y']+x0  # shift the points relative to the point on the plot where this sim's origin should be
     xs['z'] = xs['z']+y0
     try:
         xmid,ymid = intm.pdCentroid(xs)
     except:
         return
-#     else:
-#         xmid = x + x0
-#         ymid = y + y0
     if cp.split:
         ax = cp.axs[sigmapos]
     else:
         ax = cp.axs[0]
-#     size = 0.01*6/(len(cp.xmlist)*(cp.ncol))
     plotXSOnAx(xs, ax, color)
     ax.arrow(x0, y0, xmid-x0, ymid-y0,  head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
     
@@ -164,7 +126,7 @@ def XSPlot(xs:pd.DataFrame, folder:str, cp:comboPlot) -> None:
 
 def XSPlotIdeal(cp:comboPlot, le:dict) -> None:
     '''this plots an ideal cross-section on the cross-section plot
-    fs is a dictionary holding metadata, from legendUnique'''
+    le is a dictionary holding metadata, from legendUnique'''
     if len(cp.ylistreal)==1:
         # put to the left
         xind = int(cp.indicesreal.x.min())
@@ -185,7 +147,13 @@ def XSPlotIdeal(cp:comboPlot, le:dict) -> None:
 
 
 def XSPlotf(folder:str, time:float, xbehind:float, cp:comboPlot, xunits:str='mm', ref:dict={'nozzle_inner_width':0, 'ink_velocity':0, 'bath_velocity':0}) -> None:
-    '''plots cross-section from one file'''
+    '''plots cross-section from one file
+    time is the time of the cross-section in seconds
+    xbehind is the distance behind the nozzle to take the cross-section, in xunits
+    cp is the comboPlot object to plot on
+    xunits is 'mm' or 'nozzle_inner_width'
+    ref holds metadata about a reference simulation. leave values at 0 to not do any scaling. Otherwise, scale the size of the cross-section relative to the reference values
+    '''
     ptsx = intm.importPtsSlice(folder, time, xbehind, xunits=xunits)
     if len(ptsx)==0:
         return
@@ -204,8 +172,12 @@ def XSPlots0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:
     '''plot all cross-sections together
     topFolder is the folder that holds all the files
     time is the time at which to take the cross-section
-    x is the distance behind the center of the nozzle to take the cross-section
-    sigmalist0 is the list of surface tensions to include in this plot'''
+    xbehind is the distance behind the center of the nozzle to take the cross-section
+    xunits is 'mm' or 'nozzle_inner_width'
+    overwrite True to overwrite values
+    dx is the spacing between cross-sections, in mm
+    
+    '''
     label = f'xs_{xbehind}{xunits}_t_{time}'
     fn = intm.imFn(exportFolder, label, topFolder, **kwargs)
     if not overwrite and os.path.exists(fn+'.png'):

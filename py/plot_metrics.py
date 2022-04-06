@@ -51,6 +51,7 @@ __status__ = "Production"
     
 
 def setSquare(ax):
+    '''make the axis square'''
     ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
 
 
@@ -355,25 +356,25 @@ def timePlots(topFolder:str, exportFolder:str, overwrite:bool=False, **kwargs) -
 # slice summary metrics plots
 
 def summaryRow(folder:str, time:float, xbehind:float) -> Tuple[dict,dict]:
-    '''turn the folder into a single row, for a given time and position'''
+    '''turn the folder into a single row, for a given time and position, and add nondimensional metadata'''
     row, rowunits = metricVals(folder, time, xbehind, ['x', 'xbehind', 'time', 'centery', 'centerz', 'area','maxheight', 'maxwidth', 'centeryn', 'centerzn', 'arean', 'maxheightn', 'maxwidthn', 'vertdisp', 'vertdispn', 'aspectratio', 'speed', 'speeddecay'])
     meta, u = extractTP(folder, units=True)
     if not (u['dink']=='mm' and u['nuink']=='Pa*s' and u['rhoink']=='g/mL' and u['sigma']=='mJ/m^2' and u['vink']=='mm/s'):
         raise ValueError('Units of extractTP do not match needed units for summaryRow')
 
     for s in ['ink', 'sup']:
-        meta['gdot_'+s] = meta['v'+s]/meta['d'+s] # 1/s
-        u['gdot_'+s] = '1/s'
-        if meta['k'+s]>0:
-            mu = meta['k'+s]*(abs(meta['gdot_'+s])**(meta['n'+s]-1)) + meta['tau0'+s]/abs(meta['gdot_'+s])
-            meta['visc0_'+s] = min(mu, meta['nu'+s])  # Pa*s
+        meta[f'gdot_{s}'] = meta[f'v{s}']/meta[f'd{s}'] # 1/s
+        u[f'gdot_{s}'] = '1/s'
+        if meta[f'k{s}']>0:
+            mu = meta[f'k{s}']*(abs(meta[f'gdot_{s}'])**(meta[f'n{s}']-1)) + meta[f'tau0{s}']/abs(meta[f'gdot_{s}'])
+            meta[f'visc0_{s}'] = min(mu, meta[f'nu{s}'])  # Pa*s
         else:
-            meta['visc0_'+s] = meta['nu'+s]
-        u['visc0_'+s] = 'Pa*s'
-        meta['CaInv_'+s] = meta['sigma']/(meta['visc0_'+s]*meta['v'+s]) # capillary number ^-1 []
-        u['CaInv_'+s] = ''
-        meta['Re_'+s] = 10**3*(meta['rho'+s]*meta['v'+s]*meta['d'+s])/(meta['visc0_'+s]) # reynold's number
-        u['Re_'+s] = ''
+            meta[f'visc0_{s}'] = meta[f'nu{s}']
+        u[f'visc0_{s}'] = 'Pa$\cdot$s'
+        meta[f'CaInv_{s}'] = meta['sigma']/(meta[f'visc0_{s}']*meta[f'v{s}']) # capillary number ^-1 []
+        u[f'CaInv_{s}'] = ''
+        meta[f'Re_{s}'] = 10**3*(meta[f'rho{s}']*meta[f'v{s}']*meta[f'd{s}'])/(meta[f'visc0_{s}']) # reynold's number
+        u[f'Re_{s}'] = ''
     
     meta['viscRatio'] = meta['visc0_ink']/meta['visc0_sup']
     u['viscRatio'] = ''
@@ -386,7 +387,13 @@ def summaryRow(folder:str, time:float, xbehind:float) -> Tuple[dict,dict]:
     return out, units
 
 def summaryTable(topfolders:str, time:float, xbehind:float, exportFolder:str, filename:str='summaryTable') -> Tuple[pd.DataFrame, dict]:
-    '''collect summary data for each topfolder and put it all into a table'''
+    '''collect summary data for each topfolder and put it all into a table
+    topfolders is a list of folders that hold multiple simulations
+    time is the time of the slice
+    xbehind is the position of the slice, relative to the center of the nozzle
+    exportFolder is the location to export the table
+    filename is included in the final file name
+    '''
     t = []
     u = []
     for topfolder in topfolders:
@@ -407,12 +414,15 @@ def summaryTable(topfolders:str, time:float, xbehind:float, exportFolder:str, fi
     return tt,u
 
 
-def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bool=False, xunits:str='mm') -> Dict:
+def metricVals(folder:str, time:float, xbehind:float, labels:List[str], units:bool=False, xunits:str='mm') -> Union[Dict, Tuple[Dict]]:
     '''Find the value of slice summary metrics for a single simulation.
     folder is the full path name to a simulation folder
     time is the time of the slice
     xbehind is the position of the slice, relative to the center of the nozzle
-    labels is a list of metrics to collect, e.g. ['area', 'centery']'''
+    labels is a list of metrics to collect, e.g. ['area', 'centery']
+    units = True to return a dictionary of units
+    xunits = 'mm' or any value in legendUnique, e.g. 'nozzle_inner_width'
+    '''
     if not os.path.exists(folder):
         raise ValueError(f"Path {folder} does not exist")
 
@@ -506,11 +516,13 @@ def metricPlots(topFolder:str, exportFolder:str, time:float, xbehind:float, labe
     
 #--------------------------------    
     
-def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', xvar:str='theta', **kwargs):
+def qualityPlots(d:pd.DataFrame, time:float, xbehind:float, cvar:str='', xvar:str='nozzle_angle', **kwargs):
     '''Plot points for all labels, one plot per label
     d is dataframe holding table of angles and metrics
     time is time in s
     xbehind is the distance behind the nozzle to take the slice summaries
+    cvar is the variable to color by
+    xvar is the x variable to plot on, any column in d
     '''
     
     labdict = {'arean':'Area/intended', 'vertdispn':'Vert disp/nozzle diam', 'aspectratio':'Height/width', 'speeddecay':'Speed/intended'}
@@ -570,7 +582,10 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
     time is the time since extrusion started in s
     xbehind is the distance behind the center of the nozzle in mm
     labels is the slice summaries to plot in order
-    overwrite is whether to overwrite if the file exists'''
+    overwrite is whether to overwrite if the file exists
+    
+    
+    '''
     
     fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
     if not overwrite and os.path.exists(fn+'.png'):
@@ -608,6 +623,7 @@ def qualityPlots0(topFolder:str, exportFolder, time:float, xbehind:float, labels
 
 def viscRatioPlot(folders:str, time:float, xbehind:float, xunits:str='mm', xvar:str='viscRatio', yvar:str='aspectratio', cvar:str='', mvar:str='', fontsize:int=8, **kwargs) -> None:
     '''plot viscosity ratio vs. metrics
+    folders is the list of simulation folders to include in the plot
     time is the time after flow started in seconds
     xbehind is the distance behind the nozzle to take the slice
     xunits is the units of the distance behind the nozzle, either mm or nozzle_inner_width
@@ -684,7 +700,18 @@ def viscRatioPlot(folders:str, time:float, xbehind:float, xunits:str='mm', xvar:
     ax.set_ylabel(varNickname(yvar, short=False, units=u))
     return fig
     
-def viscRatioPlot0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:str='mm', xvar:str='viscRatio', yvar:str='aspectratio', overwrite:bool=False, export:bool=False, cvar:str='', **kwargs) -> None:
+def viscRatioPlot0(topFolder:str, exportFolder:str, time:float, xbehind:float, xunits:str='mm', xvar:str='viscRatio', yvar:str='aspectratio', overwrite:bool=False, export:bool=False, **kwargs) -> None:
+    '''plot viscosity ratio vs. metrics
+    topFolder holds all of the simulations
+    exportFolder is the folder to export figures to
+    time is the time after flow started in seconds
+    xbehind is the distance behind the nozzle to take the slice
+    xunits is the units of the distance behind the nozzle, either mm or nozzle_inner_width
+    xvar is the x variable of the plot, e.g. viscRatio
+    yvar is the y variable of the plot, e.g. aspectratio
+    overwrite to overwrite existing files
+    export to export figure to file
+    '''
     
     fn = intm.imFn(exportFolder, [yvar, xvar], topFolder, **kwargs) # output file name
     if export and (not overwrite and os.path.exists(fn+'.png')):
@@ -696,7 +723,7 @@ def viscRatioPlot0(topFolder:str, exportFolder:str, time:float, xbehind:float, x
         return
     folders, _ = listTPvalues(folders, **kwargs) # list of transport property lists
     
-    fig = viscRatioPlot(folders, time, xbehind, xvar=xvar, xunits=xunits, yvar=yvar, cvar=cvar, **kwargs)
+    fig = viscRatioPlot(folders, time, xbehind, xvar=xvar, xunits=xunits, yvar=yvar, **kwargs)
     
     if export:
         intm.exportIm(fn, fig) # export figure
