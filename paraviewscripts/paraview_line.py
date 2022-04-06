@@ -121,7 +121,7 @@ def convertToRelative(x:float, folder:str) -> float:
 def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
     '''Export line trace for the folder. 
     constDir is the direction that is constant, either 'x' or 'z'
-    pos is the constant x or z position of the trace, in absolute coordinates.
+    pos is the constant x or z position of the trace, relative to the nozzle center, in nozzle inner widths
     tlist is the list to times at which to take the trace
     forceOverwrite to overwrite existing files'''
     initialized = False
@@ -130,10 +130,6 @@ def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverw
         if len(times)>0:
             for time in tlist:
                 if time in times:
-                    # if constDir=='x':
-                    #     xstr = '{:.1f}'.format(convertToRelative(pos, folder))
-                    # else:
-                    #     xstr = '{:.1f}'.format(1000*pos)
                     xstr = '{:.1f}'.format(pos)
                     tstr = str(int(round(time*10)))
                     ipfile = os.path.join(folder, f"line_t_{tstr}_{constDir}_{xstr}_di.csv")

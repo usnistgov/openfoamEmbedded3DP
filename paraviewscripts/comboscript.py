@@ -84,10 +84,8 @@ runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
 
 getLine = True
 
-pl_tlist = [2.5]        # times at which to collect the traces
-# xlist = [-0.001]      
+pl_tlist = [2.5]        # times at which to collect the traces     
 pl_xlist = [2]       # positions at which to collect the trace, in nozzle inner diameters, relative to the center
-# zlist = [0.0005]
 pl_zlist = []
 
 pl_forceOverwrite = False # True to overwrite existing files
@@ -102,10 +100,7 @@ if not os.path.exists(SERVERFOLDER):
 
 
 nlist = list(range(0,1000))
-# nlist = [104, 108, 112, 116]
-# nlist = [43, 53, 63, 487]
 topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'diameter', 'newtonian', 'k', 'newt_diameter']]
-# topfolders = [os.path.join(cfg.path.server, 'viscositysweep', s) for s in ['newtnewtsweep']]
 
 folders = filterSimNums(topfolders, nlist)
 

@@ -214,14 +214,6 @@ def fullFN(t:float, view:str, coloring:str, folder:str):
     return filename
 
 
-# def vidFN(view:str, coloring:str, folder:str):
-#     '''get the full file name for the video'''
-#     fn = view+'_'+coloring+'.mp4'
-#     filename = os.path.join(folder, 'images', fn)
-#     return filename
-
-
-
 ######### show/hide/initializes ############
 #### import the vtk series file
 
@@ -521,7 +513,11 @@ def viscColor(display, visc:str) -> None:
     
     
 def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
-    '''Just clip out the ink portion and color it by viscosity or velocity. clipinput is the Paraview object that you're trying to clip, e.g. sv.caseVTMSeries. colVar is the variable being colored ('U', 'nu1', 'nu2', 'inknu', or 'supnu'). 'nu1' and 'nu2' use local viscosities measured for non-Newtonian fluids. 'inknu' and 'supnu' are constant viscosities collected from the legend, for Newtonian fluids. invert 0 to get ink, 1 to get support. A clipVal in kwargs allows you to custom set the alpha value where you want to clip.'''
+    '''Just clip out the ink portion and color it by viscosity or velocity. 
+    clipinput is the Paraview object that you're trying to clip, e.g. sv.caseVTMSeries. 
+    colVar is the variable being colored ('U', 'nu1', 'nu2', 'inknu', or 'supnu'). 'nu1' and 'nu2' use local viscosities measured for non-Newtonian fluids. 'inknu' and 'supnu' are constant viscosities collected from the legend, for Newtonian fluids. 
+    invert 0 to get ink, 1 to get support. 
+    A clipVal in kwargs allows you to custom set the alpha value where you want to clip.'''
     
     clip = Clip(Input=clipinput)
 
@@ -636,7 +632,12 @@ def viscx(sv:stateVars, x:float=-0.001) -> None:
 #--------------------------
 
 def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='U', umin:float=0, umax:float=0.02) -> None:
-    '''Plot the velocity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. U, UX, UY, UZ'''
+    '''Plot the velocity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. 
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the variable, e.g. U, UX, UY, UZ
+    umin, umax are the legend range'''
     slice1 = sliceMake(sv, origin, normal)
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
     d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
@@ -673,7 +674,13 @@ def uzslicex(sv:stateVars, x:float=-0.001) -> None:
 #--------------------------
 
 def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-1000, pmax:float=1000) -> None:
-    '''Plot the pressure map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed'''
+    '''Plot the pressure map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. 
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed
+    pmin, pmax are the legend range
+    '''
     slice1 = sliceMake(sv, origin, normal)
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
     d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
@@ -696,7 +703,12 @@ def pslicex(sv:stateVars, xp:float=-0.001, **kwargs) -> None:
 #--------------------------
     
 def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000) -> None:
-    '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+    '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed
+    rmin, rmax are the legend range'''
     shearRate = computeShearRate(sv) # in paraview_general
     slice1 = sliceMake(sv, origin, normal, sinput=shearRate) # take slice from shear rate map
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
@@ -720,7 +732,13 @@ def shearRateSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None:
 #--------------------------
 
 def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', rmin:float=2, rmax:float=200) -> None: # RG
-    '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+    '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the value to clip
+    rmin and rmax are the range of values in the legend
+    '''
     computeDerivatives = computeShearRate(sv) # calculate shear rate
     cellDatatoPointData = CellDatatoPointData(Input=computeDerivatives)
     cellDatatoPointData.CellDataArraytoprocess = ['ScalarGradient', 'U', 'VectorGradient', 'alpha.ink', 'cellID', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
@@ -751,7 +769,7 @@ def shearStressSlicey(sv:stateVars, **kwargs) -> None: # RG
     shearStressSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
     
 def shearStressSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None: # RG
-    '''Shear stress map, looking down the x axis, at (-1,0,0) mm'''
+    '''Shear stress map, looking down the x axis, at (-1,0,0) mm, scaled by nozzle_inner_width'''
     sv.hideAll()
     shearStressSlice(sv, [scaleDim(sv, xs), 0, 0], [1,0,0], 'x', **kwargs)  
     
