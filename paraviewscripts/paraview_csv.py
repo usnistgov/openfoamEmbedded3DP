@@ -1,6 +1,7 @@
 #!/usr/bin/env pvpython
 '''Collecting interface points into csvs from vtk files'''
 
+# external packages
 import os
 import numpy as np
 import csv
@@ -11,12 +12,15 @@ from datetime import datetime
 from paraview_general import *
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
+
+# logging
 logger = logging.getLogger(__name__)
 
+# info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
+__credits__ = ["Leanne Friedrich", "Ross Gunther"]
+__license__ = "NIST"
 __version__ = "1.0.0"
 __maintainer__ = "Leanne Friedrich"
 __email__ = "Leanne.Friedrich@nist.gov"
@@ -93,16 +97,6 @@ def initSeriesNoz(sv:stateVars, mode:str='slice'): # RG
 
     if mode=='slice':
 
-        # # clip bottom of nozzle
-        # clip2 = Clip(Input=clip1)
-        # clip2.ClipType = 'Plane'
-        # clip2.HyperTreeGridClipper = 'Plane'
-        # clip2.ClipType.Origin = [0, 0, z0]
-        # clip2.HyperTreeGridClipper.Origin = [0, 0, z0]
-        # clip2.Invert = 0
-        # clip2.ClipType.Normal = [0.0, 0.0, 1.0]
-        # Hide3DWidgets(proxy=clip2.ClipType)
-
         # clip right edge
         clip3 = Clip(Input=clip1)
         clip3.ClipType = 'Plane'
@@ -123,9 +117,6 @@ def initSeriesNoz(sv:stateVars, mode:str='slice'): # RG
         clip4.ClipType.Normal = [np.cos(na), 0.0, np.sin(na)]
         Hide3DWidgets(proxy=clip4.ClipType)
 
-        
-
-
         # below here is specific to shear stress and should be changed/removed if not looking at shear stress
         calculator1 = Calculator(Input=clip4)
 
@@ -145,7 +136,6 @@ def initSeriesNoz(sv:stateVars, mode:str='slice'): # RG
     computeDerivatives1.Scalars = ['POINTS', 'magU']
     computeDerivatives1.Vectors = ['POINTS', 'U']
     cellDatatoPointData1 = CellDatatoPointData(Input=computeDerivatives1)
-    #     cellDatatoPointData1.CellDataArraytoprocess = ['ScalarGradient', 'U', 'VectorGradient', 'alpha.ink', 'cellID', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
     cellDatatoPointData1.CellDataArraytoprocess = ['ScalarGradient', 'U', 'alpha.ink', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
     calculator2 = Calculator(Input=cellDatatoPointData1)
     calculator2.ResultArrayName = 'ShearStress'

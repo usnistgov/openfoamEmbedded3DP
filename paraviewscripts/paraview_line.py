@@ -12,9 +12,10 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(currentdir)
 sys.path.append(parentdir)
+sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
 from paraview_general import *
 import folderparser as fp
-from pythonscripts.pvCleanup import addUnits
+from pvCleanup import addUnits
 
 # logging
 logger = logging.getLogger(__name__)
@@ -23,8 +24,8 @@ logger.setLevel(logging.DEBUG)
 # info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
+__credits__ = ["Leanne Friedrich", "Ross Gunther"]
+__license__ = "NIST"
 __version__ = "1.0.0"
 __maintainer__ = "Leanne Friedrich"
 __email__ = "Leanne.Friedrich@nist.gov"

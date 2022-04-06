@@ -17,6 +17,7 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(currentdir)
 sys.path.append(parentdir)
+sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
 import folderparser as fp
 
 # logging
@@ -25,8 +26,8 @@ logger = logging.getLogger(__name__)
 # info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
+__credits__ = ["Leanne Friedrich", "Ross Gunther"]
+__license__ = "NIST"
 __version__ = "1.0.0"
 __maintainer__ = "Leanne Friedrich"
 __email__ = "Leanne.Friedrich@nist.gov"
@@ -101,40 +102,6 @@ class stateVars():
         else:
             self.supfunc = 'nu2'
             self.supnu = le['sup_nu0']
-
-
-        # while not le[i0][0]=='transportProperties':
-        #     i0+=1 # find the index where the transport properties start
-        # self.inkmodel = le[i0+2][1] # find the row that contains the ink model.
-        # if self.inkmodel=='Newtonian':
-        #     # if it's newtonian, the viscosity is stored 3 rows below 'transportProperties'
-        #     nuinki = i0+3
-        #     self.inkfunc = 'inknu'
-        # else:
-        #     # otherwise the zero shear viscosity is 4 rows below
-        #     nuinki = i0+4
-        #     self.inkfunc = 'nu1'
-        # nuink = le[nuinki][1] # get the string viscosity in mPa s
-        # self.inknu = nuink
-
-        # # find the support transport properties
-        # # in some legends, there are no Herschel Bulkley boxes, and in some there are
-        # # we need to find where the support section starts
-        # nusupi = nuinki 
-
-        # # iterate through rows until we find the support transportmodel
-        # while not le[nusupi][0]=='transportModel':
-        #     nusupi+=1
-
-        # self.supmodel = le[nusupi][1]
-        # if self.supmodel=='Newtonian':
-        #     nusupi = nusupi+1
-        #     self.supfunc = 'supnu'
-        # else:
-        #     nusupi = nusupi+2
-        #     self.supfunc = 'nu2'
-        # nusup = le[nusupi][1]
-        # self.supnu = nusup
         
         return 0   
 
@@ -171,30 +138,6 @@ def stressFunc(le:dict) -> str:
             return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
         else:
             return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
-
-
-        
-# # find the path of the vtk series file
-# def series(folder:str) -> str:
-#     cf = fp.caseFolder(folder)
-#     vtkfolder = os.path.join(cf, 'VTK')
-#     if os.path.exists(vtkfolder):
-#         for file in os.listdir(vtkfolder):
-#             if '.series' in file:
-#                 return os.path.join(vtkfolder, file)
-#         # if there is a vtk folder but no series file, generate one
-#         fp.redoVTKSeriesNoLog(folder)
-#         return fp.parseVTKSeries(folder)
-#     return ""
-
-
-# def readTimes(folder) -> List[float]:
-#     times = fp.parseVTKSeries(folder)
-#     if len(times)==0 or len(times)<fp.vtkFiles(folder):
-#         fp.redoVTKSeriesNoLog(folder)
-#         times = fp.parseVTKSeries(folder)
-#     return times
-
 
 
 ##-----------------------

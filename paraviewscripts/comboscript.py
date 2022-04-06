@@ -17,7 +17,9 @@ import paraview_line as pl
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
-# load the virtual environment
+sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
+
+    # load the virtual environment
     # this needs to be after paraview_general, because it will otherwise break numpy
 virtualEnv = os.path.join(parentdir, 'env', 'Scripts', 'activate_this.py')
 if sys.version_info.major < 3:
@@ -34,8 +36,8 @@ LOGGERDEFINED = fp.openLog(os.path.realpath(__file__), False, level='DEBUG')
 # info
 __author__ = "Leanne Friedrich"
 __copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
+__credits__ = ["Leanne Friedrich", "Ross Gunther"]
+__license__ = "NIST"
 __version__ = "1.0.0"
 __maintainer__ = "Leanne Friedrich"
 __email__ = "Leanne.Friedrich@nist.gov"
@@ -52,10 +54,10 @@ loopTime = 6 #hours
 
 forceOverwrite = False
 getCSVs = True
-csvTimes = [2.5]
-
-# modes = ['nozzle', 'interface'] # CSVs to create
-modes = ['nozzleSlice', 'interface']
+getNoz = True
+# csvTimes = [2.5]
+csvTimes = [round(0.1*i,1) for i in range(1,26)]
+nozTimes = [2.5]
 
 #------
 ## screenshots
@@ -99,9 +101,9 @@ if not os.path.exists(SERVERFOLDER):
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
 
-# nlist = list(range(0,1000))
+nlist = list(range(0,1000))
+# nlist = [104, 108, 112, 116]
 # nlist = [43, 53, 63, 487]
-nlist = [240]
 topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'diameter', 'newtonian', 'k', 'newt_diameter']]
 # topfolders = [os.path.join(cfg.path.server, 'viscositysweep', s) for s in ['newtnewtsweep']]
 
@@ -114,9 +116,9 @@ logging.info('Exporting images and csvs.')
 logging.info('Images:')
 for r in runList:
     logging.info(r.prnt())
-logging.info(f'CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
+logging.info(f'Interface CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
+logging.info(f'Nozzle CSVs: Collect: {getNoz}. Overwrite: {forceOverwrite}')
 logging.info(f'Folders: {[os.path.basename(f) for f in folders]}')
-logging.info(f'Modes: {modes}')
 logging.info(f'Line traces:\n\
             X positions: {pl_xlist} di behind nozzle.\n\
             Z positions: {pl_zlist} di above nozzle bottom.\n\
@@ -127,14 +129,16 @@ while True:
     for folder in folders:
         logging.debug(f'Checking {folder}')
         if getCSVs:
-            pc.csvFolder(folder, modes, forceOverwrite, times0=csvTimes) # create csvs RG
+            pc.csvFolder(folder, ['interface'], forceOverwrite, times0=csvTimes) # create csvs RG
+        if getNoz:
+            pc.csvFolder(folder, ['nozzleSlice'], forceOverwrite, times0=nozTimes) # create nozzle point csv
         if getSSs:
-            ss.folderScript(folder, runList)
+            ss.folderScript(folder, runList)  # screenshots
         if getLine:
             for xpos in pl_xlist:
-                pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite)
+                pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant x
             for zpos in pl_zlist:
-                pl.csvfolder(folder, 'z', zpos, pl_tlist, forceOverwrite=pl_forceOverwrite)
+                pl.csvfolder(folder, 'z', zpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant z
     if not looping:
         break
     now = datetime.now()
