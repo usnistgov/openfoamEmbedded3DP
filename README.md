@@ -1,23 +1,25 @@
 # Python tools for OpenFOAM simulations of filament shapes in embedded 3D printing
 
-## Authors:
-- Leanne Friedrich
+## Authors
+- Leanne M. Friedrich
     - National Institute of Standards and Technology, MML
     - Leanne.Friedrich@nist.gov
     - https://github.com/leanfried
-- Ross Gunther
+    - ORCID: 0000-0002-0382-3980
+- Ross T. Gunther
     - Georgia Institute of Technology
     - https://github.com/RossGunther
+    - ORCID: 0000-0002-6442-5396
 - Jonathan E. Seppala
     - National Institute of Standards and Technology, MML
-    - Jonathan.Seppala@nist.gov
+    - ORCID: 0000-0002-5937-8716
 
-## Contact:
+## Contact
 - Leanne Friedrich
     - Leanne.Friedrich@nist.gov
     - https://github.com/leanfried
 
-## Description:
+## Description
 
 In embedded 3D printing, a nozzle is embedded into a support bath and extrudes filaments or droplets into the bath. Using OpenFOAM, we simulated the extrusion of filaments and droplets into a moving bath. OpenFOAM is an open source computational fluid dynamics solver. This repository contains the following Python tools:
 
