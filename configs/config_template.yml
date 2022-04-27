@@ -1,4 +1,7 @@
- 
+# Please copy this template to config.yml then set your
+# preferred file locations below.
+---
+
 path:
     logs: "logs"
     log_config: "configs/logging.yml"
@@ -11,3 +14,5 @@ path:
 timing:
     abort1: 120
     abort2: 60
+    
+---

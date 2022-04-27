@@ -1,3 +1,5 @@
+---
+
 version: 1
 # Set to False to get log messages from external packages you're using
 disable_existing_loggers: False
@@ -49,3 +51,5 @@ loggers:
 root:
   level: DEBUG
   handlers: [console, debug_file_handler, info_file_handler]
+  
+---
