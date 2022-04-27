@@ -10,6 +10,7 @@
     - https://github.com/RossGunther
 - Jonathan E. Seppala
     - National Institute of Standards and Technology, MML
+    - Jonathan.Seppala@nist.gov
 
 ## Contact:
 - Leanne Friedrich
@@ -118,11 +119,8 @@ The files included in this publication use the following hierarchy:
     List of required packages, for use with virtual environments. This file can be used with virtualenv for easy import of dependencies.
 
 - **configs/**
-    - *config.yml*  
-        set path.logs (log folder), path.log_config (logging config yml path), path.c (path to C folder holding OpenFOAM docs), path.e (path to E folder holding OpenFOAM docs), path.server (path to server folder holding OpenFOAM docs), and path.fig (path to figure folder)
-
-    - *environment.yml*  
-        set up virtual environment
+    - *config.yml*, *config_template.yml*  
+        establish paths to data and tolerable timing for simulations. Copy *config_template.yml* to *config.yml* and edit file locations in *config.yml* before proceeding.
 
     - *logging.yml*  
         set up log generation
@@ -155,6 +153,9 @@ The files included in this publication use the following hierarchy:
 - **paraviewscripts/**  
     pvpython scripts for generating images and tables. These run on pvpython.exe. Some scripts use packages that are not native to pvpython.exe and require a virtual environment. We use virtualenv to implement this.
     
+    - *\__init\__.py*  
+        Metadata about this project
+    
     - *comboscript.py*  
         Collecting interface points into csvs from vtk files and generating images from vtk files. Scripting for many folders and many images and tables.
 
@@ -172,6 +173,9 @@ The files included in this publication use the following hierarchy:
 
 - **py/**  
     python tools for generating and analyzing OpenFOAM files. These are written for python3.
+    
+    - *\__init\__.py*  
+        Metadata about this project
     
     - *backwardsRead.py*   
         Function for reading text files from the bottom
@@ -241,11 +245,4 @@ The files included in this publication use the following hierarchy:
 
     - *videoscript.py*  
         Script for combining images into videos. Loops continuously every 6 hours.
-
-
-
-## METHODOLOGICAL INFORMATION
-
-
-
 
