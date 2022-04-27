@@ -125,7 +125,7 @@ class survival:
         self.zlist = [z/normval for z in self.zlist]
 
         
-def survivalCalc(folder:str, time:float=2.5, a:float=10**-2, b:float=0.5, c:float=0.5, zunits:str='mm', dr:float=0.05, fcrit:float=0.9, volume:bool=True, **kwargs):
+def survivalCalc(folder:str, time:float=2.5, a:float=10**-2, b:float=0.5, c:float=0.5, zunits:str='mm', dr:float=0.05, fcrit:float=0.9, volume:bool=True, xhalf:bool=True, **kwargs):
     '''calculate what cells will survive the process, if S=exp(-a*tau^b*t^c). 
     time is the time at which to collect stress data
     zunits is a string, usually mm or nozzle_inner_width
@@ -141,7 +141,7 @@ def survivalCalc(folder:str, time:float=2.5, a:float=10**-2, b:float=0.5, c:floa
     if len(df)==0:
         return [] 
     
-    df = intm.takePlane(df, folder, dr=dr, xhalf=True) # take just the middle plane
+    df = intm.takePlane(df, folder, dr=dr, xhalf=xhalf) # take just the middle plane
 
     if 'rbarlist' in kwargs:
         rbarlist = kwargs['rbarlist']
@@ -357,7 +357,7 @@ def survivalRMultiRow(topFolder:str, exportFolder:str, fontsize:int=8, export:bo
 
 
 def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float=10**-3, b:float=0.5, c:float=0.5
-                 , zunits:str='nozzle_inner_width', fontsize:int=8, dr:float=0.05, export:bool=True, overwrite:bool=False, **kwargs):
+                 , zunits:str='nozzle_inner_width', fontsize:int=8, dr:float=0.05, volume:bool=False, export:bool=True, overwrite:bool=False, **kwargs):
     '''plot survival as a function of z position, relative radius, or get a single value.
     folder is the simulation folder
     exportFolder is the folder to export results to
@@ -370,7 +370,11 @@ def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float
     overwrite True to export images even if the file already exists    
     '''
 
-    labels = ['survival', xvar, os.path.basename(folder), str(a), str(b), str(c), zunits]
+    if volume:
+        v = 'volume'
+    else:
+        v = 'slice'
+    labels = ['survival', xvar, os.path.basename(folder), str(a), str(b), str(c), zunits, v]
     fn = intm.imFn(exportFolder, labels, os.path.dirname(folder), **kwargs) # output file name
     if not overwrite and os.path.exists(f'{fn}.png'):
         return
@@ -388,20 +392,30 @@ def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float
             fig,axs = plt.subplots(1,3, figsize=kwargs['figsize'])
         else:
             fig,axs = plt.subplots(1,3, figsize=(6.5, 4))
-        rz = survivalCalc(folder, time=time, a=a, b=b, c=c, zunits=zunits, dr=dr, **kwargs)
+        rz = survivalCalc(folder, time=time, a=a, b=b, c=c, zunits=zunits, dr=dr, volume=volume, **kwargs)
         survivalzPlot(rz, xvar, axs, zunits, cm)
         axs[2].set_title(survivalEqLabel(a,b,c), fontsize=fontsize)
+        if 'ylims' in kwargs:
+            ylims = kwargs['ylims']
+            for i,ylim in enumerate(ylims):
+                if len(ylim)>0:
+                    axs[i].set_ylim(ylim)
+                    setSquare(axs[i])
+        for ax in axs:
+            ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--', linewidth=0.75)
         fig.tight_layout()
             
     elif xvar=='rbar':
         fig,ax = plt.subplots(1,1)
-        survivalrPlot(folder, ax, time=time, a=a, b=b, c=c, zunits=zunits, dr=dr, **kwargs)
+        survivalrPlot(folder, ax, time=time, a=a, b=b, c=c, zunits=zunits, dr=dr, volume=volume, **kwargs)
     elif xvar=='scalar':
-        return survivalRate(folder, time=time, a=a, b=b, c=c, dr=dr, **kwargs)
-    
-    
+        return survivalRate(folder, time=time, a=a, b=b, c=c, dr=dr, volume=volume, **kwargs)
+     
     if export:
         intm.exportIm(fn, fig) # export figure
+        
+
+    
     
     
     
@@ -559,8 +573,12 @@ def getListsFromTrace(row:pd.Series, zstress:pd.DataFrame, xvar:str, yvar:str, c
         theta = row[cvar]    
         xlist = list(zstress[xvar])
         ylist = list(zstress[yvar])
-        if yvar=='magu' or xvar=='rbar':
+        if yvar=='shearstressz':
             li = int(len(zstress)/2)
+        elif yvar=='shearstressmag':
+            li = int(len(zstress)*0.9)
+        elif yvar=='magu':
+            li = int(len(zstress)*0.1)
         else:
             li = 0
         return theta, li, xlist, ylist
@@ -595,6 +613,27 @@ def getDataWithinNozzle(xvar:str, yvar:str, cvar:str, row:pd.Series, time:float,
     return theta, li, zstress, xlist, ylist
 
 
+def plotWithinNozzle(xlist:list, ylist:list, theta:float, color, legendloc:str, ax, cvar, li) -> None:
+    '''plot the line on the axis'''
+    # set color label
+    if cvar=='nozzle_angle':
+        clabel = f'{int(theta)}$\degree$'
+    else:
+        clabel = theta
+
+    # plot data
+    ax.plot(xlist, ylist, label=clabel, c=color, linewidth=0.75)
+
+    # label line
+    if legendloc=='overlay':
+        x0 = xlist[li]
+        y0 = ylist[li]
+        if li==0:
+            ha = 'right'
+        else:
+            ha = 'center'
+        ax.text(x0, y0, clabel, color=color, horizontalalignment=ha, verticalalignment='top') 
+
 def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, yvar:str, cvar:str, cm, legendloc:str='overlay', zunits:str='mm', xvar:str='x', volume:bool=False, zstress:List=[], **kwargs) -> None:
     '''get data from inside the nozzle and plot it for a single folder
     i is the row number, used for determining color
@@ -621,24 +660,7 @@ def withinNozzleFolder(i:int, row:pd.Series, time:float, zabove:float, ax, yvar:
         logging.warning(f'No data collected in {folder}')
         return zstress
     
-    # set color label
-    if cvar=='nozzle_angle':
-        clabel = f'{int(theta)}$\degree$'
-    else:
-        clabel = theta
-
-    # plot data
-    ax.plot(xlist, ylist, label=clabel, c=cm[i], linewidth=0.75)
-
-    # label line
-    if legendloc=='overlay':
-        x0 = xlist[li]
-        y0 = ylist[li]
-        if li==0:
-            ha = 'right'
-        else:
-            ha = 'center'
-        ax.text(x0, y0, clabel, color=cm[i], horizontalalignment=ha, verticalalignment='top') 
+    plotWithinNozzle(xlist, ylist, theta, cm[i], legendloc, ax, cvar, li)
         
     return zstress
     
@@ -709,6 +731,17 @@ def withinNozzle(folders:List[str], time:float, zabove:float, axs, cvar:str, yva
     for j,yvar in enumerate(yvars):
         labelNozAxs(axs[j], yvar, zunits, xvar, zabove, time, legendloc, **kwargs)
 
+                
+def setRanges(axs, **kwargs):
+    if 'ylims' in kwargs:
+        ylims = kwargs['ylims']
+        for i,ylim in enumerate(ylims):
+            if len(ylim)>0:
+                axs[i].set_ylim(ylim)
+    axs[0].set_xlim([-2.7,0.1])
+    axs[0].vlines([0], 0, 1, transform=axs[0].get_xaxis_transform(),  color='#666666', linestyle='--', linewidth=0.75)
+    axs[1].set_xlim([0,1])
+    axs[2].set_xlim([0,1])
     
 def withinNozzle0(topFolder:str, exportFolder:str, time:float, zabove:float, zunits:str='mm', cvar:str='nozzle_angle'
                   , overwrite:bool=False, export:bool=True, fontsize:int=8, **kwargs):
@@ -747,6 +780,8 @@ def withinNozzle0(topFolder:str, exportFolder:str, time:float, zabove:float, zun
     
     withinNozzle(folders, time, zabove, axs, cvar, ['shearstressz', 'shearstressmag', 'magu'], zunits=zunits, **kwargs) # plot the values on the axis
    
+    setRanges(axs, **kwargs)
+
     for ax in axs:
         setSquare(ax)
   
@@ -755,3 +790,104 @@ def withinNozzle0(topFolder:str, exportFolder:str, time:float, zabove:float, zun
 
     if export:
         intm.exportIm(fn, fig) # export figure
+        
+        
+        
+        
+def analyticalStress(vf:float, di:float, visc:float, theta:float, z:float, rlist:List[float]) -> Union[float, Tuple[list,list]]:
+    '''get analytical stress(averaged) stress(r/r0), and velocity(r/r0) for Newtonian fluid
+    as a function of flow speed vf in mm/s, inner diameter di in mm, viscosity in Pas, nozzle angle theta in degree, and position z in di'''
+    
+    zmm = abs(z)*di     # z in mm
+    R = (di + 2*zmm*np.tan(np.deg2rad(theta)))/2 # radius at this z in mm
+    vc = vf*di**2/(2*R**2)   # center velocity in mm/s
+    tauw = 2*visc*vc/(R)   # wall stress in Pa
+    if len(rlist)==0:
+        ave = tauw*2/3
+        return ave
+    else:
+        slist = [tauw*r for r in rlist]
+        ulist = [vc*(1-r**2) for r in rlist]
+        return slist, ulist
+
+def analyticalColors(l:list, **kwargs) -> list:
+    '''get a list of colors'''
+    if not 'cm' in kwargs:
+        cm = sns.color_palette('viridis', n_colors=len(l)) # uses viridis color scheme
+    else:
+        cm = kwargs['cm']
+    return cm
+
+
+def plotStressRow(vf:float, di:float, visc:float, theta:float, label, axs, legendloc, color, cvar) -> None:
+    '''plot values for a single set of input parameters'''
+    zlist = np.arange(-3, 0.1, 0.1)
+    avelist = [analyticalStress(vf, di, visc, theta, z, []) for z in zlist]
+    plotWithinNozzle(zlist, avelist, label, color, legendloc, axs[0], cvar, int(len(zlist)/2))
+
+    # get stress and velocity as a function of rbar at z=2
+    rlist = np.arange(0, 1.01, 0.01)
+    slist, ulist = analyticalStress(vf, di, visc, theta, 2, rlist) 
+    plotWithinNozzle(rlist, slist, label, color, legendloc, axs[1], cvar, int(len(rlist)*0.9))
+    plotWithinNozzle(rlist, ulist, label, color, legendloc, axs[2], cvar, int(len(rlist)/10))
+
+def analyticalPlot(topFolder:str, exportFolder:str,  vfs:List[float], dis:List[float], viscs:List[float], thetas:List[float], legendloc:str='overlay', export:bool=False, overwrite:bool=False, fontsize:int=8, **kwargs) -> None:
+    '''plot analytical values, where one of the lists is longer than 1
+    as a function of flow speed vf in mm/s, inner diameter di in mm, viscosity in Pas, nozzle angle theta in degree'''
+    
+    labels = ['trace_across_analytical']
+    fn = intm.imFn(exportFolder, labels, topFolder, **kwargs) # output file name
+    if (not overwrite and export) and os.path.exists(f'{fn}.png'):
+        return
+
+    plt.rc('font', size=fontsize) 
+    fig, axs = plt.subplots(1,3, figsize=(6.5,3.5))
+    
+    if 'logy' in kwargs:
+        if kwargs['logy']:
+            for ax in [axs[0], axs[1]]:
+                ax.set_yscale('log')
+    
+    if len(vfs)>1:
+        cm = analyticalColors(vfs, **kwargs)
+        for i,vf in enumerate(vfs):
+            # get average stress as a function of z
+            plotStressRow(vf, dis[0], viscs[0], thetas[0], vf, axs, legendloc, cm[i], 'ink_speed')
+    elif len(dis)>1:
+        cm = analyticalColors(dis, **kwargs)
+        for i,di in enumerate(dis):
+            # get average stress as a function of z
+            plotStressRow(vfs[0], di, viscs[0], thetas[0], di, axs, legendloc, cm[i], 'nozzle_inner_diameter')
+    elif len(viscs)>1:
+        cm = analyticalColors(viscs, **kwargs)
+        labels = expFormatList(viscs)
+        for i,visc in enumerate(viscs):
+            # get average stress as a function of z
+            plotStressRow(vfs[0], dis[0], visc, thetas[0], labels[i], axs, legendloc, cm[i], 'ink_viscosity')
+    if len(thetas)>1:
+        cm = analyticalColors(thetas, **kwargs)
+        for i,theta in enumerate(thetas):
+            # get average stress as a function of z
+            plotStressRow(vfs[0], dis[0], viscs[0], theta, theta, axs, legendloc, cm[i], 'nozzle_angle')
+   
+    
+        
+    for j,yvar in enumerate(['shearstressz', 'shearstressmag', 'magu']):
+        if j==0:
+            xvar = 'z'
+        else:
+            xvar='rbar'
+        labelNozAxs(axs[j], yvar, 'di', xvar, 2, '$\infty$', legendloc, **kwargs)
+  
+    setRanges(axs, **kwargs)
+    
+
+    subFigureLabels(axs, inside=False)
+    for ax in axs:
+        setSquare(ax)
+    
+    fig.tight_layout()
+
+    if export:
+        intm.exportIm(fn, fig) # export figure
+        

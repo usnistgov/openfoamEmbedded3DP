@@ -99,8 +99,9 @@ if not os.path.exists(SERVERFOLDER):
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
 
-nlist = list(range(0,1000))
-topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['orig', 'speed_sweep', 'diameter', 'newtonian', 'k', 'newt_diameter']]
+# nlist = list(range(0,1000))
+nlist = [202]
+topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['HB_angle', 'HB_diameter', 'HB_k', 'HB_speed', 'newt_angle', 'newt_diameter', 'newt_visc', 'visc_speed']]
 
 folders = filterSimNums(topfolders, nlist)
 

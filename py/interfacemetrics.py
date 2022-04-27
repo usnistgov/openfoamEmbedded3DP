@@ -339,7 +339,7 @@ def exportIm(fn:str, fig, svg:bool=True, png:bool=True, **kwargs) -> None:
     if png:
         slist.append('.png')
     for s in slist:
-        fig.savefig(f'{fn}{s}', bbox_inches='tight', dpi=300)
+        fig.savefig(f'{fn}{s}', bbox_inches='tight', dpi=300, transparent=True)
     logging.info(f'Exported {fn}')
 
 

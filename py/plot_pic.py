@@ -148,7 +148,8 @@ def picCrops(tag:str, **kwargs) -> dict:
         crops = kwargs['crops']
     else:
         if tag=='y_shearStressy' or tag=='y_viscy':
-            crops = {'cropxl':60/1216, 'cropxr':(1216-600)/1216, 'cropyb':(1216-120)/1216, 'cropyt':240/1216}
+#             crops = {'cropxl':60/1216, 'cropxr':(1216-600)/1216, 'cropyb':(1216-120)/1216, 'cropyt':240/1216}
+            crops = {'cropxl':240/1216, 'cropxr':(1216-740)/1216, 'cropyb':(1216-600)/1216, 'cropyt':380/1216}
         elif tag=='a_stre':
             crops = {'cropxl':600/1216, 'cropxr':(1216-300)/1216, 'cropyb':(550)/1216, 'cropyt':240/1216}
         else:

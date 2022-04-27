@@ -1015,7 +1015,7 @@ class MeshVars:
         self.allowFreeStandingZoneFaces = "true" 
             # Allow the generation of free-standing zone faces
         self.locationInMesh = "(0 0 0)" 
-            # Merge tolerance as fraction of bounding box of initial mesh
+            # point which must be meshed, as opposed to inside walls
         self.maxLocalCells = 100000
             # Maximum number of cells per processor during refinement
         self.maxGlobalCells = 2000000 # *10 RG
@@ -1756,6 +1756,7 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
         mv = MeshVars(meshSize=kwargs['meshSize'])
     else:
         mv = MeshVars(meshSize=geo.niw/3) # make the initial mesh size 1/3 of the inner nozzle diameter
+#     mv.locationInMesh = f'({geo.ncx} {geo.ncy} {geo.nbo})'
     out = createNozzleBlockFile(geo, mv, folder, exportMesh, onlyMesh, **kwargs)
 
     cdv, fvv = solverObjects(startTime, endTime, dt, writeDt, solver)

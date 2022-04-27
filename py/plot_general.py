@@ -505,10 +505,10 @@ def vv(tp:Dict, xpv) -> Tuple[Any, float, float, int]:
     sigmapos = findPos(xpv.tplists['sigma_list'], tp['sigma'])
     # find the position in the plot x0,y0 for this simulation. Not the real value! Just a placeholder so we don't have to deal with logs.
     if xpos<0 or ypos<0 or sigmapos<0:
-        if xpos<0:
-            logging.info(f'{x} not in {xpv.xlist}')
-        if ypos<0:
-            logging.info(f'{y} not in {xpv.ylist}')
+#         if xpos<0:
+#             logging.info(f'{x} not in {xpv.xlist}')
+#         if ypos<0:
+#             logging.info(f'{y} not in {xpv.ylist}')
         raise ValueError
     if xpv.type=="comboPlot":
         x0 = xpv.xmlist[xpos]

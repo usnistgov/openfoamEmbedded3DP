@@ -747,10 +747,11 @@ def populate(folder:str, *varargin, readLogs:bool=True, overwrite:bool=False) ->
                 # keep old values if not same, except for scraped timings
                 if key in leOld and not leOld[key]==leNew[key]:
                     if not (('time' in key or 'rate' in key) and len(leNew[key])>0 and float(leNew[key])>0):
-                        if leOld[key][0]==' ':
-                            # remove space from beginning of unit
-                            leOld[key] = leOld[key][1:]
-                        leNew[key] = leOld[key]
+                        if len(leOld[key])>0:
+                            if leOld[key][0]==' ':
+                                # remove space from beginning of unit
+                                leOld[key] = leOld[key][1:]
+                            leNew[key] = leOld[key]
                 if key in uOld and not uOld[key]==uNew[key]:
                     if uOld[key][0]==' ':
                         # remove space from beginning of unit
