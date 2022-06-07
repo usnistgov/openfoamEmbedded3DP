@@ -1,5 +1,3 @@
-# Please copy this template to config.yml then set your
-# preferred file locations below.
 ---
 
 path:
@@ -15,4 +13,3 @@ timing:
     abort1: 120
     abort2: 60
     
----

@@ -390,9 +390,9 @@ def survivalPlot(folder:str, exportFolder:str, xvar:str, time:float=2.5, a:float
             ylims = kwargs['ylims']
             for i,ylim in enumerate(ylims):
                 if len(ylim)>0:
-                    axs[i].set_ylim(ylim)
-                    setSquare(axs[i])
+                    axs[i].set_ylim(ylim)   
         for ax in axs:
+            setSquare(ax)
             ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#666666', linestyle='--', linewidth=0.75)
         fig.tight_layout()
             

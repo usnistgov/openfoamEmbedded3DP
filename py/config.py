@@ -1,20 +1,20 @@
 #!/usr/bin/env python
-'''Loads configuration settings'''
+'''Tools for loading settings'''
 
 # external packages
 import yaml
 import sys
 import os
-# import logging.config
 try:
     from box import Box
-except:
+except ModuleNotFoundError:
     nobox = True
 else:
     nobox = False
+import shutil
 
 
-#----------------------------------------------
+#----------------------------------------------------
 
 class Struct:
     def __init__(self, **entries):
@@ -24,35 +24,77 @@ class Struct:
             else:
                 setattr(self, key, val)
 
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-configdir = os.path.join(currentdir, 'configs')
-if not os.path.exists(configdir):
-    configdir = os.path.join(parentdir, 'configs')
+
+def getConfigDir() -> str:
+    '''find the configs directory'''
+    currentdir = os.path.dirname(os.path.realpath(__file__))
+    configdir = os.path.join(currentdir, 'configs')
     if not os.path.exists(configdir):
-        raise FileNotFoundError(f"No configs directory found")
-    
+        parentdir = os.path.dirname(currentdir)
+        configdir = os.path.join(parentdir, 'configs')
+        if not os.path.exists(configdir):
+            raise FileNotFoundError(f"No configs directory found")
+    return configdir
 
-with open(os.path.join(configdir, "config.yml"), "r") as ymlfile:
-    y = yaml.safe_load(ymlfile)
-    if nobox:
-        cfg = Struct(**y)
+def dumpConfigs(cfg, path:str) -> int:
+    '''Saves config file. cfg could be a Box or a dict'''
+    with open(path, "w") as ymlout:
+        if type(cfg) is Box:
+            cout = cfg.to_dict()
+        elif type(cfg) is dict:
+            cout = cfg
+        else:
+            return 1
+        yaml.safe_dump(cout, ymlout)
+        return 0
+    
+    
+def findConfigFile() -> str:
+    '''find the config file and return the path'''
+    configdir = getConfigDir()
+    path = os.path.join(configdir,"config.yml")
+    if os.path.exists(path):
+        return path
+    
+    # config.yml does not exist: find default or template
+    path2 = os.path.join(configdir, 'config_default.yml')
+    if os.path.exists(path2):
+        shutil.copy2(path2, path)
+        return path
     else:
-        cfg = Box(y)
+        path2 = os.path.join(configdir, 'config_template.yml')
+        if os.path.exists(path2):
+            shutil.copy2(path2, path)
+            return path
+            
+    # no config_default or config_template either: find any file that looks like a config file
+    llist = os.listdir(configdir)
+    while not os.path.exists(path):
+        l = llist.pop(0)
+        if (l.endswith('yml') or l.endswith('yaml')) and ('config' in l):
+            path = os.path.join(configdir, l)
+            return path
+        
+    return path
     
+        
+def loadConfigFile(path:str) -> Box:
+    '''open the config file and turn it into a Box'''
+    with open(path, "r") as ymlfile:
+        y = yaml.safe_load(ymlfile)
+        if nobox:
+            cfg = Struct(**y)
+        else:
+            cfg = Box(y)
+        return cfg
 
-# # os.makedirs(cfg.path.logs, exist_ok=True)
+def loadConfig() -> Box:
+    path = findConfigFile()
+    cfg = loadConfigFile(path)
+    return cfg
+        
+#----------------------------------------------------
 
-# logConfigFile = os.path.join(currentdir, cfg.path.log_config)
-# if not os.path.exists(logConfigFile):
-#     logConfigFile = os.path.join(parentdir, cfg.path.log_config)
-#     if not os.path.exists(logConfigFile):
-#         logConfigFile = os.path.join(configdir, cfg.path.log_config)
-#         if not os.path.exists(logConfigFile):
-#             raise FileNotFoundError(f"Log yaml configuration file not found in {cfg.path.log_config}")
-
-# with open(logConfigFile, "r") as ymlfile:
-#     log_config = yaml.safe_load(ymlfile)
-
-# # Set up the logger configuration
-# logging.config.dictConfig(log_config)
+cfg = loadConfig()
+    
+    
