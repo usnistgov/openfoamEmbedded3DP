@@ -17,23 +17,44 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(currentdir)
 sys.path.append(parentdir)
+sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
 import folderparser as fp
 
 # logging
 logger = logging.getLogger(__name__)
 
-# info
-__author__ = "Leanne Friedrich"
-__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
-__version__ = "1.0.0"
-__maintainer__ = "Leanne Friedrich"
-__email__ = "Leanne.Friedrich@nist.gov"
-__status__ = "Production"
+
 
 
 #################################################################
+
+def isNum(s:str) -> bool:
+    '''check if the character is a number'''
+    if s in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+        return True
+    else:
+        return False
+
+def simNum(f:str) -> int:
+    '''extract the simulation number from the folder'''
+    i = 0
+    while i<len(f) and not isNum(f[i]):
+        i+=1
+    j = i
+    while j<len(f) and isNum(f[j]):
+        j+=1
+    return int(f[i:j])
+
+
+def filterSimNums(topfolders:List[str], nlist:List[int]) -> List[str]:
+    '''get a list of folders that have sim numbers in the list'''
+    folders = []
+    for topfolder in topfolders:
+        for f in fp.caseFolders(topfolder):
+            if simNum(os.path.basename(f)) in nlist:
+                folders.append(f)
+    return folders
+
 
 class stateVars():
     '''This object holds important information about the folder and paraview objects that are used across functions'''
@@ -54,42 +75,25 @@ class stateVars():
    
     def readVisc(self):
         '''Get viscosity settings from legend. This is necessary for making viscosity maps involving Newtonian fluids.'''
-        le = fp.importIf(self.folder)
+        # le = fp.importIf(self.folder)
+        le = fp.legendUnique(self.folder)
         if len(le)==0:
             return 1
-        i0 = 0
-        while not le[i0][0]=='transportProperties':
-            i0+=1 # find the index where the transport properties start
-        self.inkmodel = le[i0+2][1] # find the row that contains the ink model.
+
+        self.inkmodel = le['ink_transportModel']
         if self.inkmodel=='Newtonian':
-            # if it's newtonian, the viscosity is stored 3 rows below 'transportProperties'
-            nuinki = i0+3
             self.inkfunc = 'inknu'
+            self.inknu = le['ink_nu']
         else:
-            # otherwise the zero shear viscosity is 4 rows below
-            nuinki = i0+4
             self.inkfunc = 'nu1'
-        nuink = le[nuinki][1] # get the string viscosity in mPa s
-        self.inknu = nuink
-
-        # find the support transport properties
-        # in some legends, there are no Herschel Bulkley boxes, and in some there are
-        # we need to find where the support section starts
-        nusupi = nuinki 
-
-        # iterate through rows until we find the support transportmodel
-        while not le[nusupi][0]=='transportModel':
-            nusupi+=1
-
-        self.supmodel = le[nusupi][1]
+            self.inknu = le['ink_nu0']
+        self.supmodel = le['sup_transportModel']
         if self.supmodel=='Newtonian':
-            nusupi = nusupi+1
             self.supfunc = 'supnu'
+            self.supnu = le['sup_nu']
         else:
-            nusupi = nusupi+2
             self.supfunc = 'nu2'
-        nusup = le[nusupi][1]
-        self.supnu = nusup
+            self.supnu = le['sup_nu0']
         
         return 0   
 
@@ -107,32 +111,25 @@ def mksubdirs(folder:str) -> None:
     # fp.mkdirif(os.path.join(folder, 'interfacePoints'))
     os.makedirs(os.path.join(folder, 'images'), exist_ok = True)
     os.makedirs(os.path.join(folder, 'interfacePoints'), exist_ok = True)
-    os.makedirs(os.path.join(folder, 'nozzlePoints'), exist_ok = True) # RG
+    os.makedirs(os.path.join(folder, 'nozzleSlicePoints'), exist_ok = True) # RG
 
-
-
-        
-# # find the path of the vtk series file
-# def series(folder:str) -> str:
-#     cf = fp.caseFolder(folder)
-#     vtkfolder = os.path.join(cf, 'VTK')
-#     if os.path.exists(vtkfolder):
-#         for file in os.listdir(vtkfolder):
-#             if '.series' in file:
-#                 return os.path.join(vtkfolder, file)
-#         # if there is a vtk folder but no series file, generate one
-#         fp.redoVTKSeriesNoLog(folder)
-#         return fp.parseVTKSeries(folder)
-#     return ""
-
-
-# def readTimes(folder) -> List[float]:
-#     times = fp.parseVTKSeries(folder)
-#     if len(times)==0 or len(times)<fp.vtkFiles(folder):
-#         fp.redoVTKSeriesNoLog(folder)
-#         times = fp.parseVTKSeries(folder)
-#     return times
-
+def stressFunc(le:dict) -> str:
+    '''get the stress function from the legend dictionary'''
+    ink_rho = le['ink_rho']
+    sup_rho = le['sup_rho']
+    if le['ink_transportModel']=='Newtonian':
+        nuink = float(le['ink_nu'])
+        if le['sup_transportModel']=='Newtonian':
+            nusup = float(le['sup_nu'])
+            return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
+        else:
+            return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
+    else:
+        if le['sup_transportModel']=='Newtonian':
+            nusup = float(le['sup_nu'])
+            return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
+        else:
+            return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
 
 
 ##-----------------------
@@ -166,6 +163,7 @@ def initSeries0(sv:stateVars) -> Any:
     else:
         bn = os.path.basename(sfile)
         caseVTMSeries = LegacyVTKReader(registrationName=bn, FileNames=[sfile])
+    sv.times = fp.parseVTKSeries(sv.folder) # read times from the VTK.series file
     return caseVTMSeries
     
 

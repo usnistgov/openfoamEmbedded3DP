@@ -1,4 +1,5 @@
- 
+---
+
 path:
     logs: "logs"
     log_config: "configs/logging.yml"
@@ -6,6 +7,9 @@ path:
     e: "E:/afolder/afolder/mykingdomforafolder"
     server: "//server.location/myfolder/myfolder"
     fig: "C:/myfolder/storeFiguresHere"
+    slurmFolder: '/working/myusername'
+    legend_units: "myfolder/legend_units.csv"
 timing:
     abort1: 120
     abort2: 60
+    

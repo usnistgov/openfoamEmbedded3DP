@@ -12,38 +12,39 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(currentdir)
 sys.path.append(parentdir)
+sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
 from paraview_general import *
 import folderparser as fp
-from pythonscripts.pvCleanup import addUnits
+from pvCleanup import addUnits
 
 # logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# info
-__author__ = "Leanne Friedrich"
-__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
-__version__ = "1.0.0"
-__maintainer__ = "Leanne Friedrich"
-__email__ = "Leanne.Friedrich@nist.gov"
-__status__ = "Production"
 
 
 #----------------------------------------------------------------
 
-def initializeAll(folder, xpos):
-    '''initialize all of paraview'''
+def initializeAll(folder:str, constDir:str, pos:float):
+    '''initialize all of paraview. constDir is direction that has const value ('x' or 'z'). pos is the value that stays constant, in x or z (e.g. -0.001)'''
     print('Folder ', folder)
     print(' Initializing paraview ')
     sv = stateVars(folder)        # make subdirectories
     sv =  initializeP(sv)        # initialize Paraview
-    sv =  initSeries(sv, xpos)        # import the vtk series files  
+    le = fp.legendUnique(folder)
+
+    if constDir=='x':
+        btc = float(le['bath_top_coord'])/1000 * 0.97
+        bbc = float(le['bath_bottom_coord'])/1000 * 0.97
+        sv = initSeries(sv, x0=pos, xf=pos, z0=btc, zf=bbc)       # import the vtk series files  
+    elif constDir=='z':
+        blc = float(le['bath_left_coord'])/1000 * 0.97
+        brc = float(le['bath_right_coord'])/1000 * 0.97
+        sv = initSeries(sv, x0=blc, xf=brc, z0=pos, zf=pos)
     return sv
 
 
-def initSeries(sv:stateVars, xpos:float) -> stateVars:
+def initSeries(sv:stateVars, x0:float=-0.004, xf:float=0.004, z0:float=0.0021104998886585236, zf:float=-0.0021104998886585236) -> stateVars:
     '''Initialize the series file and get a line trace'''
     caseVTMSeries = initSeries0(sv)
     sv.caseVTMSeries = caseVTMSeries
@@ -53,8 +54,8 @@ def initSeries(sv:stateVars, xpos:float) -> stateVars:
     # plotOverLine2.Source.Point1 = [0.002588, 0, 0.0021104998886585236]
     # plotOverLine2.Source.Point2 = [0.002588, 0, -0.0021104998886585236]
     
-    plotOverLine2.Source.Point1 = [xpos, 0, 0.0021104998886585236]
-    plotOverLine2.Source.Point2 = [xpos, 0, -0.0021104998886585236]
+    plotOverLine2.Source.Point1 = [x0, 0, z0]
+    plotOverLine2.Source.Point2 = [xf, 0, zf]
 
     # show data in view
     plotOverLine1Display = Show(plotOverLine2, sv.renderView1, 'GeometryRepresentation')
@@ -103,13 +104,15 @@ def exportEmpty(file:str) -> None:
         writer.writerow(['time', 'vx', 'vy', 'vz', 'alpha', 'p', 'rAU', 'vtkValidPointMask', 'arc_length', 'x', 'y', 'z'])
         writer.writerow(['s', 'm/s', 'm/s', 'm/s', '', 'kg/(m*s^2)', 'm^3*s/kg', '', 'm', 'm', 'm', 'm'])
         
-def convertToRelative(x:float) -> float:
+def convertToRelative(x:float, folder:str) -> float:
     '''convert an absolute x position in m to its position relative to the nozzle in mm'''
-    return x*1000+2.412
+    le = fp.legendUnique(folder)
+    return x*1000+float(le['nozzle_center_x_coord'])
 
-def csvfolder(folder:str, xpos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
+def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
     '''Export line trace for the folder. 
-    xpos is the x position of the trace, in absolute coordinates.
+    constDir is the direction that is constant, either 'x' or 'z'
+    pos is the constant x or z position of the trace, relative to the nozzle center, in nozzle inner widths
     tlist is the list to times at which to take the trace
     forceOverwrite to overwrite existing files'''
     initialized = False
@@ -118,14 +121,16 @@ def csvfolder(folder:str, xpos:float, tlist:List[float], forceOverwrite:bool=Fal
         if len(times)>0:
             for time in tlist:
                 if time in times:
-                    xstr = '{:.1f}'.format(convertToRelative(xpos))
+                    xstr = '{:.1f}'.format(pos)
                     tstr = str(int(round(time*10)))
-                    ipfile = os.path.join(folder, "line_t_"+tstr+"_x_"+xstr+".csv")
+                    ipfile = os.path.join(folder, f"line_t_{tstr}_{constDir}_{xstr}_di.csv")
                         # this is the file that all points for this time will be saved in
                     if not os.path.exists(ipfile) or forceOverwrite: 
                         # only run this if the file hasn't been created already or we're being forced to
                         if not initialized: # if paraview hasn't already been initialized, initialize it
-                            sv = initializeAll(folder, xpos)
+                            le = fp.legendUnique(folder)
+                            posabs = (float(le['nozzle_center_x_coord']) + pos*float(le['nozzle_inner_width']))/1000
+                            sv = initializeAll(folder, constDir, posabs)
                             sv.times = times
                             initialized = True
                         setTime(time, sv) 

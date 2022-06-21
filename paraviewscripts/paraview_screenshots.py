@@ -20,16 +20,6 @@ from paraview_general import *
 # logging
 logger = logging.getLogger(__name__)
 
-# info
-__author__ = "Leanne Friedrich"
-__copyright__ = "This data is publicly available according to the NIST statements of copyright, fair use and licensing; see https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software"
-__credits__ = ["Leanne Friedrich"]
-__license__ = "MIT"
-__version__ = "1.0.0"
-__maintainer__ = "Leanne Friedrich"
-__email__ = "Leanne.Friedrich@nist.gov"
-__status__ = "Production"
-
 
 #################################################################
 
@@ -203,27 +193,15 @@ class ssVars:
 
 def timeStr(t:float) -> str:
     '''convert a time to a 3 digit string'''
-    tstr = str(t)
-    if t<10:
-        tstr = "00" + tstr
-    elif t<100:
-        tstr = "0" + tstr
+    tstr = '{0:0=3d}'.format(t)
     return tstr
 
 
 def fullFN(t:float, view:str, coloring:str, folder:str):
     '''get a full file name for an image'''
-    fn = 't'+timeStr(t)+'_'+view+'_'+coloring+'.png'
+    fn = f't{timeStr(t)}_{view}_{coloring}.png'
     filename = os.path.join(folder, 'images', fn)
     return filename
-
-
-# def vidFN(view:str, coloring:str, folder:str):
-#     '''get the full file name for the video'''
-#     fn = view+'_'+coloring+'.mp4'
-#     filename = os.path.join(folder, 'images', fn)
-#     return filename
-
 
 
 ######### show/hide/initializes ############
@@ -266,33 +244,43 @@ def timeStamp(sv:stateVars) -> stateVars:
 ###############
 # camera operations
 
+def resetCamera(sv:stateVars) -> None:
+    '''reset the view area'''
+    le0 = fp.legendUnique(sv.folder) # use first file as reference dimensions
+    s = float(le0['bath_width'])/9.668
+    sv.renderView1.ResetCamera(-0.005*s, 0.005*s, -0.002*s, 0.002*s, -0.002*s, 0.002*s)
+
 
 def resetCam(sv:stateVars, time:float) -> None:
     '''go to a specific view area, at a given time'''
     setTime(time, sv)
-    sv.renderView1.ResetCamera(-0.005, 0.005, -0.002, 0.002, -0.002, 0.002)
+    resetCamera(sv)
 
 def setView(st:str, sv:stateVars) -> None:
     '''go to a specific view point, out of [x,y,z,a,b]. a and b are views from an angle, where a is downstream of the nozzle, and b is upstream of the nozzle.'''
     if st=="z":
-        sv.renderView1.CameraFocalPoint = [0.001, 0,0]
-        sv.renderView1.CameraPosition = [0.001, 0, 10]
+        sv.renderView1.CameraFocalPoint = [0, 0,0]
+        sv.renderView1.CameraPosition = [0, 0, 10]
         sv.renderView1.CameraViewUp = [0,1,0]
     elif st=="y":
-        sv.renderView1.CameraFocalPoint = [0.001, 0,0]
-        sv.renderView1.CameraPosition = [0.001, -10, 0]
+        sv.renderView1.CameraFocalPoint = [0, 0,0]
+        sv.renderView1.CameraPosition = [0, -10, 0]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="x":
-        sv.renderView1.CameraFocalPoint = [0.001, 0,0]
-        sv.renderView1.CameraPosition = [-10, 0.001, 0]
+        sv.renderView1.CameraFocalPoint = [0, 0,0]
+        sv.renderView1.CameraPosition = [-10, 0, 0]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="a":
-        sv.renderView1.CameraFocalPoint = [0.0006, -0.0002, 0.0005]
-        sv.renderView1.CameraPosition = [2, 1, 2]
+        le = fp.legendUnique(sv.folder)
+        di = float(le['nozzle_inner_width'])
+        sv.renderView1.CameraFocalPoint = [0.0006*di/0.6, -0.0002*di/0.6, 0.0005*di/0.6]
+        sv.renderView1.CameraPosition = [2*di/0.6, 1*di/0.6, 2*di/0.6]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="b":
-        sv.renderView1.CameraFocalPoint = [0.001, 0, 0.001]
-        sv.renderView1.CameraPosition = [-1,-1,1]
+        le = fp.legendUnique(sv.folder)
+        di = float(le['nozzle_inner_width'])
+        sv.renderView1.CameraFocalPoint = [0.001*di/0.6, 0, 0.001*di/0.6]
+        sv.renderView1.CameraPosition = [-1*di/0.6,-1*di/0.6,1*di/0.6]
         sv.renderView1.CameraViewUp = [0,0,1]
 
 
@@ -300,7 +288,7 @@ def setAndUpdate(st:str, sv:stateVars) -> None:
     '''go to a specific viewpoint and view area'''
     setView(st, sv)
     sv.renderView1.Update()
-    sv.renderView1.ResetCamera(-0.005, 0.005, -0.002, 0.002, -0.002, 0.002)
+    resetCamera(sv)
 
 
 #### annotations
@@ -515,12 +503,17 @@ def viscColor(display, visc:str) -> None:
     
     
 def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
-    '''Just clip out the ink portion and color it by viscosity or velocity. clipinput is the Paraview object that you're trying to clip, e.g. sv.caseVTMSeries. colVar is the variable being colored ('U', 'nu1', 'nu2', 'inknu', or 'supnu'). 'nu1' and 'nu2' use local viscosities measured for non-Newtonian fluids. 'inknu' and 'supnu' are constant viscosities collected from the legend, for Newtonian fluids. invert 0 to get ink, 1 to get support. A clipVal in kwargs allows you to custom set the alpha value where you want to clip.'''
+    '''Just clip out the ink portion and color it by viscosity or velocity. 
+    clipinput is the Paraview object that you're trying to clip, e.g. sv.caseVTMSeries. 
+    colVar is the variable being colored ('U', 'nu1', 'nu2', 'inknu', or 'supnu'). 'nu1' and 'nu2' use local viscosities measured for non-Newtonian fluids. 'inknu' and 'supnu' are constant viscosities collected from the legend, for Newtonian fluids. 
+    invert 0 to get ink, 1 to get support. 
+    A clipVal in kwargs allows you to custom set the alpha value where you want to clip.'''
     
     clip = Clip(Input=clipinput)
 
     # clip out just the fluid we're looking at
     clip.Scalars = ['POINTS', 'alpha.ink']
+
     if colVar=='nu1' or colVar=='inknu':
         clip.Value = 0.9
     elif colVar=='nu2' or colVar=='supnu':
@@ -603,8 +596,8 @@ def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) ->
     if out>0:
         return
     slice1 = sliceMake(sv, origin, normal)
-    inkClip(sv, slice1, sv.inkfunc, 0)
-    inkClip(sv, slice1, sv.supfunc, 1)
+    inkClip(sv, slice1, sv.inkfunc, 0, clipVal = 0.9)
+    inkClip(sv, slice1, sv.supfunc, 1, clipVal = 0.1)
     # color bar added in inkClip
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate(view, sv)
@@ -614,16 +607,27 @@ def viscy(sv:stateVars) -> None:
     '''Viscosity map, looking down the y axis, at (0,0,0)'''
     sv.hideAll()
     viscSlice(sv, [0,0,0], [0, -1, 0], 'y')
+
+def scaleDim(sv:stateVars, x:float) -> float:
+    '''scale the dimension by the nozzle inner diameter'''
+    le = fp.legendUnique(sv.folder)
+    return x * float(le['nozzle_inner_width'])/0.6
     
 def viscx(sv:stateVars, x:float=-0.001) -> None:
     '''Viscosity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    viscSlice(sv, [x, 0, 0], [1,0,0], 'x')
+    
+    viscSlice(sv, [scaleDim(sv, x), 0, 0], [1,0,0], 'x')
     
 #--------------------------
 
 def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='U', umin:float=0, umax:float=0.02) -> None:
-    '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. U, UX, UY, UZ'''
+    '''Plot the velocity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. 
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the variable, e.g. U, UX, UY, UZ
+    umin, umax are the legend range'''
     slice1 = sliceMake(sv, origin, normal)
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
     d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
@@ -642,25 +646,31 @@ def uslicey(sv:stateVars) -> None:
     sv.hideAll()
     uSlice(sv, [0,0,0], [0, -1, 0], 'y')
     
-def uslicex(sv:stateVars) -> None:
+def uslicex(sv:stateVars, x:float=-0.001) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    uSlice(sv, [-0.001, 0, 0], [1,0,0], 'x')  
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [1,0,0], 'x')  
 
 def uzslicey(sv:stateVars) -> None:
     '''Velocity map, looking down the y axis, at (0,0,0)'''
     sv.hideAll()
     uSlice(sv, [0,0,0], [0, -1, 0], 'y', name='UZ', umin=-0.002, umax=0.002)
     
-def uzslicex(sv:stateVars) -> None:
+def uzslicex(sv:stateVars, x:float=-0.001) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    uSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
     
 #--------------------------
 
-def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-50000, pmax:float=50000) -> None:
-    '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed'''
+def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-1000, pmax:float=1000) -> None:
+    '''Plot the pressure map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. 
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed
+    pmin, pmax are the legend range
+    '''
     slice1 = sliceMake(sv, origin, normal)
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
     d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
@@ -675,15 +685,20 @@ def pslicey(sv:stateVars, **kwargs) -> None:
     sv.hideAll()
     pSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
     
-def pslicex(sv:stateVars, **kwargs) -> None:
+def pslicex(sv:stateVars, xp:float=-0.001, **kwargs) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    pSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)
+    pSlice(sv, [scaleDim(sv, xp), 0, 0], [1,0,0], 'x', **kwargs)
     
 #--------------------------
     
 def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000) -> None:
-    '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+    '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the variable, e.g. p, p_rgh, where p_rgh has the hydrostatic pressure removed
+    rmin, rmax are the legend range'''
     shearRate = computeShearRate(sv) # in paraview_general
     slice1 = sliceMake(sv, origin, normal, sinput=shearRate) # take slice from shear rate map
     d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
@@ -699,15 +714,21 @@ def shearRateSlicey(sv:stateVars, **kwargs) -> None:
     sv.hideAll()
     shearRateSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
     
-def shearRateSlicex(sv:stateVars, **kwargs) -> None:
+def shearRateSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None:
     '''Shear rate map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    shearRateSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)   
+    shearRateSlice(sv, [scaleDim(sv, xs), 0, 0], [1,0,0], 'x', **kwargs)   
 
 #--------------------------
 
 def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', rmin:float=2, rmax:float=200) -> None: # RG
-    '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
+    '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
+    origin is an [x,y,z] point, where the slice should be taken
+    normal is an [x,y,z] vector, indicating the normal to the plane of the slice
+    view is the name of the viewpoint, e.g. y,z,a,b
+    name is the name of the value to clip
+    rmin and rmax are the range of values in the legend
+    '''
     computeDerivatives = computeShearRate(sv) # calculate shear rate
     cellDatatoPointData = CellDatatoPointData(Input=computeDerivatives)
     cellDatatoPointData.CellDataArraytoprocess = ['ScalarGradient', 'U', 'VectorGradient', 'alpha.ink', 'cellID', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
@@ -716,7 +737,10 @@ def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:
     
     calculator = Calculator(Input=slice1)
     calculator.ResultArrayName = 'shearStress'
-    calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
+    le = fp.legendUnique(sv.folder)
+
+    calculator.Function = stressFunc(le)
+ #   calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
     sv.hideAll()
     
     d1 = inkClip(sv, calculator, name, 0, clipVal = 0.9)
@@ -734,10 +758,10 @@ def shearStressSlicey(sv:stateVars, **kwargs) -> None: # RG
     sv.hideAll()
     shearStressSlice(sv, [0,0,0], [0, -1, 0], 'y', **kwargs)
     
-def shearStressSlicex(sv:stateVars, **kwargs) -> None: # RG
-    '''Shear stress map, looking down the x axis, at (-1,0,0) mm'''
+def shearStressSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None: # RG
+    '''Shear stress map, looking down the x axis, at (-1,0,0) mm, scaled by nozzle_inner_width'''
     sv.hideAll()
-    shearStressSlice(sv, [-0.001, 0, 0], [1,0,0], 'x', **kwargs)  
+    shearStressSlice(sv, [scaleDim(sv, xs), 0, 0], [1,0,0], 'x', **kwargs)  
     
     
 
@@ -818,13 +842,22 @@ def sliceandyarrows(sv):
     
 def tube(sv):
     '''Streamlines at the given z position tubeh'''
-    
-    streamTracer1 = StreamTracer(Input=sv.caseVTMSeries, SeedType='Line') # RG
+    try:
+        streamTracer1 = StreamTracer(registrationName='StreamTracer1', Input=sv.caseVTMSeries, SeedType='Line') # RG
+    except:
+        streamTracer1 = StreamTracer(registrationName='StreamTracer1', Input=sv.caseVTMSeries)
+        # unclear why SeedType Line throws an exception in PV 5.10.0, but it may have to do with version control.
     streamTracer1.Vectors = ['POINTS', 'U']
     streamTracer1.MaximumStreamlineLength = 0.01 # was 0.006 RG
-    streamTracer1.SeedType.Point1 = [-0.003014999907463789, -0.0021104998886585236, sv.tubeh]
-    streamTracer1.SeedType.Point2 = [0.003014999907463789, 0.0021104998886585236, sv.tubeh]
-    streamTracer1.SeedType.Resolution = 50
+    le = fp.legendUnique(sv.folder)
+    blc = float(le['bath_left_coord'])/1000
+    brc = float(le['bath_right_coord'])/1000
+    bfc = float(le['bath_front_coord'])/1000
+    bbc = float(le['bath_back_coord'])/1000
+    di = float(le['nozzle_inner_width'])
+    streamTracer1.SeedType.Point1 = [blc, bfc, sv.tubeh*di/0.6]
+    streamTracer1.SeedType.Point2 = [brc, bbc, sv.tubeh*di/0.6]
+    streamTracer1.SeedType.Resolution = 100
     # toggle 3D widget visibility (only when running from the GUI)
     Hide3DWidgets(proxy=streamTracer1.SeedType)
     # show data in view
@@ -841,7 +874,7 @@ def tube(sv):
     tube1 = Tube(Input=streamTracer1)
     tube1.Scalars = ['POINTS', 'AngularVelocity']
     tube1.Vectors = ['POINTS', 'Normals']
-    tube1.Radius = 1e-05
+    tube1.Radius = 1e-05*di/0.6
     # show data in view
     tube1Display = Show(tube1, sv.renderView1, 'GeometryRepresentation')
     ColorBy(tube1Display, ('POINTS', 'U', 'Magnitude'))
@@ -868,9 +901,9 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
     '''For a given folder, generate all the images'''
     if v.tag=='tubes':
         sv.tubeh = v.tubeh
-    
+ 
     if len(v.tlist)>0:
-        tlist = [int(round(10*i)) for i in v.tlist]
+        tlist = [int(round(10*i)) for i in v.tlist if i in sv.times]
     else:
         tlist = [int(round(10*i)) for i in sv.times]
     
@@ -878,6 +911,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
     fnlist = []
     viewlist = []
     # get a list of files to create
+
     
     for view in v.volList:
         for t in tlist:
