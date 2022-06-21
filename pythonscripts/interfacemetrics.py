@@ -11,6 +11,8 @@ from shapely.geometry import Polygon
 import re
 from typing import List, Dict, Tuple, Union, Any
 import logging
+from scipy.spatial import Delaunay
+from stl import mesh
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -18,6 +20,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 import folderparser as fp
 from pvCleanup import addUnits
+import ncreate3d as nc
 
 # logging
 logger = logging.getLogger(__name__)
@@ -60,19 +63,19 @@ class folderStats:
         self.nt = float(self.geo.loc[i0+1, 'val']) # nozzle thickness
         self.bd = float(self.geo.loc[i0+3, 'val']) # bath depth RG
         self.nl = float(self.geo.loc[i0+4, 'val']) # nozzle length RG
-        self.brx = float(self.geo.loc[i0+6, 'val']) # bath right x
+        self.ble = float(self.geo.loc[i0+5, 'val']) # bath left x RG
+        self.bri = float(self.geo.loc[i0+6, 'val']) # bath right x
         self.nbz = float(self.geo.loc[i0+11, 'val']) # nozzle bottom z
         self.ncx = float(self.geo.loc[i0+12, 'val']) # nozzle center x
         self.ncy = float(self.geo.loc[i0+13, 'val']) # nozzle center y RG
         self.na = float(self.geo.loc[i0+14, 'val']) # nozzle angle RG
-        self.bv = float(self.geo.loc[i0+15, 'val'])*1000 # bath velocity (mm/s)
-        self.iv = float(self.geo.loc[i0+16, 'val'])*1000 # ink velocity (mm/s)
+        self.bv = float(self.geo.loc[i0+18, 'val'])*1000 # bath velocity (mm/s)
+        self.iv = float(self.geo.loc[i0+19, 'val'])*1000 # ink velocity (mm/s)
         self.nre = self.ncx + self.niw/2 + self.nt # nozzle right edge
         self.behind = self.nre + self.niw # 1 inner diameter behind nozzle
         self.intentzcenter = self.nbz - self.niw/2
         self.intentzbot = self.nbz - self.niw
         self.xlist = []
-       
 
     
 ########### FILE HANDLING ##############
@@ -97,10 +100,10 @@ def plainIm(file:str, ic:Union[int, bool]) -> Tuple[Union[pd.DataFrame, List[Any
             row1 = list(u.iloc[0])
             if type(row1[0]) is str and ('m' in row1 or 's' in row1):
                 unitdict = dict(u.iloc[0])
+                skiprows = [1] # RG
             else:
                 unitdict = dict([[s,'undefined'] for s in toprows])
                 skiprows = []
-            
             d = pd.read_csv(file, index_col=ic, dtype=float, skiprows=skiprows)
             d.columns = map(str.lower, d.columns)
         except:
@@ -379,6 +382,92 @@ def summarizeSlices(fs: folderStats) -> pd.DataFrame:
     sliceSummaries = sliceSummaries.dropna()
     return sliceSummaries, units
 
+def posSlice(ipfolder:str, loc:float) -> pd.DataFrame: # RG
+    '''go through an interface file and take the positions of the interface points for a given x
+    outputs a pandas DataFrame'''
+    if not os.path.exists(ipfolder):
+        raise Exception('No interface points')
+    d = importPtsSlice(ipfolder, 2.5, loc)
+    d = d.sort_values(by='z')
+    pos = d[['x', 'y', 'z']]
+    return pos
+
+def denoise(pts:np.ndarray) -> np.ndarray: # RG
+    '''takes the interface which has inner and outer points, making jagged edges,
+    and roughly turns it into only outer points
+    outputs the outer points'''
+    x = pts[:,0]
+    y = pts[:,1]
+    x0 = np.mean(x)
+    y0 = np.mean(y)
+    points = np.zeros((90,2))
+    phi = np.degrees(nc.sortPolar(nc.setZ(np.column_stack((x,y)),0))[1])/4 # quarter-angle values for each point
+    miss = 0 # handles situations where there are no points in the slice
+    for theta in range(90): # slice for effectively every 4 degrees
+        eligx = []
+        eligy = []
+        r = []
+        for i,val in enumerate(phi):
+            if val>=theta and val<theta+1:
+                eligx.append(x[i]) # x of point in slice
+                eligy.append(y[i]) # y of point in slice
+                r.append(np.sqrt((x[i]-x0)**2+(y[i]-y0)**2)) # distance of point from center
+        if len(r)>0:
+            d = r.index(max(r))
+            outpt = [eligx[d],eligy[d]] # coordinates of point furthest away
+            points[theta-miss] = outpt # add point to points
+        else:
+            miss+=1
+    if miss==0:
+        return points
+    return points[:-miss]
+
+def xspoints(fs:folderStats, p:pd.DataFrame, dist:float) -> Union[np.ndarray, List[float]]: # RG
+    '''take interface points and shift them to the new line position
+    outputs the points and the centerpoint of the points'''
+    y = p['y']
+    z = p['z']
+    d = fs.niw*dist
+    y = [a-d for a in y] # shift y spacing by d
+    vertices = list(zip(y,z)) # list of tuples
+    points = np.asarray(vertices) # numpy array of coordinate pairs
+    centery = np.mean(y)
+    centerz = np.mean(z)
+    center = [centery, centerz]
+    points = denoise(points)
+    return points, center
+
+# def adjacentStl(folder:str, fs:folderStats, p:pd.DataFrame) -> None: # RG
+#     '''create and save an stl file of ink line
+#     cross section is taken from p
+#     length is that of the bath'''
+#     SCALE = 0.001;
+#     points,cent = xspoints(fs,p)
+#     # # turn xs into 3d shape
+#     # points3D = np.zeros((1,3))
+#     # for x in np.linspace(-5,5,50): # actual bounds are (-4.824,4.824)
+#     #     for i in range(len(points)):
+#     #         if np.all(points3D==0):
+#     #             points3D = np.insert(points[i],0,x)
+#     #         else:
+#     #             points3D = np.vstack((points3D,np.insert(points[i],0,x)))
+#     # import matplotlib.pyplot as plt
+#     # plt.scatter(points3D[:,1],points3D[:,2], s=3)
+#     # plt.show()
+#     # Create triangles
+#     tri = Delaunay(points)
+#     faces = tri.simplices
+#     # Create stl
+#     xs = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+#     for i, f in enumerate(faces):
+#         for j in range(3):
+#             xs.vectors[i][j] = points[f[j], :]*SCALE
+#     xs.save('testxs')
+#     # inkl2 = mesh.Mesh(np.zeros(len(inkl), dtype=mesh.Mesh.dtype))
+#     # for i,m in enumerate(inkl['vectors']):
+#     #     inkl2.vectors[i] = m*SCALE
+#     # # title = os.path.join(folder, 'case', 'inkLine.stl')
+#     # inkl2.save(title)
 
 def ssFile(folder:str) -> str:
     '''slice Summaries file name'''

@@ -310,7 +310,7 @@ def positionCB(ColorBar) -> None:
     '''put the color bar in the bottom'''
     ColorBar.AutoOrient = 0
     ColorBar.Orientation = 'Horizontal'
-    ColorBar.WindowLocation = 'LowerCenter'
+    ColorBar.WindowLocation = 'Lower Center'
     ColorBar.ScalarBarLength = 0.7
     ColorBar.UseCustomLabels = 1
     ColorBar.TitleFontSize = FONT
@@ -908,7 +908,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
         logging.error(f'Create image exception in {sv.folder}: {e}')
         return sv
 
-    setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
+    setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the image wrong
     
     # iterate through times and take snapshots of the surfaces
 
@@ -926,7 +926,7 @@ def folderScript(folder:str, ssvList:List[ssVars]):
         if not os.path.exists(folder):
             return
         sv = stateVars(folder)
-        sv.times = fp.times(folder)        
+        sv.times = fp.times(folder)     
         for ssv in ssvList:
             sv = runThrough(ssv, sv)
     except Exception as e:

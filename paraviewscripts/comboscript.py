@@ -60,29 +60,25 @@ modes = ['interface']
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
 runList = []
+runList.append(ss.ssVars('volumes', [1.7], volViewList=['a']))
+# runList.append(ss.ssVars('umag', [], volViewList=['y']))
+# runList.append(ss.ssVars('uslicex', [1.7]))
+
 # runList.append(ss.ssVars('volumes', [], volViewList=['a']))
 # runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 # for s in ['viscy', 'viscx']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # runList.append(ss.ssVars('viscy', [2.5]))
-# runList.append(ss.ssVars('uslicex', [2.5]))
 # runList.append(ss.ssVars('shearRatey', [2.5]))
 # runList.append(ss.ssVars('meshes', [2.5]))
 # runList.append(ss.ssVars('vectors', [2.5]))
 # runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volViewList=['y']))
 
-# for s in ['viscx', 'viscy']:
-#     runList.append(ss.ssVars(s, [1.0, 2.5]))
-
-# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-# for s in ['viscy', 'viscx', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy', 'shearRatex', 'shearRatey']:
-#     runList.append(ss.ssVars(s, [1.0, 2.5]))
-
 # folders
 folders = []
 
 # nlist = [0,5,10,15,20,25,30] # simulations to access
-nlist = [5]
+nlist = ['noLine4']
 
 # nlist = ['1149v4']
 # nlist=range(0, 1000)
@@ -93,9 +89,9 @@ if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-topfolder = os.path.join(SERVERFOLDER, 'conicalNozzle') # RG
+topfolder = os.path.join(SERVERFOLDER, 'adjacent') # RG
 for f in os.listdir(topfolder):
-    if f.startswith('cn'):
+    if f.startswith('aj'):
         try:
             n1 = float(f[2:])
         except:

@@ -5,7 +5,7 @@
 import os
 import re
 import csv
-import shutil 
+import shutil
 import errno
 from typing import List, Dict, Tuple, Union, Any, TextIO
 from datetime import datetime
@@ -18,6 +18,7 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 from folderparser import *
+import plot_general as pg
 
 # logging
 logger = logging.getLogger(__name__)
@@ -96,6 +97,8 @@ class scrape:
         self.GEOncxc = ['nozzle center x coord (mm)', '']
         self.GEOncyc = ['nozzle center y coord (mm)', '']
         self.GEOna = ['nozzle angle (degrees)', ''] # RG
+        self.GEOadj = ['adjacent filament orientation', ''] # RG
+        self.GEOdst = ['adjacent filament offset (mm)', ''] # RG
         self.GEObathv = ['bath velocity (m/s)', '']
         self.GEOinkv = ['ink velocity (m/s)', '']
     
@@ -239,12 +242,13 @@ class scrape:
         for i in [self.folder, self.compareto, self.shmtimes, \
                   self.shmtimem, self.iftimes, self.iftimehr, \
                   self.simTime, self.simrate]:
-            col.append(i) # RG
+            col.append(i)
         ca(col, ['', '', 'mesh','GEOMETRY'],\
            [self.GEOniw, self.GEOnt, self.GEObw, self.GEObd, \
             self.GEOnl, self.GEOblc, self.GEObrc, self.GEObfc,\
             self.GEObbackc, self.GEObbotc, self.GEObtc, self.GEOnbc,\
-            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEObathv, self.GEOinkv])
+            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEOadj, self.GEOdst,\
+            self.GEObathv, self.GEOinkv]) # RG
         ca(col, ['', 'SYSTEM'], [])    
         ca(col, ['snappyHexMeshDict'], self.SHMlist)
         ca(col, ['castellatedMeshControls'], self.CMClist)
@@ -577,6 +581,7 @@ def scrapeTP(s:scrape) -> None:
             return
     else:
         logging.warning(f'path {bm} does not exist')
+
         
 def scrapeLabels(s:scrape) -> None:
     '''scrape the labels.csv document'''
@@ -644,9 +649,12 @@ def scrapeGeo(s:scrape) -> None:
             s.GEOnbc = data[11] # nozzle bottom coordinate
             s.GEOncxc = data[12] # nozzle center x coordinate
             s.GEOncyc = data[13] # nozzle center y coordinate
-            s.GEOna = data[14] # nozzle angle
-            s.GEObathv = data[15] # bath velocity
-            s.GEOinkv = data[16] # ink velocity
+            s.GEOna = data[14] # nozzle angle RG
+            s.GEOadj = data[15] # adjacent filament orienation
+            s.GEOdst = data[16] # adjacent filament offset
+            s.compareto = data[17] # corresponding simulation
+            s.GEObathv = data[18] # bath velocity
+            s.GEOinkv = data[19] # ink velocity
             return
     else:
         return
@@ -663,6 +671,7 @@ def populate(folder:str, *varargin) -> List[List[str]]:
     s = scrape(folder)   # create an object to store variables
     fn = os.path.join(folder, 'legend.csv')     # export file name
     scrapeLogs(s)   # scrape the logs
+    
     if os.path.exists(fn):
         for func in varargin:
             try:

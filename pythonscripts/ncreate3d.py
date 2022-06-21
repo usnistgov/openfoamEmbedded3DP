@@ -14,10 +14,14 @@ import functools
 from typing import List, Dict, Tuple, Union, Any, TextIO, Callable
 import numpy as np
 import logging
+import sys
+import pandas as pd
+from descartes import PolygonPatch
 
 # local packages
 import folderscraper as fs
 from config import cfg
+import interfacemetrics as intm # RG
 
 # logging
 logging.basicConfig(level=logging.INFO)
@@ -277,10 +281,10 @@ def compileAllClean() -> str:
         )
     return s
 
-
 def compileAllAllRun() -> str:
-    '''for folders that contain both a mesh and case folder, create a function that runs both allrun functions'''
-    s = ("./mesh/Allrun; ./case/Allrun")
+    '''for folders that contain both a mesh and case folder, create a function that runs both Allrun functions'''
+    s = ("chmod +x ./mesh/Allrun; chmod +x ./case/run.slurm; chmod +x ./case/Allrun.sh;\n") # RG
+    s = s + ("./mesh/Allrun; sbatch ./case/run.slurm") # RG
     return s
 
 def fListLoop(s:str, functionlist:List[str], folder:str, ifstarted:bool=False) -> str:
@@ -311,6 +315,7 @@ def compileAllRun(folder:str, solver:str) -> str: # RG
     f = os.path.basename(folder)
     s = '#!/bin/bash\n\n'
     s = s + '. $WM_PROJECT_DIR/bin/tools/RunFunctions;\n'
+    s = s + 'cd "${0%/*}" || exit;\n' # RG
     s = s + 'echo '+f+'\n'
     s = s + 'if [ ! -d "0.1" ]; then\n'
     s = s + '\tcp -r ../mesh/constant/polyMesh constant;\n'
@@ -325,7 +330,7 @@ def compileSlurm(folder:str, parentdir:str) -> str:
     '''this is the slurm script for the case folder'''
     workdir = (os.path.join(parentdir, os.path.basename(folder), 'case')).replace("\\","/")
     s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --workdir={workdir}\n\n'
-    s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash Allrun.sh'
+    s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash '+workdir+'/Allrun.sh' # RG
     return s
 
 
@@ -342,8 +347,8 @@ def compileSlurm(folder:str, parentdir:str) -> str:
 def compileAllRunMesh(folder:str) -> str:
     '''this script runs the meshing functions in the mesh folder'''
     s = (". $WM_PROJECT_DIR/bin/tools/RunFunctions; " 
-        + "cd \"${0%/*}\" || exit; ")
-    functionlist = ["surfaceFeatureExtract", "blockMesh", "snappyHexMesh -overwrite", "foamToVTK"]
+        + "cd \"${0%/*}\" || exit;\n")
+    functionlist = ["surfaceFeatures", "blockMesh", "snappyHexMesh -overwrite", "foamToVTK"] # RG
     s = fListLoop(s, functionlist, folder)
     return s
 
@@ -394,7 +399,7 @@ class BoundaryInput:
 class NozVars:
     '''this is where the geometry of the nozzle is defined'''
     
-    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, nozzleAngle:float=0, horizontal:bool=False, **kwargs):
+    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, nozzleAngle:float=0, horizontal:bool=False, adjacent:str='None', distance:float=0, **kwargs):
         ''' Allowed input variables:
             bathWidth: (default=16) bath width in nozzle inner diameters
             bathHeight: (default=7) bath height in nozzle inner diameters
@@ -407,6 +412,8 @@ class NozVars:
             nozzleThickness: (default=0.152) nozzle wall thickness in mm
             nozzleAngle: (default=0) nozzle angle in degrees
             horizontal: (default=False) whether to have the nozzle horizontal
+            adjacent: (default=None) adjacent filament orientation
+            distance: (default=-1) offset of adjacent filament in nozzle inner diameters
         '''
         self.niw = nozzleInnerWidth # nozzle inner width
         self.nt = nozzleThickness # nozzle thickness
@@ -416,6 +423,13 @@ class NozVars:
         self.nl = self.bd/2-self.niw/2 # nozzle length
         self.na = nozzleAngle # nozzle angle RG
         self.hor = horizontal # vertical or horizontal RG
+        self.adj = adjacent # adjacent filament orientation RG
+        self.dst = distance*self.niw # adjacent filament offset RG
+        try:
+            reffolder = kwargs.get('reffolder') # RG
+            self.cor = reffolder[reffolder.find('nb'):] # RG
+        except AttributeError:
+            self.cor = 'None'
         
         # here, we define the geometry of the nozzle using four circles: 
         # the inner and outer edges of the inlet (top) and outlet (bottom) of the nozzle
@@ -633,6 +647,13 @@ def setZ(pts2d:np.array, z:float) -> np.array:
     out[:, 2] = z
     return out
 
+def setX(pts2d:np.array, x:float) -> np.array: # RG
+    '''given an array of 2d points pts2d, create an array of 3d points at position x'''
+    out = np.zeros([len(pts2d), 3])
+    out[:, 1:3] = pts2d
+    out[:, 0] = x
+    return out
+
 
 def arcFace(ina:np.array, outa:np.array) -> np.array:
     '''an arc face could be a donut on a plane (e.g. the bottom of the nozzle) if both lists have the same x,y,or z
@@ -651,8 +672,36 @@ def arcFace(ina:np.array, outa:np.array) -> np.array:
         data['vectors'][2*i+1] = d['vectors'][1]
     return data
 
+def sortPolar(pts:np.array) -> List[float]: # RG
+    '''sort a list of points from 0 to 2 pi
+    pts is a 3d list of unarranged points lying in the x, y, or z plane'''
+    # maps x,y,z so z is the plane the xs lies in
+    for i in range(3):
+        if np.all(pts[:,i] == pts[0,i]):
+            x = pts[:,(i+1)%3]
+            y = pts[:,(i+2)%3]
+            z = pts[:,i]
+            j = i
+    # organizes points by polar coordinates with the center as the origin
+    x0 = np.mean(x)
+    y0 = np.mean(y)
+    r = np.sqrt((x-x0)**2+(y-y0)**2)
+    theta = np.where(y>y0, np.arccos((x-x0)/r), 2*np.pi-np.arccos((x-x0)/r))
+    mask = np.argsort(theta)
+    xsort = x[mask]
+    ysort = y[mask]
+    xsort = np.append(xsort,xsort[0])
+    ysort = np.append(ysort,ysort[0])
+    z = np.append(z,z[0])
+    # maps x,y,z back to original
+    ptstemp = np.asarray(list(zip(xsort,ysort,z)))
+    ptssort = np.zeros((len(xsort),3))
+    for k in range(3):
+        ptssort[:,(j+k+1)%3]=ptstemp[:,k]
+    return ptssort, theta
 
-def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:float) -> np.array:
+
+def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:List[float]) -> np.array:
     '''get a mesh array that describes a hole in a plane
     cpts is a list of circle points. cpts should be in order from 0 to 2 pi
     x is a list of 2 x values for the plane
@@ -663,11 +712,17 @@ def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:float) -> np.arra
     data = np.zeros(n+4, dtype = mesh.Mesh.dtype)
     x.sort()
     y.sort()
-    corners = [[x[1], y[0], z], [x[1], y[1], z], [x[0], y[1], z], [x[0], y[0], z],  [x[1], y[0], z]]
+    z.sort() # RG
+    if np.all(cpts[:,0] == cpts[0,0]): # lies in x plane RG
+        corners = [[x[0], y[1], z[0]], [x[0], y[1], z[1]], [x[0], y[0], z[1]], [x[0], y[0], z[0]],  [x[0], y[1], z[0]]]
+    elif np.all(cpts[:,1] == cpts[0,1]): # lies in y plane
+        corners = [[x[1], y[0], z[0]], [x[1], y[0], z[1]], [x[0], y[0], z[1]], [x[0], y[0], z[0]],  [x[1], y[0], z[0]]]
+    elif np.all(cpts[:,2] == cpts[0,2]): # lies in z plane
+        corners = [[x[1], y[0], z[0]], [x[1], y[1], z[0]], [x[0], y[1], z[0]], [x[0], y[0], z[0]],  [x[1], y[0], z[0]]]
     for i in range(4):
         data['vectors'][i*(nchunks+1)] = np.array([cpts[i*nchunks], corners[i], corners[i+1]])
         for j in range(nchunks):
-            data['vectors'][i*(nchunks+1)+j+1] = np.array([cpts[i*nchunks+j],cpts[i*nchunks+j+1], corners[i+1]])
+            data['vectors'][i*(nchunks+1)+j+1] = np.array([cpts[i*nchunks+j], cpts[i*nchunks+j+1], corners[i+1]])
     premain = cpts[4*nchunks:]
     for j in range(len(premain)-1):
         data['vectors'][4*nchunks+4+j] = np.array([premain[j], premain[j+1], corners[-1]])
@@ -773,7 +828,7 @@ def walsel(geo:NozVars, st:str):
     return [xli, yli, zli]
 
 
-def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
+def realBoundaries(geo:NozVars, exportMesh:bool, **kwargs) -> List[BoundaryInput]:
     '''get a list of boundaries for snappyHexMesh, setFields
     geo is a NozVars object geo.bv and geo.iv are bath velocities and ink velocities, scaled to m/s
     mv is a MeshVars object
@@ -787,10 +842,21 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     bf.plist = DictList(bf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
     if exportMesh:
         if geo.hor:
-            bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "x+", "y-", "y+"]))) # side walls RG
+            faces = list(map(lambda s: axisFace(walsel(geo, s)), ["x+", "y-", "y+"])) # side walls RG
         else:
-            bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "y-", "y+", "z-"])))
-    
+            faces = list(map(lambda s: axisFace(walsel(geo, s)), ["y-", "y+", "z-"]))
+        if geo.adj=='y': # RG
+            reffolder = kwargs.get('reffolder')
+            x = geo.ble+(geo.ncx-geo.ble)*geo.niw+8*geo.niw
+            p = intm.posSlice(reffolder, x)
+            xspts, cent = intm.xspoints(geo, p, geo.dst)
+            xspts3d = setX(xspts,geo.ble)
+            xspts = sortPolar(xspts3d)[0]
+            faces.insert(0, holeInPlane(xspts, [geo.ble, geo.ble], [geo.bfr, geo.bba], [geo.bto, geo.bbo]))
+        else:
+            faces.append(axisFace(walsel(geo, "x-")))
+        bf.meshi = combineMeshes(faces)
+        
     inkf = BoundaryInput("inkFlow", "")
     inkf.alphalist = DictList(inkf.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
     inkf.Ulist = DictList(inkf.label, 0, [["type", "fixedValue"], ["value", "uniform (0 0 -" + str(geo.iv) + ")"]])
@@ -798,7 +864,7 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     if exportMesh:
         inkf.meshi = arcFace(setZ(np.zeros([len(geo.inptst), 2])+[geo.ncx, geo.ncy], geo.bto), setZ(geo.inptst, geo.bto))
         
-    inkf.reflev = 2 # RG
+    inkf.reflev = 0
     
     at = BoundaryInput("atmosphere", "")
     at.alphalist = DictList(at.label, 0, [["type", "inletOutlet"], ["value", "uniform 0"], ["inletValue", "uniform 0"]])
@@ -806,10 +872,10 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     at.plist = DictList(at.label, 0, [["type", "totalPressure"], ["p0", "uniform 0"]])
     if exportMesh:
         if geo.hor:
-            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
+            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], [geo.bto, geo.bto]), \
                            axisFace(walsel(geo, "z-"))]) # top and bottom walls RG
         else:
-            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
+            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], [geo.bto, geo.bto]), \
                            axisFace(walsel(geo, "x+"))])
 #         at.meshi = combineMeshes([axisFace(walsel(geo, "z+")), \
 #                            axisFace(walsel(geo, "x+"))])
@@ -818,14 +884,27 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     fw.alphalist = DictList(fw.label, 0, [["type", "zeroGradient"]])
     fw.Ulist = DictList(fw.label, 0, [["type", "noSlip"]])  
     fw.plist = DictList(fw.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+    
     if exportMesh:
         fw.meshi = combineMeshes([arcFace(setZ(geo.inptsb, geo.nbo), setZ(geo.outptsb, geo.nbo)),\
                             arcFace(setZ(geo.inptsb, geo.nbo), setZ(geo.inptst, geo.bto)),\
                             arcFace(setZ(geo.outptsb, geo.nbo), setZ(geo.outptst, geo.bto))])
-    fw.reflev = 4 # RG
+    fw.reflev = 2
     
+    if geo.adj=='y': # RG
+        inkx = BoundaryInput("inkxs", "")
+        inkx.alphalist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
+        inkx.Ulist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+        inkx.plist = DictList(inkx.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+        if exportMesh:
+            xspts2 = np.copy(xspts)
+            xspts2[:,0]+=geo.niw/3 # gives xs depth so snappyHexMesh can snap to its surface
+            inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)])
+        
+        inkx.reflev = 2
+        return [bf, inkf, inkx, at, fw]
+ 
     return [bf, inkf, at, fw]
-#     return [bf, at]
     
 
 def boundarycpp(bl:List[BoundaryInput]) -> str: 
@@ -932,7 +1011,7 @@ def compileAlphaOrig(bl:List[BoundaryInput]) -> str:
     return format0(bl, "volScalarField", "alpha.ink", "[0 0 0 0 0 0 0]", "0", lambda bi:bi.alphalist)
     
 def compileU(bl:List[BoundaryInput]) -> str:
-    return format0(bl, "volVectorField", "U", "[0 1 -1 0 0 0 0]", "(0 0 0)", lambda bi:bi.Ulist)
+    return format0(bl, "volVectorField", "U", "[0 1 -1 0 0 0 0]", "(0.01 0 0)", lambda bi:bi.Ulist) # RG
     
 def compileP(bl:List[BoundaryInput]) -> str:
     return format0(bl, "volScalarField", "p_rgh", "[1 -1 -2 0 0 0 0]", "0", lambda bi:bi.plist)
@@ -971,6 +1050,21 @@ def compileSetFieldsDict(geo:NozVars) -> str: # fills the nozzle with ink at t=0
         c2c.proplist.append(DictList("fieldValues", 1, ["volScalarFieldValue alpha.ink 1"]))
                     # value of alpha inside the cylinder is 1 because it is full of ink
         r.proplist.append(c2c)
+        
+    # create an initial line of ink RG
+    # if geo.adj=='y':
+    #     s2c = DictList("surfaceToCell", 0, [])
+    #     s2c.proplist.append(['file "inkLine.stl"'])
+    #     s2c.proplist.append(["outsidePoints ((0 0 -0.0015))"])
+    #     s2c.proplist.append(["includeCut true"])
+    #     s2c.proplist.append(["includeInside true"])
+    #     s2c.proplist.append(["includeOutside false"])
+    #     s2c.proplist.append(["nearDistance -1"])
+    #     s2c.proplist.append(["curvature 1"])
+    #     s2c.proplist.append(["fileType stl"])
+    #     s2c.proplist.append(DictList("fieldValues", 1, ["volScalarFieldValue alpha.ink 1"]))
+    #     r.proplist.append(s2c)
+                         
     s = s + r.prnt(0)
     s = s + CLOSELINE
     return s
@@ -994,6 +1088,9 @@ def geometryFile(geo:NozVars) -> str:
          ['nozzle center y coord (mm)', geo.ncy], \
          ['nozzle angle (degrees)', geo.na], \
          ['horizontal', geo.hor], \
+         ['adjacent filament oriantation', geo.adj], \
+         ['adjacent filament offset (mm)', geo.dst], \
+         ['corresponding simulation', geo.cor], \
          ['bath velocity (m/s)', geo.bv], \
          ['ink velocity (m/s)', geo.iv]]
     s = ""
@@ -1018,9 +1115,10 @@ def geometryFile(geo:NozVars) -> str:
 class MeshVars:
     '''mesh variables'''
     
-    fwreflev = 4 # RG
-    inkfreflev = 2 # RG
-    nCellsBetweenLevels = 10
+    fwreflev = 2 # RG
+    inkfreflev = 0
+    inkxreflev = 2 # RG
+    nCellsBetweenLevels = 5
     meshsize = 0.2
     
     ### snappyHexMesh
@@ -1074,7 +1172,7 @@ class MeshVars:
         return(self.varList(["nSmoothPatch", "tolerance", "nSolveIter", "nRelaxIter", "nFeatureSnapIter", "implicitFeatureSnap", "explicitFeatureSnap", "multiRegionFeatureSnap"]))
     
     # addLayersControls
-    addLayers = "true" 
+    addLayers = "false" # RG
         # Add surface layers?
     expansionRatio = 1
         # Expansion factor for layer mesh
@@ -1141,7 +1239,7 @@ class MeshVars:
         # values below trigger refinement
     upperRefineLevel = 0.999
         # values above trigger unrefinement
-    unrefineLevel = 5
+    unrefineLevel = 4 # RG
         # number of times cells can be coarsened
     nBufferLayers = 1
         # number of layers around a refined cell
@@ -1671,7 +1769,7 @@ def mkdirif(path:str) -> int:
 #-------------------------------------------------
 
 
-def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=False, onlyMesh:bool=False, **kwargs) -> FileGroup:
+def createNozzleBlockFile(geo:NozVars, mv:MeshVars, folder:str, exportMesh:bool=False, onlyMesh:bool=False, **kwargs) -> FileGroup:
     '''gets the text for most of the files in the folder
     exportMesh is true if we want to create a mesh folder'''
     
@@ -1694,6 +1792,13 @@ def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=
         fg.blockMeshDict = compileBlockMeshDict(pl, blocks, bl)
         fg.fvSchemesMesh = compileFvSchemes("")
         fg.fvSolutionMesh = compileFvSolution("")
+    # if geo.dst: # RG
+    #     if not 'reffolder' in kwargs:
+    #         raise Exception('No reference folder given')
+    #     reffolder = kwargs.get('reffolder')
+    #     x = geo.ble+(geo.ncx-geo.ble)*geo.niw+8*geo.niw
+    #     p = intm.posSlice(reffolder,x)
+    #     intm.adjacentStl(folder,geo,p)
     
     
     #constant
@@ -1702,7 +1807,7 @@ def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=
     fg.turbulenceProperties = compileTurbulenceProperties()
      
     #0
-    br = realBoundaries(geo, exportMesh) # this is a real boundary list for the imported stl boundaries
+    br = realBoundaries(geo, exportMesh, **kwargs) # this is a real boundary list for the imported stl boundaries
     fg.meshes = br # keep the real boundaries for exporting
     fg.alphainkorig = compileAlphaOrig(br)
     fg.U = compileU(br)
@@ -1723,7 +1828,6 @@ def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=
         fg.blocks = blocks
         fg.br = br
     return fg
-
 
 
 def allButTransport(ii:Union[str, float], topFolder:str,\
@@ -1759,7 +1863,7 @@ def allButTransport(ii:Union[str, float], topFolder:str,\
             folder = os.path.join(topFolder, ii)
         else:
             folder = os.path.join(topFolder, folderBase+str(ii))
-
+            
     geo = NozVars(**kwargs)
     mv = MeshVars()
     out = createNozzleBlockFile(geo, mv, folder, exportMesh, onlyMesh, **kwargs)
@@ -1812,7 +1916,7 @@ def labels(ink:Fluid, sup:Fluid) -> str:
     '''get a file that stores the ink and support labels'''
     return f'ink,{ink.label}\nsup,{sup.label}'
 
-def genericExport(ii:Union[int,str], sup:Fluid, ink:Fluid, sigma:float, topFolder:str, exportMesh:bool=False, **kwargs) -> None:
+def genericExport(ii:Union[int,str], sup:Fluid, ink:Fluid, sigma:float, topFolder:str, exportMesh:bool=False, **kwargs) -> None: # RG
     ''' Export a folder, given a support fluid, ink fluid, and surface tension. 
         ii is for the folder label. If you want it to be labeled nb#, input a number. Otherwise, input a string.
         sup is a fluid object that holds info about the support transport properties
