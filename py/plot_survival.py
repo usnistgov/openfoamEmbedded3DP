@@ -60,10 +60,25 @@ def weights(a1:float=10**0, b1:float=0, c1:float=1,
 
 def survivalEqLabel(a,b,c):
     '''get a label for the survival equation'''
-    a1 = '{-'+str(a)+'}'
-    b1 = '{'+str(b)+'}'
-    c1 = '{'+str(c)+'}'
-    return '$S=exp('+a1+'\\tau^'+b1+'t^'+c1+')$'
+    if a==1:
+        a1 = '-'
+    else:
+        a1 = '{-'+str(a)+'}'
+    if b==0:
+        b1 = ''
+    else:
+        if b==1:
+            b1 = '\\tau'
+        else:
+            b1 = '\\tau^'+'{'+str(b)+'}'
+    if c==0:
+        c1 = ''
+    else:
+        if c==1:
+            c1 = 't'
+        else:
+            c1 = 't^'+'{'+str(c)+'}'
+    return '$S=exp('+a1+b1+c1+')$'
 
 class survival:
     '''holds info about survival over the length of the nozzle'''

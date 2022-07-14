@@ -77,16 +77,16 @@ class ssVars:
             'volViewList':List[str]: list of view angles. Allowed angles = 'x' (slice on x plane), 'y' (slice on y plane), 'a' (view at angle from above/downstream/side), 'b' (view at angle from above/upstream/side)
         'viscy', 'viscx': take a slice and show the viscosity.
             optional keyword variables:
-            'x' (only for viscx): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+            'x' (only for viscx): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m for a 0.603 mm ID nozzle.
         'uslicey', 'uslicex': take a slice and show the velocity magnitude
             optional keyword variables:
-            'x' (only for uslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+            'x' (only for uslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m for a 0.603 mm ID nozzle.
         'uzslicey', 'uzslicex': take a slice and show the z velocity
             optional keyword variables:
-            'x' (only for uzslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+            'x' (only for uzslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m for a 0.603 mm ID nozzle.
         'py', 'px': take a slice and show the adjusted pressure (pressure - hydrostatic pressure)
             optional keyword variables:
-            'x' (only for px): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m
+            'x' (only for px): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m for a 0.603 mm ID nozzle.
             'pmin', 'pmax': min and max pressure on the legend
             'name': 'p' if you want pressure or 'p_rgh' if you want adjusted pressur
     tlist is the list of times. leave empty to get pictures for every time       

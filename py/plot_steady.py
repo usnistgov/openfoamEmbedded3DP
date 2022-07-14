@@ -212,7 +212,7 @@ def steadyPlots(topFolder:str, imsize:int, exportFolder:str, sigmalist:List[floa
 ###### single file stability plots
 
 
-def stab1(folder:str, t:float, x:float, i:int, num:int, ax:plt.Axes, dx:float, cmap) -> None:
+def stab1(folder:str, t:float, x:float, i:int, num:int, ax:plt.Axes, dx:float, cmap, zeroBottom:bool=True, xunits:str='mm', **kwargs) -> None:
     '''Plot one slice
     folder is the path name for the simulation
     t is the time
@@ -225,22 +225,32 @@ def stab1(folder:str, t:float, x:float, i:int, num:int, ax:plt.Axes, dx:float, c
     pts = intm.importPtsSlice(folder, t, x)
     if len(pts)>0:
         pts['y'] = pts['y']+dx*i
+        if zeroBottom:
+            # put z=0 at the bottom of the nozzle
+            le = fp.legendUnique(folder)
+            pts['z'] = [zi-float(le['nozzle_bottom_coord']) for zi in pts['z']]
+        if not xunits=='mm':
+            le = fp.legendUnique(folder)
+            pts['z'] = pts['z']/float(le[xunits])
+            pts['y'] = pts['y']/float(le[xunits])
         color = cmap(i/(num-1))
         plotXSOnAx(pts, ax, color)
 
 
-def adjustStabilityPlot(ax:plt.Axes, numx:float, xlabel:str, xlist:List[float], dx:float) -> None:
+def adjustStabilityPlot(ax:plt.Axes, numx:float, xlabel:str, xlist:List[float], dx:float, xunits:str='mm', fontsize:int=8, **kwargs) -> None:
     '''go back to the stability plot and clean it up.
     ax is the axes
     numx is the number of ticks on the x axis
     xlabel is the x axis label
     xlist is the list of x ticks
     dx is the spacing between ticks'''
+    plt.rc('font', size=fontsize)
     ax.set_aspect('equal')
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel('z (mm)')
+    ax.set_xlabel(xlabel, fontsize=fontsize)
+    xunits = xunits.replace('nozzle_inner_width', '$d_i$')
+    ax.set_ylabel(f'z ({xunits})', fontsize=fontsize)
     ax.set_xticks(dx*np.linspace(0, numx-1, num=numx), minor=False)
-    ax.set_xticklabels(xlist, fontname="Arial", fontsize=10) 
+    ax.set_xticklabels(xlist, fontname="Arial", fontsize=fontsize) 
     ax.axhline(y=0, color='k')
 
 
@@ -281,7 +291,7 @@ def stabilityPlot(folder:str, exportFolder:str, tconst:float, xconst:float, xuni
             xi = x*fs.niw+fs.ncx
         else:
             xi = x+fs.ncx
-        stab1(folder, tconst, xi, i, numx, axs0, dx, cmap)
+        stab1(folder, tconst, xi, i, numx, axs0, dx, cmap, xunits=xunits, **kwargs)
         
     # plot xs as a function of t
     numt = round((tmax-tmin)/0.25)+1
@@ -291,15 +301,15 @@ def stabilityPlot(folder:str, exportFolder:str, tconst:float, xconst:float, xuni
     else:
         xci = (xconst*fs.niw+fs.ncx)
     for i,t in enumerate(tlist): # nozzle right edge to bath right x
-        stab1(folder, t, xci, i, numt, axs1, dx, cmap)
+        stab1(folder, t, xci, i, numt, axs1, dx, cmap, xunits=xunits, **kwargs)
         
     # format the plots
     if xunits=='mm':
         xun = 'mm'
     else:
         xun = '$d_i$'
-    adjustStabilityPlot(axs0, numx, f'slice position ({xun})', xlist, dx)
-    adjustStabilityPlot(axs1, numt, 'slice time (s)', tlist, dx)
+    adjustStabilityPlot(axs0, numx, f'slice position ({xun})', xlist, 1, xunits=xunits, fontsize=fontsize)
+    adjustStabilityPlot(axs1, numt, 'slice time (s)', tlist, 1, xunits=xunits, fontsize=fontsize)
     
     # add labels
     tx = -0.1

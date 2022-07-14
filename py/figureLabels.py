@@ -37,6 +37,7 @@ def subFigureLabel(ax, label:str, inside:bool=True) -> None:
         y = 1.05
         ha = 'right'
         va = 'bottom'
+    
     ax.text(x, y, label, fontsize=12, transform=ax.transAxes, horizontalalignment=ha, verticalalignment=va)
     
 def subFigureLabels(axs, horiz:bool=True, inside:bool=True) -> None:

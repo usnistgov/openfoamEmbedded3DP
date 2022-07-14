@@ -248,11 +248,11 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
             # times = fp.times(folder)
         elif mode=='nozzleSlice' or mode=='nozzle':
             
-            xmin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
+            ymin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
             # xmin = 0.0003015 # tip of nozzle RG
-            xmax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + xmin
+            ymax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + ymin
             # xmax = 0.00205623 # 3% below top of nozzle RG
-            dx = (xmax-xmin)/35
+            dx = (ymax-ymin)/35
             times = times0 # very storage intensive to do all 25 timesteps
         else:
             raise Exception("Valid modes are 'interface' and 'nozzleSlice'")
