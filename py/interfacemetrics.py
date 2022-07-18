@@ -20,6 +20,7 @@ sys.path.append(parentdir)
 import folderparser as fp
 from pvCleanup import addUnits
 from plainIm import *
+import ncreate3d as nc
 
 # logging
 logger = logging.getLogger(__name__)
@@ -543,6 +544,67 @@ def summarize(folder:str, overwrite:bool=False) -> int:
     return 0
 
 
+def posSlice(ipfolder:str, loc:float) -> pd.DataFrame: # RG
+    '''go through an interface file and take the positions of the interface points for a given x
+    outputs a pandas DataFrame'''
+    if not os.path.exists(ipfolder):
+        raise Exception('No interface points')
+    d = importPtsSlice(ipfolder, 2.5, loc)
+    d = d.sort_values(by='z')
+    pos = d[['x', 'y', 'z']]
+    return pos
+
+
+def denoise(pts:np.ndarray) -> np.ndarray: # RG
+    '''takes the interface which has inner and outer points, making jagged edges,
+    and roughly turns it into only outer points
+    outputs the outer points'''
+    x = pts[:,0]
+    y = pts[:,1]
+    x0 = np.mean(x)
+    y0 = np.mean(y)
+    points = np.zeros((90,2))
+    phi = np.degrees(nc.sortPolar(nc.setZ(np.column_stack((x,y)),0))[1])/4 # quarter-angle values for each point
+    miss = 0 # handles situations where there are no points in the slice
+    for theta in range(90): # slice for effectively every 4 degrees
+        eligx = []
+        eligy = []
+        r = []
+        for i,val in enumerate(phi):
+            if val>=theta and val<theta+1:
+                eligx.append(x[i]) # x of point in slice
+                eligy.append(y[i]) # y of point in slice
+                r.append(np.sqrt((x[i]-x0)**2+(y[i]-y0)**2)) # distance of point from center
+        if len(r)>0:
+            d = r.index(max(r))
+            outpt = [eligx[d],eligy[d]] # coordinates of point furthest away
+            points[theta-miss] = outpt # add point to points
+        else:
+            miss+=1
+    if miss==0:
+        return points
+    return points[:-miss]
+
+
+def xspoints(fs:folderStats, p:pd.DataFrame, dist:float, ore:str) -> Union[np.ndarray, List[float]]: # RG
+    '''take interface points and shift them the desired offset from the nozzle
+    outputs the points and the centerpoint of the points'''
+    y = p['y']
+    z = p['z']
+    d = fs.niw*dist
+    if ore=='y':
+        y = [a-d for a in y] # shift cross section by d
+    elif ore=='z':
+        z = [a-d for a in z]
+    else:
+        raise Exception('Valid orientations are y and z')
+    vertices = list(zip(y,z)) # list of tuples
+    points = np.asarray(vertices) # numpy array of coordinate pairs
+    centery = np.mean(y)
+    centerz = np.mean(z)
+    center = [centery, centerz]
+    points = denoise(points)
+    return points, center
 
 
 ####### DETERMINING STEADY STATE FILAMENT SHAPE

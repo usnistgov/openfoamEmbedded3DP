@@ -92,6 +92,8 @@ class scrape:
         self.GEOncyc = ['nozzle center y coord', '', 'mm']
         self.GEOna = ['nozzle angle', '0', 'degrees'] # RG
         self.GEOhoriz = ['horizontal', False, '']
+        self.GEOadj = ['adjacent orientation', '', '']
+        self.GEOdst = ['adjacent offset', '', 'mm']
         self.GEObathv = ['bath velocity', '', 'm/s']
         self.GEOinkv = ['ink velocity', '', 'm/s']
     
@@ -246,13 +248,14 @@ class scrape:
         col = [] # start with an empty table, then add to it sequentially
         for i in [self.folder, self.version, self.compareto, self.shmtimes, \
                   self.shmtimem, self.iftimes, self.iftimehr, \
-                  self.simTime, self.simrate]:
-            col.append(i) # RG
+                  self.simTime, self.simrate]: # RG
+            col.append(i)
         ca(col, ['', '', 'mesh','GEOMETRY'],\
            [self.GEOniw, self.GEOnt, self.GEObw, self.GEObd, \
             self.GEOnl, self.GEOblc, self.GEObrc, self.GEObfc,\
             self.GEObbackc, self.GEObbotc, self.GEObtc, self.GEOnbc,\
-            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEOhoriz, self.GEObathv, self.GEOinkv])
+            self.GEOncxc, self.GEOncyc, self.GEOna, self.GEOhoriz,\
+            self.GEOadj, self.GEOdst, self.GEObathv, self.GEOinkv]) # RG
         ca(col, ['', 'SYSTEM'], [])    
         ca(col, ['snappyHexMeshDict'], self.SHMlist)
         ca(col, ['castellatedMeshControls'], self.CMClist)
@@ -603,8 +606,9 @@ class scrape:
         transfer = {'nozzle inner width':'niw', 'nozzle thickness':'nt', 'bath width':'bw', 'bath depth':'bd'
                     , 'nozzle length':'nl', 'bath left coord':'blc', 'bath right coord':'brc'
                     , 'bath front coord':'bfc', 'bath back coord':'bbackc', 'bath bottom coord':'bbotc', 'bath top coord':'btc'
-                   , 'nozzle bottom coord':'nbc', 'nozzle center x coord':'ncxc', 'nozzle center y coord':'ncyc', 'nozzle angle':'na', 'horizontal':'horiz'
-                   , 'bath velocity':'bathv', 'ink velocity':'inkv'}
+                    , 'nozzle bottom coord':'nbc', 'nozzle center x coord':'ncxc', 'nozzle center y coord':'ncyc', 'nozzle angle':'na'
+                    , 'horizontal':'horiz', 'adjacent filament orientation':'adj', 'adjacent filament offset':'dst'
+                    , 'corresponding simulation':'cor', 'bath velocity':'bathv', 'ink velocity':'inkv'} # RG
         if os.path.exists(bm):
             with open(bm, "r") as f:
                 data = list(csv.reader(f))
@@ -617,6 +621,8 @@ class scrape:
                     # store variable
                     if s1 in transfer:
                         setattr(self, f'GEO{transfer[s1]}', row)
+                    if s1 == 'corresponding simulation':
+                        self.compareto[1] = row[1]
                 return
         else:
             return
@@ -726,12 +732,12 @@ def populate(folder:str, *varargin, readLogs:bool=True, overwrite:bool=False) ->
         raise Exception("Not a simulation folder")
     s = scrape(folder)   # create an object to store variables
     fn = os.path.join(folder, 'legend.csv')     # export file name
-    s.compareto[1] = os.path.basename(os.path.dirname(folder))
+    # s.compareto[1] = os.path.basename(os.path.dirname(folder)) # RG
     if readLogs:
         s.scrapeLogs()   # scrape the logs
         s.scrapeCD() # scrape the control dictionary
     if not overwrite and os.path.exists(fn):
-        leOld,uOld = legendUnique(folder, units=True) # import old legend and units to dictionary
+        leOld, uOld = legendUnique(folder, units=True) # import old legend and units to dictionary
         t = s.table()
         leNew, uNew = legendTableToDict(t, units=True) # convert new legend and units to dictionary
         for key in leNew:

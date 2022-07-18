@@ -362,6 +362,33 @@ def extractTP(folder:str, units:bool=False) -> Tuple[dict,dict]:
         return le
 
 
+def extractSim(modeli:str, models:str, rhoi:str, rhos:str, sigma:str, **kwargs) -> str: # RG
+    '''Extract simulation number from the general legend based on ink and support rheology
+    outputs a simulation string'''
+    file = os.path.join(r'\\cfs2e.nist.gov\642\NIST_Projects\Additive Manufacturing and Rheology\OpenFOAM\simulations\viscositysweep\legend_general.csv')
+    le = pd.read_csv(file)
+    le = le[(le['ink_transportModel']==modeli) & (le['sup_transportModel']==models)]
+    le = le[(le['ink_rho']==rhoi) & (le['sup_rho']==rhos) & (le['sigma']==sigma)]
+    
+    if modeli=='Newtonian' and models=='Newtonian':
+        le = le[(le['ink_nu']==kwargs['nui']) & (le['sup_nu']==kwargs['nus'])]
+    elif modeli=='Newtonian' and models=='HerschelBulkley':
+        le = le[(le['ink_nu']==kwargs['nui']) & (le['sup_nu0']==kwargs['nu0s'])]
+        le = le[(le['sup_tau0']==kwargs['tau0s']) & (le['sup_k']==kwargs['ks']) & (le['sup_n']==kwargs['ns'])]
+    elif modeli=='HerschelBulkley' and models=='Newtonian':
+        le = le[(le['sup_nu']==kwargs['nus']) & (le['ink_nu0']==kwargs['nu0i'])]
+        le = le[(le['ink_tau0']==kwargs['tau0i']) & (le['ink_k']==kwargs['ki']) & (le['ink_n']==kwargs['ni'])]
+    elif modeli=='HerschelBulkley' and models=='HerschelBulkley':
+        le = le[(le['ink_nu0']==kwargs['nu0i']) & (le['sup_nu0']==kwargs['nu0s'])]
+        le = le[(le['ink_tau0']==kwargs['tau0i']) & (le['sup_tau0']==kwargs['tau0s'])]
+        le = le[(le['ink_k']==kwargs['ki']) & (le['sup_k']==kwargs['ks'])]
+        le = le[(le['ink_n']==kwargs['ni']) & (le['sup_n']==kwargs['ns'])]
+        
+    if le.empty:
+        raise Exception('No simulations match that rheology')
+    sim = le['folder'].values[0]
+    return sim
+    
 #---
 
 def mixedSort(l1:List) -> List:

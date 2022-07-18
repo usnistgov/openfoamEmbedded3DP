@@ -18,6 +18,7 @@ import logging
 # local packages
 import folderscraper as fs
 from config import cfg
+import interfacemetrics as intm
 
 # logging
 logging.basicConfig(level=logging.INFO)
@@ -317,7 +318,8 @@ def compileAllRun(folder:str, solver:str) -> str: # RG
 
 def compileSlurm(folder:str, parentdir:str) -> str:
     '''this is the slurm script for the case folder'''
-    workdir = (os.path.join(parentdir, os.path.basename(folder))).replace("\\","/")
+    # workdir = (os.path.join(parentdir, os.path.basename(folder))).replace("\\","/")
+    workdir = parentdir.replace("\\","/") # RG
     s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --workdir={workdir}\n#SBATCH --partition=local\n\n'
     s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash mesh/Allrun.sh\nsrun bash case/Allrun.sh'
     return s
@@ -382,7 +384,7 @@ class BoundaryInput:
 class NozVars:
     '''this is where the geometry of the nozzle is defined'''
     
-    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, nozzleAngle:float=0, horizontal:bool=False, **kwargs):
+    def __init__(self, bathWidth:float=16, bathHeight:float=7, bathDepth:float=7, frontWidth:float=4, vink:float=10, vbath:float=10, npts:int=50, nozzleInnerWidth:float=0.603, nozzleThickness:float=0.152, nozzleAngle:float=0, horizontal:bool=False, adjacent:str='None', distance:float=0, **kwargs):
         ''' Allowed input variables:
             bathWidth: (default=16) bath width in nozzle inner diameters (x)
             bathHeight: (default=7) bath height in nozzle inner diameters (y)
@@ -395,6 +397,8 @@ class NozVars:
             nozzleThickness: (default=0.152) nozzle wall thickness in mm
             nozzleAngle: (default=0) nozzle angle in degrees
             horizontal: (default=False) whether to have the nozzle horizontal
+            adjacent: (default=None) adjacent filament orientation
+            distance: (default=-1) offset of adjacent filament in nozzle inner diameters
         '''
         self.niw = nozzleInnerWidth # nozzle inner width
         self.nt = nozzleThickness # nozzle thickness
@@ -404,6 +408,13 @@ class NozVars:
         self.nl = self.bd/2-self.niw/2 # nozzle length
         self.na = nozzleAngle # nozzle angle RG
         self.hor = horizontal # vertical or horizontal RG
+        self.adj = adjacent # adjacent filament orientation RG
+        self.dst = distance*self.niw # adjacent filament offset RG
+        try: # RG
+            reffolder = kwargs.get('reffolder')
+            self.cor = reffolder[reffolder.find('nb'):]
+        except AttributeError:
+            self.cor = 'None'
         
         # here, we define the geometry of the nozzle using four circles: 
         # the inner and outer edges of the inlet (top) and outlet (bottom) of the nozzle
@@ -614,6 +625,14 @@ def ptFace(pts:np.array) -> np.array:
     return data
 
 
+def setX(pts2d:np.array, x:float) -> np.array: # RG
+    '''given an array of 2d points pts2d, create an array of 3d points at position x'''
+    out = np.zeros([len(pts2d), 3])
+    out[:, 1:3] = pts2d
+    out[:, 0] = x
+    return out
+
+
 def setZ(pts2d:np.array, z:float) -> np.array:
     '''given an array of 2d points pts2d, create an array of 3d points at position z'''
     out = np.zeros([len(pts2d), 3])
@@ -640,22 +659,82 @@ def arcFace(ina:np.array, outa:np.array) -> np.array:
     return data
 
 
-def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:float) -> np.array:
+def sortPolar(pts:np.array) -> List[float]: # RG
+    '''sort a list of points from 0 to 2 pi
+    pts is a 3d list of unarranged points lying in the x, y, or z plane'''
+    # maps x,y,z so z is the plane the xs lies in
+    for i in range(3):
+        if np.all(pts[:,i] == pts[0,i]):
+            x = pts[:,(i+1)%3]
+            y = pts[:,(i+2)%3]
+            z = pts[:,i]
+            j = i
+    # organizes points by polar coordinates with the center as the origin
+    x0 = np.mean(x)
+    y0 = np.mean(y)
+    r = np.sqrt((x-x0)**2+(y-y0)**2)
+    theta = np.where(y>y0, np.arccos((x-x0)/r), 2*np.pi-np.arccos((x-x0)/r))
+    mask = np.argsort(theta)
+    xsort = x[mask]
+    ysort = y[mask]
+    xsort = np.append(xsort,xsort[0])
+    ysort = np.append(ysort,ysort[0])
+    z = np.append(z,z[0])
+    # maps x,y,z back to original
+    ptstemp = np.asarray(list(zip(xsort,ysort,z)))
+    ptssort = np.zeros((len(xsort),3))
+    for k in range(3):
+        ptssort[:,(j+k+1)%3]=ptstemp[:,k]
+    return ptssort, theta
+
+
+# def outerPoints(pts:np.array, d:float) -> List[float]: # RG
+#     '''takes a list of points and creates corresponding points pushed out by a given distance
+#     pts is a list of points
+#     d is the distance to push outwards'''
+#     for i in range(3):
+#         if np.all(pts[:,i] == pts[0,i]):
+#             x1 = pts[:,(i+1)%3]
+#             y1 = pts[:,(i+2)%3]
+#             z = pts[:,i]
+#             j = i
+#     x0 = np.mean(x1)
+#     y0 = np.mean(y1)
+#     r1 = np.sqrt((x1-x0)**2+(y1-y0)**2)
+#     r2 = r1+d
+#     theta = np.where(y1>y0, np.arccos((x1-x0)/r1), 2*np.pi-np.arccos((x1-x0)/r1))
+#     x2 = x0+r2*np.cos(theta)
+#     y2 = y0+r2*np.sin(theta)
+#     ptstemp = np.asarray(list(zip(x2,y2,z)))
+#     outpts = np.zeros((len(x2),3))
+#     for k in range(3):
+#         outpts[:,(j+k+1)%3]=ptstemp[:,k]
+#     return outpts
+    
+
+def holeInPlane(cpts:np.array, x:List[float], y:List[float], z:List[float]) -> np.array:
     '''get a mesh array that describes a hole in a plane
     cpts is a list of circle points. cpts should be in order from 0 to 2 pi
     x is a list of 2 x values for the plane
     y is a list of 2 y values for the plane
-    z is a scalar that the plane lies on'''
+    z is a list of 2 z values for the plane
+    repeat one value twice for the plane which the hole lies on'''
     n = len(cpts)-1 # number of points on the circle
     nchunks = int(np.floor(n/4)) # split the circle into four chunks, number of points in a chunk
     data = np.zeros(n+4, dtype = mesh.Mesh.dtype)
     x.sort()
     y.sort()
-    corners = [[x[1], y[0], z], [x[1], y[1], z], [x[0], y[1], z], [x[0], y[0], z],  [x[1], y[0], z]]
+    z.sort() # RG
+    if np.all(cpts[:,0] == cpts[0,0]): # lies in x plane RG
+        corners = [[x[0], y[1], z[0]], [x[0], y[1], z[1]], [x[0], y[0], z[1]], [x[0], y[0], z[0]],  [x[0], y[1], z[0]]]
+    elif np.all(cpts[:,1] == cpts[0,1]): # lies in y plane
+        corners = [[x[1], y[0], z[0]], [x[1], y[0], z[1]], [x[0], y[0], z[1]], [x[0], y[0], z[0]],  [x[1], y[0], z[0]]]
+    elif np.all(cpts[:,2] == cpts[0,2]): # lies in z plane
+        corners = [[x[1], y[0], z[0]], [x[1], y[1], z[0]], [x[0], y[1], z[0]], [x[0], y[0], z[0]],  [x[1], y[0], z[0]]]
     for i in range(4):
         data['vectors'][i*(nchunks+1)] = np.array([cpts[i*nchunks], corners[i], corners[i+1]])
         for j in range(nchunks):
-            data['vectors'][i*(nchunks+1)+j+1] = np.array([cpts[i*nchunks+j],cpts[i*nchunks+j+1], corners[i+1]])
+            data['vectors'][i*(nchunks+1)+j+1] = np.array([cpts[i*nchunks+j], cpts[i*nchunks+j+1], corners[i+1]])
     premain = cpts[4*nchunks:]
     for j in range(len(premain)-1):
         data['vectors'][4*nchunks+4+j] = np.array([premain[j], premain[j+1], corners[-1]])
@@ -761,7 +840,7 @@ def walsel(geo:NozVars, st:str):
     return [xli, yli, zli]
 
 
-def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
+def realBoundaries(geo:NozVars, exportMesh:bool, **kwargs) -> List[BoundaryInput]:
     '''get a list of boundaries for snappyHexMesh, setFields
     geo is a NozVars object geo.bv and geo.iv are bath velocities and ink velocities, scaled to m/s
     mv is a MeshVars object
@@ -775,18 +854,38 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     bf.plist = DictList(bf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
     if exportMesh:
         if geo.hor:
-            bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "x+", "y-", "y+"]))) # side walls RG
+            faces = list(map(lambda s: axisFace(walsel(geo, s)), ["x+", "y-", "y+"])) # side walls RG
         else:
-            bf.meshi = combineMeshes(list(map(lambda s: axisFace(walsel(geo, s)), ["x-", "y-", "y+", "z-"])))
-    
+            faces = list(map(lambda s: axisFace(walsel(geo, s)), ["y-", "y+", "z-"]))
+        if geo.adj!='None':
+            reffolder = kwargs.get('reffolder')
+            x = geo.ble+(geo.ncx-geo.ble)*geo.niw+8*geo.niw # x at which to take cross section
+            p = intm.posSlice(reffolder, x)
+            xspts, cent = intm.xspoints(geo, p, geo.dst, geo.adj)
+            # outxspts = outerPoints(xspts, geo.nt)
+            if geo.hor:
+                if geo.adj=='y':
+                    xspts[1] = [i-cent[1] for i in xspts[1]]
+                else:
+                    xspts[0] = [i-cent[0] for i in xspts[0]]
+                xspts3d = setZ(xspts, geo.bto)
+                xspts = sortPolar(xspts3d)[0]
+                faces.insert(0, holeInPlane(xspts, [geo.ble, geo.bri], [geo.bfr, geo.bba], [geo.bto, geo.bto]))
+                faces.append(axisFace(walsel(geo, "x-")))
+            else:
+                xspts3d = setX(xspts, geo.ble)
+                xspts = sortPolar(xspts3d)[0]
+                faces.insert(0, holeInPlane(xspts, [geo.ble, geo.ble], [geo.bfr, geo.bba], [geo.bto, geo.bbo]))
+        else:
+            faces.append(axisFace(walsel(geo, "x-")))
+        bf.meshi = combineMeshes(faces)
+        
     inkf = BoundaryInput("inkFlow", "")
     inkf.alphalist = DictList(inkf.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
     inkf.Ulist = DictList(inkf.label, 0, [["type", "fixedValue"], ["value", "uniform (0 0 -" + str(geo.iv) + ")"]])
     inkf.plist = DictList(inkf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
     if exportMesh:
         inkf.meshi = arcFace(setZ(np.zeros([len(geo.inptst), 2])+[geo.ncx, geo.ncy], geo.bto), setZ(geo.inptst, geo.bto))
-        
-    inkf.reflev = 2 # RG
     
     at = BoundaryInput("atmosphere", "")
     at.alphalist = DictList(at.label, 0, [["type", "inletOutlet"], ["value", "uniform 0"], ["inletValue", "uniform 0"]])
@@ -794,10 +893,10 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     at.plist = DictList(at.label, 0, [["type", "totalPressure"], ["p0", "uniform 0"]])
     if exportMesh:
         if geo.hor:
-            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
+            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], [geo.bto, geo.bto]), \
                            axisFace(walsel(geo, "z-"))]) # top and bottom walls RG
         else:
-            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], geo.bto), \
+            at.meshi = combineMeshes([holeInPlane(setZ(geo.outptst, geo.bto), [geo.ble, geo.bri], [geo.bfr, geo.bba], [geo.bto, geo.bto]), \
                            axisFace(walsel(geo, "x+"))])
 #         at.meshi = combineMeshes([axisFace(walsel(geo, "z+")), \
 #                            axisFace(walsel(geo, "x+"))])
@@ -806,15 +905,111 @@ def realBoundaries(geo:NozVars, exportMesh:bool) -> List[BoundaryInput]:
     fw.alphalist = DictList(fw.label, 0, [["type", "zeroGradient"]])
     fw.Ulist = DictList(fw.label, 0, [["type", "noSlip"]])  
     fw.plist = DictList(fw.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+    
     if exportMesh:
         fw.meshi = combineMeshes([arcFace(setZ(geo.inptsb, geo.nbo), setZ(geo.outptsb, geo.nbo)),\
                             arcFace(setZ(geo.inptsb, geo.nbo), setZ(geo.inptst, geo.bto)),\
                             arcFace(setZ(geo.outptsb, geo.nbo), setZ(geo.outptst, geo.bto))])
-    fw.reflev = 4 # RG
+    fw.reflev = 2
     
-    return [bf, inkf, at, fw]
-#     return [bf, at]
+    if geo.adj!='None': # RG
+    # inkflow with atmosphere walls approach
+        xa = BoundaryInput("xsAtmosphere", "")
+        xa.alphalist = DictList(xa.label, 0, [["type", "inletOutlet"], ["value", "uniform 0"], ["inletValue", "uniform 0"]])
+        xa.Ulist = DictList(xa.label, 0, [["type", "pressureInletOutletVelocity"], ["value", "uniform (0 0 0)"]])
+        xa.plist = DictList(xa.label, 0, [["type", "totalPressure"], ["p0", "uniform 0"]])
+        if exportMesh:
+            xspts2 = np.copy(xspts)
+            if geo.hor:
+                xspts2[:,2]-=geo.niw/3
+                xa.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setZ(np.zeros([len(xspts),2])+cent, geo.bto), xspts)])
+            else:
+                xspts2[:,0]+=geo.niw/3
+                xa.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)])
+        xa.reflev = 2
+        
+        xf = BoundaryInput("xsFlow", "")
+        xf.alphalist = DictList(xf.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
+        if geo.hor:
+            xf.Ulist = DictList(xf.label, 0, [["type", "fixedValue"], ["value", "uniform (0 0 -" + str(geo.bv) + ")"]])
+        else:
+            xf.Ulist = DictList(xf.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+        xf.plist = DictList(xf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+        if exportMesh:
+            if geo.hor:
+                xf.meshi = arcFace(setZ(np.zeros([len(xspts),2])+cent, geo.bto-geo.niw/3), xspts2)
+            else:
+                xf.meshi = arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble+geo.niw/3), xspts2)
     
+        return [bf, inkf, xf, xa, at, fw]
+    
+    
+#     # inkflow with walls approach
+#         inkx = BoundaryInput("inkxs", "")
+#         inkx.alphalist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
+#         inkx.Ulist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+#         inkx.plist = DictList(inkx.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+#         if exportMesh:
+#             xspts2 = np.copy(xspts)
+#             xspts2[:,0]+=geo.niw/3 # gives xs depth so snappyHexMesh can snap to its surface
+#             inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)])
+        
+#         inkx.reflev = 2
+#         return [bf, inkf, inkx, at, fw]
+    
+    
+    # inlet approach
+#         inkx = BoundaryInput("inkxs", "")
+#         inkx.alphalist = DictList(inkx.label, 0, [["type", "inletOutlet"], ["value", "uniform 1"], ["inletValue", "uniform 1"]])
+#         inkx.Ulist = DictList(inkx.label, 0, [["type", "inletOutlet"], ["value", "uniform (" + str(geo.bv) + " 0 0)"], ["inletValue", "uniform (" + str(geo.bv) + " 0 0)"]])
+#         inkx.plist = DictList(inkx.label, 0, [["type", "totalPressure"], ["p0", "uniform 0"]])
+#         if exportMesh:
+#             xspts2 = np.copy(xspts)
+#             xspts2[:,0]+=geo.niw/3 # gives xs depth so snappyHexMesh can snap to its surface
+#             inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)])
+        
+#         inkx.reflev = 2
+#         return [bf, inkf, inkx, at, fw]
+
+#     # inkflow but solid block approach
+#         inkx = BoundaryInput("inkxs", "")
+#         inkx.alphalist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
+#         inkx.Ulist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+#         inkx.plist = DictList(inkx.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+#         if exportMesh:
+#             xspts2 = np.copy(xspts)
+#             xspts2[:,0]+=geo.niw/2 # gives xs depth so snappyHexMesh can snap to its surface
+#             inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble+geo.niw/2), xspts2)])
+        
+#         inkx.reflev = 2
+#         return [bf, inkf, inkx, at, fw]
+        
+    # second nozzle approach
+#         inkxf = BoundaryInput("inkxflow", "") # equivalent to inkflow
+#         inkxf.alphalist = DictList(inkxf.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
+#         inkxf.Ulist = DictList(inkxf.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+#         inkxf.plist = DictList(inkxf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+#         if exportMesh:
+#             inkxf.meshi = arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)
+#         inkf.reflev = 0
+        
+        
+#         inkxs = BoundaryInput("inkxs", "") # equivalent to fixedWalls
+#         inkxs.alphalist = DictList(inkxs.label, 0, [["type", "zeroGradient"]])
+#         # inkxs.Ulist = DictList(inkxs.label, 0, [["type", "slip"]]) # we want slip since this xs is not legitimately extruded
+#         inkxs.Ulist = DictList(inkxs.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
+#         inkxs.plist = DictList(inkxs.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
+#         if exportMesh:
+#             xsptsr = np.copy(xspts)
+#             xsptsr[:,0]+=geo.niw/3
+#             outxsptsr = np.copy(outxspts)
+#             outxsptsr[:,0]+=geo.niw/3
+#             inkxs.meshi = combineMeshes([arcFace(xsptsr, outxsptsr), arcFace(xsptsr, xspts), arcFace(outxsptsr, outxspts)])
+#         inkxs.reflev = 2
+        
+#         return [bf, inkf, inkxs, inkxf, at, fw]
+ 
+    return [bf, inkf, at, fw]    
 
 def boundarycpp(bl:List[BoundaryInput]) -> str: 
     '''get the whole cpp section for list of boundaries'''
@@ -906,7 +1101,7 @@ def compileAlphaOrig(bl:List[BoundaryInput]) -> str:
     return format0(bl, "volScalarField", "alpha.ink", "[0 0 0 0 0 0 0]", "0", lambda bi:bi.alphalist)
     
 def compileU(bl:List[BoundaryInput]) -> str:
-    return format0(bl, "volVectorField", "U", "[0 1 -1 0 0 0 0]", "(0 0 0)", lambda bi:bi.Ulist)
+    return format0(bl, "volVectorField", "U", "[0 1 -1 0 0 0 0]", "(0.01 0 0)", lambda bi:bi.Ulist)
     
 def compileP(bl:List[BoundaryInput]) -> str:
     return format0(bl, "volScalarField", "p_rgh", "[1 -1 -2 0 0 0 0]", "0", lambda bi:bi.plist)
@@ -945,6 +1140,7 @@ def compileSetFieldsDict(geo:NozVars) -> str: # fills the nozzle with ink at t=0
         c2c.proplist.append(DictList("fieldValues", 1, ["volScalarFieldValue alpha.ink 1"]))
                     # value of alpha inside the cylinder is 1 because it is full of ink
         r.proplist.append(c2c)
+        
     s = s + r.prnt(0)
     s = s + CLOSELINE
     return s
@@ -955,6 +1151,7 @@ def geometryFile(geo:NozVars) -> str:
     l = [['nozzle inner width', geo.niw, 'mm'],\
          ['nozzle thickness', geo.nt, 'mm'], \
          ['bath width', geo.bw, 'mm'], \
+         ['bath height', geo.bh, 'mm'], \
          ['bath depth', geo.bd, 'mm'], \
          ['nozzle length', geo.nl, 'mm'],\
          ['bath left coord', geo.ble, 'mm'], \
@@ -968,8 +1165,11 @@ def geometryFile(geo:NozVars) -> str:
          ['nozzle center y coord', geo.ncy, 'mm'], \
          ['nozzle angle', geo.na, 'degrees'], \
          ['horizontal', geo.hor, ''], \
+         ['adjacent filament orientation', geo.adj, ''], \
+         ['adjacent filament offset', geo.dst, 'mm'], \
+         ['corresponding simulation', geo.cor, ''], \
          ['bath velocity', geo.bv, 'm/s'], \
-         ['ink velocity', geo.iv, 'm/s']]
+         ['ink velocity', geo.iv, 'm/s']] # RG
     s = ""
     for li in l:
         s = s + li[0] + ', ' + str(li[1]) +  ', ' + str(li[2]) + '\n'
@@ -994,9 +1194,9 @@ class MeshVars:
     
     def __init__(self, meshSize:float=0.2):
     
-        self.fwreflev = 4 # RG
-        self.inkfreflev = 2 # RG
-        self.nCellsBetweenLevels = 10
+        self.fwreflev = 4
+        self.xareflev = 2 # RG
+        self.nCellsBetweenLevels = 5
         self.meshsize = meshSize
 
         ### snappyHexMesh
@@ -1685,7 +1885,7 @@ def createNozzleBlockFile(geo:NozVars, mv:MeshVars,folder:str,  exportMesh:bool=
     fg.turbulenceProperties = compileTurbulenceProperties()
      
     #0
-    br = realBoundaries(geo, exportMesh) # this is a real boundary list for the imported stl boundaries
+    br = realBoundaries(geo, exportMesh, **kwargs) # this is a real boundary list for the imported stl boundaries
     fg.meshes = br # keep the real boundaries for exporting
     fg.alphainkorig = compileAlphaOrig(br)
     fg.U = compileU(br)
