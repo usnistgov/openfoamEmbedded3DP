@@ -437,7 +437,11 @@ def folderToFunc(folder:str, func) -> float:
     func is the function to apply to transport properties to get one value
     used by unqListFolders'''
     tp = extractTP(folder)
-    return round(func(tp), 15)
+    val = func(tp)
+    if type(val) is str:
+        return val
+    else:
+        return round(val, 15)
 
 def tpCombos(tplists:Dict) -> List:
     '''List of combinations of transportProperties values. tplists comes from listTPvalues
@@ -618,11 +622,14 @@ class folderPlots:
         if not 'cvar' in kwargs:
             self.cfunc = sigfuncc
         else:
-            if 'cname' in kwargs:
-                cname = kwargs['cname']
+            if 'color_list' in kwargs:
+                self.cfunc = lambda tp: kwargs['color_list'][int(self.convertFunc(kwargs['cvar'], normalize=True)(tp)*len(kwargs['color_list']))]
             else:
-                cname = 'viridis'
-            self.cfunc = lambda tp: namedColor(cname, self.convertFunc(kwargs['cvar'], normalize=True)(tp))
+                if 'cname' in kwargs:
+                    cname = kwargs['cname']
+                else:
+                    cname = 'viridis'
+                self.cfunc = lambda tp: namedColor(cname, self.convertFunc(kwargs['cvar'], normalize=True)(tp))
         
         if self.split:
             ncol = len(self.tplists['sigma_list'])

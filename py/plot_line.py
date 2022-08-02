@@ -51,9 +51,15 @@ def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:st
         logging.warning(f'Line file is missing in {folder}')
         return 
     t1 = t1.sort_values(by=zname)
+    if zname=='z':
+        le = fp.legendUnique(folder)
+        t1[zname] = [float(le['nozzle_bottom_coord'])-zi for zi in t1[zname]]
+        # shift origin up
+    
     if not zunits=='mm':
         le = fp.legendUnique(folder)
         t1[zname] = t1[zname]/float(le[zunits])
+
     
     if yvar in t1:
         ystrink = yvar
@@ -90,10 +96,11 @@ def linePlot(folder:str, time:float, ax:plt.Axes, color, yvar:str='vx', label:st
     
     for suppts in [supPtsLeft, supPtsRight]:
         ax.plot(suppts[zname], suppts[ystrsup], color=color, linewidth=0.75)
+        
     ax.plot(inkPts[zname], inkPts[ystrink], color=color, linestyle='--', linewidth=0.75)
     pts = t1[(t1[zname]==minx) | (t1[zname]==maxx)]
-    ax.scatter(pts[zname], pts[ystrink], color=color, label=label)
-    ax.scatter(pts[zname], pts[ystrsup], color=color)
+#     ax.scatter(pts[zname], pts[ystrink], color=color, label=label)
+#     ax.scatter(pts[zname], pts[ystrsup], color=color)
     
     
 def labDict(yvar:str) -> str:
@@ -206,7 +213,7 @@ def linePlots0(topFolder:str, exportFolder:str, cvar:str, time:float, imsize:flo
             # plot line
             linePlots(folders, cvar, time=time, yvar=m, ax=axlist[i], fig=fig, legend=legend, xlabel=xlabel, **kwargs)
         for ax in axlist:
-            ax.vlines([nb], 0, 1, transform=ax.get_xaxis_transform(),  color='#888888', linestyle='--', linewidth=0.75)
+#             ax.vlines([0], 0, 1, transform=ax.get_xaxis_transform(),  color='#888888', linestyle='--', linewidth=0.75)
             setSquare(ax)
         subFigureLabels(axs)
         plt.subplots_adjust(hspace=0)
