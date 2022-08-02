@@ -60,8 +60,7 @@ def getxfunc(f, kwargs:Dict):
     if 'x' in kwargs:
         return lambda sv: f(sv, x=kwargs['x'])
     else:
-        return f
-
+        return lambda sv: f(sv, **kwargs) # RG
 
 class ssVars:
     '''Holds input variables that tell us what kind of images to generate.
@@ -79,6 +78,7 @@ class ssVars:
         'viscy', 'viscx': take a slice and show the viscosity.
             optional keyword variables:
             'x' (only for viscx): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m for a 0.603 mm ID nozzle.
+        'alphaSlicex': take a slice and color the ink white and support black
         'uslicey', 'uslicex': take a slice and show the velocity magnitude
             optional keyword variables:
             'x' (only for uslicex): the absolute x position (in m) at which to take the slice. Default is x=-0.001 m for a 0.603 mm ID nozzle.
@@ -149,6 +149,13 @@ class ssVars:
             self.coloring = 'uzslicex'
             self.function = getxfunc(uzslicex, kwargs)
             self.volList = ['x']
+        elif tag=='alphaSlicex': # RG
+            if not 'coloring' in kwargs:
+                self.coloring = 'alphaSlice_-1'
+            else:
+                self.coloring = kwargs['coloring']
+            self.function = getxfunc(alphaSlicex, kwargs)
+            self.volList = ['x']
         elif tag=='py':
             self.coloring='py'
             self.function = getpfunc(pslicey, kwargs)
@@ -213,7 +220,7 @@ def initializeSV(sv:stateVars) -> None:
     '''Initialize paraview, import series file, and create a time stamp. Use this if you already have a stateVars object'''
     logging.info(f'Screenshots: Initializing paraview for {sv.folder}')
     ResetSession()
-    sv =  initializeP(sv) 
+    sv =  initializeP(sv)
         # initialize Paraview
     sv =  initSeries(sv)
         # import the vtk series files
@@ -235,7 +242,7 @@ def initSeries(sv:stateVars) -> stateVars:
 def timeStamp(sv:stateVars) -> stateVars:
     '''create a timestamp to add to images later'''
     annotateTimeFilter1 = AnnotateTimeFilter(Input=sv.caseVTMSeries)
-    annotateTimeFilter1.Format = '%2.1f s'
+    annotateTimeFilter1.Format = '{time:2.1f} s' # RG
     annotateTimeFilter1Display = Show(annotateTimeFilter1, sv.renderView1, 'TextSourceRepresentation')
     annotateTimeFilter1Display.FontSize = FONT
     sv.timeStamp = annotateTimeFilter1
@@ -248,6 +255,7 @@ def timeStamp(sv:stateVars) -> stateVars:
 def resetCamera(sv:stateVars) -> None:
     '''reset the view area'''
     le0 = fp.legendUnique(sv.folder) # use first file as reference dimensions
+    # s = float(le0['bath_width_(mm)'])/9.668 # change back RG
     s = float(le0['bath_width'])/9.668
     sv.renderView1.ResetCamera(-0.005*s, 0.005*s, -0.002*s, 0.002*s, -0.002*s, 0.002*s)
 
@@ -273,7 +281,8 @@ def setView(st:str, sv:stateVars) -> None:
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="a":
         le = fp.legendUnique(sv.folder)
-        di = float(le['nozzle_inner_width'])
+        di = float(le['nozzle_inner_width']) # change back RG
+        # di = float(le['nozzle_inner_width_(mm)'])
         sv.renderView1.CameraFocalPoint = [0.0006*di/0.6, -0.0002*di/0.6, 0.0005*di/0.6]
         sv.renderView1.CameraPosition = [2*di/0.6, 1*di/0.6, 2*di/0.6]
         sv.renderView1.CameraViewUp = [0,0,1]
@@ -299,7 +308,7 @@ def positionCB(ColorBar) -> None:
     '''put the color bar in the bottom'''
     ColorBar.AutoOrient = 0
     ColorBar.Orientation = 'Horizontal'
-    ColorBar.WindowLocation = 'LowerCenter'
+    ColorBar.WindowLocation = 'Lower Center'
     ColorBar.ScalarBarLength = 0.7
     ColorBar.UseCustomLabels = 1
     ColorBar.TitleFontSize = FONT
@@ -694,6 +703,29 @@ def uzslicex(sv:stateVars, x:float=-0.001) -> None:
     
 #--------------------------
 
+def alphaSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='a') -> None: # RG
+    '''Plot the ink and support, ink in white and support in black.
+    name is the name of the variable, e.g. U, UX, UY, UZ'''
+    slice1 = sliceMake(sv, origin, normal)
+    di = inkClip(sv, slice1, name, 0, clipVal = 0.5)
+    ds = inkClip(sv, slice1, name, 1, clipVal = 0.5)
+    di.AmbientColor = [1.0, 1.0, 1.0]
+    di.DiffuseColor = [1.0, 1.0, 1.0]
+    ds.AmbientColor = [0.0, 0.0, 0.0]
+    ds.DiffuseColor = [0.0, 0.0, 0.0]
+    resetCam(sv, (sv.times[-1])) 
+    setAndUpdate(view, sv)
+    sv.renderView1.Update()
+    
+def alphaSlicex(sv:stateVars, **kwargs) -> None: # RG
+    '''Alpha, looking down the x axis, at distance speficied in coloring'''
+    sv.hideAll()
+    c = kwargs['coloring'] # backpacking onto the color kwarg to get different x distances
+    d = float(c.split('_')[1]) # get the x distance
+    alphaSlice(sv, [d/1000, 0, 0], [1,0,0], 'x')
+
+#--------------------------
+
 def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-1000, pmax:float=1000) -> None:
     '''Plot the pressure map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. 
     origin is an [x,y,z] point, where the slice should be taken
@@ -988,7 +1020,7 @@ def runThrough(v:ssVars, sv:stateVars, overwrite:bool=False) -> None:
         logging.error(f'Create image exception in {sv.folder}: {e}')
         return sv
 
-    setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the imagewrong
+    setTime(sv.times[-1]/10, sv) # for some reason we need to set this twice, or it will position the image wrong
     
     # iterate through times and take snapshots of the surfaces
 
@@ -1006,7 +1038,7 @@ def folderScript(folder:str, ssvList:List[ssVars], overwrite:bool=False):
         if not os.path.exists(folder):
             return
         sv = stateVars(folder)
-        sv.times = fp.times(folder)        
+        sv.times = fp.times(folder)     
         for ssv in ssvList:
             sv = runThrough(ssv, sv, overwrite=overwrite)
     except Exception as e:

@@ -133,7 +133,7 @@ def caseFolders(folder:str) -> List[str]:
         fold = os.path.join(folder,f)
         if isSimFolder(fold):
             flist.append(fold)
-    flist.sort()
+    flist.sort(key=lambda x: int(os.path.basename(x)[2:]))
     return flist
 
 
@@ -524,7 +524,7 @@ def legendUnique(folder:str, units:bool=False) -> Union[Tuple[dict,dict], dict]:
     else:
         values = legendTableToDict(t, units=units)
     
-    values['compare_to'] = os.path.basename(os.path.dirname(folder)) # name of the folder it's in
+    # values['compare_to'] = os.path.basename(os.path.dirname(folder)) # name of the folder it's in RG
     if units:
         return values,u
     else:

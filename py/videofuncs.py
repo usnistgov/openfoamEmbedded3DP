@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import List, Dict, Tuple, Union, Any, TextIO
 import logging
+import cv2 as cv
 
 # local packages
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -76,6 +77,8 @@ def saveVid(folder:str, s:str, p:str, diag:bool=True) -> None:
             for filename in zfiles:
                 image = imageio.imread(filename)[:,:,:3] # ignore alpha channel
                 mp4writer.append_data(image)
+            print(len(image))
+            print(len(image[0]))
             mp4writer.close()
             
 def saveFramesToWriter(mp4writer, folder:str, tags:List[str], subfolder:str='images', debug:bool=False) -> None:
@@ -115,7 +118,7 @@ def saveTitleCardToWriter(mp4writer, folder:str, n:int, subfolder:str='images') 
     else:
         raise NameError(f'No title card in {folder}')
             
-def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=True) -> None:
+def saveBigVideo(folderList:str, filename:str, angles:List[str]=['y','a'],titleLength:float=1, diag:bool=True) -> None:
     '''Compile all of the time series for all of the simulations into one big video. 
     folderList is a list of the folders to include. 
     filename is the name of the video to save. 
@@ -127,7 +130,7 @@ def saveBigVideo(folderList:str, filename:str, titleLength:float=1, diag:bool=Tr
             if diag:
                 logging.info(f'Writing {fp.shortName(folder)}')
             saveTitleCardToWriter(mp4writer, folder, int(round(titleLength*fps)))
-            for s in ['y', 'a']:
+            for s in angles: # RG
                 saveFramesToWriter(mp4writer, folder, [s+'_umag'])
     except Exception as e:
         mp4writer.close()
@@ -200,7 +203,8 @@ def checkSimRate(folder:str, fix:bool=True) -> str:
     '''Check if the simulation rate makes sense. fix=True to rescrape the legend if the simulation rate doesn't make sense'''
     leg = fp.legendUnique(folder) # legend
     shortname = os.path.join(os.path.basename(os.path.dirname(folder)), os.path.basename(folder))
-    simrate = leg['simulation_rate_(hr/s)']
+    # simrate = leg['simulation_rate_(hr/s)']
+    simrate = leg['simulation_rate'] # RG
     warn = False
     try:
         simrate = '{:.1f}'.format(float(simrate))
@@ -224,7 +228,8 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     if os.path.exists(fname) and not overwrite:
         return
     
-    mydpi = 144
+    # mydpi = 144
+    mydpi = 96 # RG
     gammadot = [10**n for n in np.arange(-6, 6, 0.1)]
     fig,ax = plt.subplots(1,1, figsize=(3,3))
     ax.set_ylabel(r'Viscosity $\eta$ (Pa.s)', fontname="Arial")
@@ -237,10 +242,20 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     colors = ['#263e59', '#cc3d3d']
     leg = fp.legendUnique(folder) # legend
     simrate = checkSimRate(folder, True)
-    plotvars = [['Simulation number', shortname],\
+    rows = [[],[]]
+    
+    if os.path.basename(folder)[:2]=='aj': # RG
+        ormap = {'y': 'Horizontal', 'z': 'Vertical'}
+        plotvars = [['Simulation number', os.path.basename(shortname)],\
+                    ['Corresponding simulation', leg['compare_to']],\
+                    ['Nozzle offset', float(leg['adjacent_filament_offset'])/0.603],\
+                    ['Line placement', ormap[leg['adjacent_filament_orientation']]],\
+                    ['Surface tension (mJ/m^2)',round(1000*(float(leg['sigma'])))]]
+    else:
+        plotvars = [['Simulation number', shortname],\
                 ['Simulation rate (hr/s)', simrate],\
                 ['Surface tension (mJ/m^2)', round(1000*(float(leg['sigma'])))]]
-    rows = [[],[]]
+                    
     
     for j,s in enumerate(['ink', 'sup']):
         model = leg[s+'_transportModel']
@@ -284,7 +299,7 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     t1.set_fontsize(12)
     t1.auto_set_column_width(col=[0])
     t1.scale(1, 1)
-    fig.set_size_inches(1216/mydpi, 1181/mydpi) # to account for a smaller monitor, was 1216 1216 RG
+    fig.set_size_inches(1216/mydpi, 749/mydpi) # to account for a smaller monitor, was 1216 1216 RG
     fig.tight_layout()
     fig.savefig(fname, dpi=mydpi)
     plt.close()

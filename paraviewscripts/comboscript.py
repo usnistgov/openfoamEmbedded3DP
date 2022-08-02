@@ -7,6 +7,7 @@ import sys
 import time
 from datetime import datetime
 import logging
+import shutil # RG
 
 # local packages
 from paraview_general import *
@@ -44,7 +45,7 @@ loopTime = 6 #hours
 ## csv
 
 forceOverwrite = False
-getCSVs = False
+getCSVs = True
 getNoz = False
 # csvTimes = [2.5]
 csvTimes = [round(0.1*i,1) for i in range(1,26)]
@@ -64,6 +65,18 @@ runList = []
 # for s in ['viscy', 'viscx', 'py', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
 for s in ['shearStressy']:
     runList.append(ss.ssVars(s, [2.5], yieldSurface=True))
+runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+runList.append(ss.ssVars('volumes', [], volViewList=['a']))
+for d in range(-20,16): # slices from -4 mm to 3 mm (necking from atmosphere starts at about 3mm)
+    runList.append(ss.ssVars('alphaSlicex', [2.5], coloring='alphaSlice_'+str(d/5)))
+
+# run solo with lines 113-114
+# runList.append(ss.ssVars('alphaSlicex', [2.5], coloring='alphaSlice_1.4')) # for corresponding simulation
+
+
+# runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
+# for s in ['viscy', 'viscx', 'py', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
+#     runList.append(ss.ssVars(s, [1, 2.5]))
 # for s in ['py', 'uslicey', 'uzslicey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # for s in ['shearRatex', 'shearRatey']:
@@ -91,12 +104,22 @@ if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
+nlist = list(range(0,1000))
+# nlist = [34]
+topfolders = [SERVERFOLDER]
+corfolders = [os.path.join(os.path.dirname(SERVERFOLDER), s) for s in ['newtnewtsweep', 'HBHBsweep', 'HBnewtsweep', 'newtHBsweep']]
 
 # nlist = list(range(0,1000))
 nlist = [213]
 topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['HB_angle', 'HB_diameter', 'HB_k', 'HB_speed', 'newt_angle', 'newt_diameter', 'newt_visc', 'visc_speed']]
 
+afolders = []
 folders = filterSimNums(topfolders, nlist)
+
+# # only run this when only calling alphaSlice for corresponding simulation RG
+# afolders = filterSimNums(topfolders, nlist) # adjacent folders
+# folders, unabridged = extractCorNums(topfolders, corfolders, afolders) # corresponding folders
+
 
 ######################################################
 ####################### SCRIPT #######################
@@ -114,15 +137,22 @@ logging.info(f'Line traces:\n\
             Time list: {pl_tlist} s.')
 
 while True:
-
-    for folder in folders:
+    
+    for folder in folders: # RG
         logging.debug(f'Checking {folder}')
         if getCSVs:
-            pc.csvFolder(folder, ['interface'], forceOverwrite, times0=csvTimes) # create csvs RG
+            pc.csvFolder(folder, ['interface'], forceOverwrite, times0=csvTimes) # create csvs
         if getNoz:
             pc.csvFolder(folder, ['nozzleSlice'], forceOverwrite, times0=nozTimes) # create nozzle point csv
         if getSSs:
             ss.folderScript(folder, runList, overwrite=ss_forceOverwrite)  # screenshots
+            # ss.folderScript(folder, runList)  # screenshots
+            # if afolders: # RG
+            #     fromm = os.path.join(folder,'images','t025_x_alphaSlice_1.4.png')
+            #     for i,afold in enumerate(afolders):
+            #         if unabridged[i]==folder:
+            #             dest = os.path.join(afold,'images',os.path.basename(folder)+'_t025_x_alphaSlice_1.4.png')
+            #             shutil.copy(fromm, dest)
         if getLine:
             for xpos in pl_xlist:
                 pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant x
@@ -135,4 +165,3 @@ while True:
     logging.info(f'Waiting {looptime} hours for more files...')
     logging.info(f'------ Current Time ={current_time}')
     time.sleep(60*60*loopTime)
-
