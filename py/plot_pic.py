@@ -189,7 +189,7 @@ def picPlots0(topFolder:str, exportFolder:str, time:float, sigma:float, tag:str=
     else:
         dx = 0.5
         dy = dx*ar
-    cp = comboPlot(topFolder, [-dx, dx], [-dy, dy], imsize, gridlines=False, sigmalist=[sigma], **kwargs)
+    cp = comboPlot(topFolder, [-dx, dx], [-dy, dy], imsize, gridlines=False, sigma_list=[sigma], **kwargs)
     dx = dx*2
 
     if len(cp.flist)==0:

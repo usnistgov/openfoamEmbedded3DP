@@ -44,8 +44,8 @@ loopTime = 6 #hours
 ## csv
 
 forceOverwrite = False
-getCSVs = True
-getNoz = True
+getCSVs = False
+getNoz = False
 # csvTimes = [2.5]
 csvTimes = [round(0.1*i,1) for i in range(1,26)]
 nozTimes = [2.5]
@@ -54,26 +54,28 @@ nozTimes = [2.5]
 ## screenshots
 
 getSSs = True
+ss_forceOverwrite=True
 # for help, see ssVars in paraview_screenshots
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
 runList = []
-runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 # runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
-for s in ['viscy', 'viscx', 'py', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
-    runList.append(ss.ssVars(s, [1, 2.5]))
+# for s in ['viscy', 'viscx', 'py', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
+for s in ['shearStressy']:
+    runList.append(ss.ssVars(s, [2.5], yieldSurface=True))
 # for s in ['py', 'uslicey', 'uzslicey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # for s in ['shearRatex', 'shearRatey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # runlist.append(ss.ssVars('meshes', [2.5]))
 # runlist.append(ss.ssVars('vectors', [2.5]))
-runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
+# runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
 
 #------
 ## line traces
 
-getLine = True
+getLine = False
 
 pl_tlist = [2.5]        # times at which to collect the traces     
 pl_xlist = [2]       # positions at which to collect the trace, in nozzle inner diameters, relative to the center
@@ -91,7 +93,7 @@ if not os.path.exists(SERVERFOLDER):
 
 
 # nlist = list(range(0,1000))
-nlist = [202]
+nlist = [213]
 topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['HB_angle', 'HB_diameter', 'HB_k', 'HB_speed', 'newt_angle', 'newt_diameter', 'newt_visc', 'visc_speed']]
 
 folders = filterSimNums(topfolders, nlist)
@@ -100,7 +102,7 @@ folders = filterSimNums(topfolders, nlist)
 ####################### SCRIPT #######################
 
 logging.info('Exporting images and csvs.')
-logging.info('Images:')
+logging.info(f'Images. Overwrite: {ss_forceOverwrite}')
 for r in runList:
     logging.info(r.prnt())
 logging.info(f'Interface CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
@@ -120,7 +122,7 @@ while True:
         if getNoz:
             pc.csvFolder(folder, ['nozzleSlice'], forceOverwrite, times0=nozTimes) # create nozzle point csv
         if getSSs:
-            ss.folderScript(folder, runList)  # screenshots
+            ss.folderScript(folder, runList, overwrite=ss_forceOverwrite)  # screenshots
         if getLine:
             for xpos in pl_xlist:
                 pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant x

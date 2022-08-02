@@ -92,9 +92,6 @@ def logRead(folder:str) -> List[logEntry]:
                     elif line.startswith('Time = '):
                         strs = re.split('Time = |\n', line)
                         newEntry['simTime'] = selectIf(strs, 1)
-#                         if len(li)>0 and newEntry['simTime']<li[-1]['simTime']: # if the time is less than the previous time, restart the table
-#                             print('restarting, ', newEntry['simTime'], li[-1]['simTime'])
-# #                             li = []
                     elif line.startswith('Unrefined from '):
                         strs = re.split('Unrefined from | to | cells.\n', line)
                         newEntry['cells'] = selectIf(strs, 2)
@@ -109,11 +106,16 @@ def logRead(folder:str) -> List[logEntry]:
                         newEntry['ralpha'] = selectIf(strs, 1)
                     elif line.startswith('DICPCG:  Solving for p_rgh,'):
                         strs = re.split('Final residual = |, No Iterations', line)
-                        newEntry['rprgh'] = selectIf(strs, 1)
+                        rprgh = selectIf(strs, 1)
+                        newEntry['rprgh'] = rprgh
                     elif line.startswith('ExecutionTime'):
                         strs = re.split('ExecutionTime = | s', line)
                         newEntry['realtime'] = selectIf(strs, 1)
-                        li.append(newEntry)
+                        if newEntry['ralpha']>0 and newEntry['rprgh']>0:
+                            while len(li)>0 and newEntry['simTime']<li[-1]['simTime']:
+                                li = li[:-1]
+                            li.append(newEntry)
+                        
                 except Exception as e:
                     # if we hit an error, skip this line
                     print(f'error hit: {e}')
@@ -136,12 +138,12 @@ def la(li:List[Any], at:str) -> List[Any]:
 # plots
 
 
-def plotConvergence(folder:str, li:Union[List, pd.DataFrame], export:bool=False):
+def plotConvergence(folder:str, li:Union[List, pd.DataFrame], export:bool=False, overwrite:bool=False):
     '''plot 4 plots that show the simulation metrics over time
     folder can be a case folder or its parent
     li is a dataframe holding log values. Give empty list to automatically generate a list'''
     fn = os.path.join(folder, 'images', 'convergence.png')
-    if export and os.path.exists(fn): # if the file already exists, return
+    if export and os.path.exists(fn) and not overwrite: # if the file already exists, return
         return
     if len(li)==0:
         li = logRead(folder)

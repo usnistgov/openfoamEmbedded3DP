@@ -12,6 +12,7 @@ from typing import List, Dict, Tuple, Union, Any, TextIO
 from vtkmodules.vtkCommonCore import vtkLogger
 vtkLogger.SetStderrVerbosity(vtkLogger.VERBOSITY_OFF)
 import logging
+import traceback
 from paraview.simple import * # import the simple module from the paraview
 
 # local packages
@@ -46,13 +47,13 @@ def getShearRatefunc(f, kwargs:Dict):
             kw = kw+[s, kwargs[s]]
     return lambda sv: f(sv, **dict(kw))
 
-def getShearStressfunc(f, kwargs:Dict): # RG
+def getShearStressfunc(f, kwargs:dict): # RG
     '''Get the shear stress function, given a function f and dict kwargs'''
-    kw = []
-    for s in ['rmin', 'rmax', 'x']:
+    kw = {}
+    for s in ['rmin', 'rmax', 'x', 'yieldSurface']:
         if s in kwargs:
-            kw = kw+[s, kwargs[s]]
-    return lambda sv: f(sv, **dict(kw))
+            kw[s] = kwargs[s]
+    return lambda sv: f(sv, **kw)
         
 def getxfunc(f, kwargs:Dict):
     '''Get the function for an x slice, given function f and dict kwargs'''
@@ -502,7 +503,7 @@ def viscColor(display, visc:str) -> None:
     display.DiffuseColor = c
     
     
-def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
+def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs):
     '''Just clip out the ink portion and color it by viscosity or velocity. 
     clipinput is the Paraview object that you're trying to clip, e.g. sv.caseVTMSeries. 
     colVar is the variable being colored ('U', 'nu1', 'nu2', 'inknu', or 'supnu'). 'nu1' and 'nu2' use local viscosities measured for non-Newtonian fluids. 'inknu' and 'supnu' are constant viscosities collected from the legend, for Newtonian fluids. 
@@ -558,13 +559,43 @@ def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs) -> None:
         
     Hide(clipinput, sv.renderView1)
     
-    return clipDisplay
+    return clipDisplay, clip
+
+
+def stressClip(sv, display, invert, clipVal):
+    '''clip by stress'''
+    try:
+        clip = Clip(Input=display)
+    except:
+        traceback.print_exc()
+
+    # clip out just the fluid we're looking at
+    clip.Scalars = ['POINTS', 'shearStressMag']
+    clip.Value = clipVal
+    clip.ClipType = 'Scalar'
+    clip.Invert = invert
+    
+    return clip
+    
+
+def yieldClip(sv, display, tau0:float):
+    '''clip just the yield stress out and color it'''
+    tauclip0 = stressClip(sv, display, 0, clipVal = (10**-0.05)*tau0)
+    tauclip = stressClip(sv, tauclip0, 1, clipVal = (10**0.05)*tau0)
+        # turn off scalar coloring
+    clipDisplay = Show(tauclip, sv.renderView1, 'UnstructuredGridRepresentation')
+    clipDisplay.Representation = 'Surface'
+    c = [0.0,0.0,0.0]
+    clipDisplay.AmbientColor = c
+    clipDisplay.DiffuseColor = c
+    return tauclip
+
 
 
 def alphasurface(sv:stateVars, colVar:str) -> None:
     '''filament surface
     colVar is the variable being colored ('U' or 'None')'''
-    clipDisplay = inkClip(sv, sv.caseVTMSeries, colVar, 0)
+    clipDisplay,_ = inkClip(sv, sv.caseVTMSeries, colVar, 0)
     sv.colorBars.append(uColorBar(sv.renderView1, clipDisplay, umax=0.01))
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate('y', sv)
@@ -629,8 +660,8 @@ def uSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:
     name is the name of the variable, e.g. U, UX, UY, UZ
     umin, umax are the legend range'''
     slice1 = sliceMake(sv, origin, normal)
-    d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
-    d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
+    d1, _ = inkClip(sv, slice1, name, 0, clipVal = 0.9)
+    d2, _ = inkClip(sv, slice1, name, 1, clipVal = 0.1)
     for d in [d1, d2]:
         if name=='U':
             dispname = '|Velocity|'
@@ -672,8 +703,8 @@ def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:
     pmin, pmax are the legend range
     '''
     slice1 = sliceMake(sv, origin, normal)
-    d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
-    d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
+    d1, _ = inkClip(sv, slice1, name, 0, clipVal = 0.9)
+    d2, _ = inkClip(sv, slice1, name, 1, clipVal = 0.1)
     for d in [d1, d2]:
         sv.colorBars.append(pColorBar(sv.renderView1, d, pmax=pmax, pmin=pmin))
     resetCam(sv, (sv.times[-1])) 
@@ -701,8 +732,8 @@ def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:st
     rmin, rmax are the legend range'''
     shearRate = computeShearRate(sv) # in paraview_general
     slice1 = sliceMake(sv, origin, normal, sinput=shearRate) # take slice from shear rate map
-    d1 = inkClip(sv, slice1, name, 0, clipVal = 0.9)
-    d2 = inkClip(sv, slice1, name, 1, clipVal = 0.1)
+    d1, _ = inkClip(sv, slice1, name, 0, clipVal = 0.9)
+    d2, _ = inkClip(sv, slice1, name, 1, clipVal = 0.1)
     for d in [d1, d2]:
         sv.colorBars.append(shearRateColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
     resetCam(sv, (sv.times[-1]))
@@ -721,7 +752,8 @@ def shearRateSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None:
 
 #--------------------------
 
-def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', rmin:float=2, rmax:float=200) -> None: # RG
+
+def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', rmin:float=2, rmax:float=200, yieldSurface:bool=False) -> None: # RG
     '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
     origin is an [x,y,z] point, where the slice should be taken
     normal is an [x,y,z] vector, indicating the normal to the plane of the slice
@@ -729,6 +761,7 @@ def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:
     name is the name of the value to clip
     rmin and rmax are the range of values in the legend
     '''
+
     computeDerivatives = computeShearRate(sv) # calculate shear rate
     cellDatatoPointData = CellDatatoPointData(Input=computeDerivatives)
     cellDatatoPointData.CellDataArraytoprocess = ['ScalarGradient', 'U', 'VectorGradient', 'alpha.ink', 'cellID', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
@@ -743,9 +776,22 @@ def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:
  #   calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
     sv.hideAll()
     
-    d1 = inkClip(sv, calculator, name, 0, clipVal = 0.9)
-    d2 = inkClip(sv, calculator, name, 1, clipVal = 0.1)
-    for d in [d1, d2]:
+    calculator3 = Calculator(Input=calculator)
+    calculator3.ResultArrayName = 'shearStressMag'
+    calculator3.Function = 'mag(shearStress)'
+
+    dink, clipink = inkClip(sv, calculator3, name, 0, clipVal = 0.9)   # ink
+    dsup, clipsup = inkClip(sv, calculator3, name, 1, clipVal = 0.1)   # support
+
+    if yieldSurface:
+        if le['ink_transportModel']=='HerschelBulkley':
+            tauink = float(le['ink_tau0'])*float(le['ink_rho'])
+            inkyield = yieldClip(sv, clipink, tauink)
+        if le['sup_transportModel']=='HerschelBulkley':
+            tausup = float(le['sup_tau0'])*float(le['sup_rho'])
+            supyield = yieldClip(sv, clipsup, tausup)
+    
+    for d in [dink, dsup]:
         sv.colorBars.append(shearStressColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
     resetCam(sv, (sv.times[-1]))
     setAndUpdate(view, sv)
@@ -897,7 +943,7 @@ def surfandtube(sv):
 ################ scripting #########################
 
 
-def runThrough(v:ssVars, sv:stateVars) -> None:
+def runThrough(v:ssVars, sv:stateVars, overwrite:bool=False) -> None:
     '''For a given folder, generate all the images'''
     if v.tag=='tubes':
         sv.tubeh = v.tubeh
@@ -917,7 +963,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
         for t in tlist:
             fn = fullFN(t, view, v.coloring, sv.folder)
                 # find the full file name for this set of circumstances
-            if (not os.path.exists(fn)) and t/10 in sv.times:
+            if (not os.path.exists(fn) or overwrite) and t/10 in sv.times:
                 # if the file does not exist, add this set to the list
                 tlist2.append(t)
                 fnlist.append(fn)
@@ -954,7 +1000,7 @@ def runThrough(v:ssVars, sv:stateVars) -> None:
  
     return sv
          
-def folderScript(folder:str, ssvList:List[ssVars]):
+def folderScript(folder:str, ssvList:List[ssVars], overwrite:bool=False):
     '''Initialize the folder and generate all images.'''
     try:
         if not os.path.exists(folder):
@@ -962,9 +1008,9 @@ def folderScript(folder:str, ssvList:List[ssVars]):
         sv = stateVars(folder)
         sv.times = fp.times(folder)        
         for ssv in ssvList:
-            sv = runThrough(ssv, sv)
+            sv = runThrough(ssv, sv, overwrite=overwrite)
     except Exception as e:
-        logging.error(folder+': '+str(e))
+        logging.error(f'{folder}: {e}')
         return
     cleanSession()
     return    
