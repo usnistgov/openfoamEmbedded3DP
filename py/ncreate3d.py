@@ -862,7 +862,6 @@ def realBoundaries(geo:NozVars, exportMesh:bool, **kwargs) -> List[BoundaryInput
             x = geo.ble+(geo.ncx-geo.ble)*geo.niw+8*geo.niw # x at which to take cross section
             p = intm.posSlice(reffolder, x)
             xspts, cent = intm.xspoints(geo, p, geo.dst, geo.adj)
-            # outxspts = outerPoints(xspts, geo.nt)
             if geo.hor:
                 if geo.adj=='y':
                     xspts[1] = [i-cent[1] for i in xspts[1]]
@@ -913,7 +912,6 @@ def realBoundaries(geo:NozVars, exportMesh:bool, **kwargs) -> List[BoundaryInput
     fw.reflev = 2
     
     if geo.adj!='None': # RG
-    # inkflow with atmosphere walls approach
         xa = BoundaryInput("xsAtmosphere", "")
         xa.alphalist = DictList(xa.label, 0, [["type", "inletOutlet"], ["value", "uniform 0"], ["inletValue", "uniform 0"]])
         xa.Ulist = DictList(xa.label, 0, [["type", "pressureInletOutletVelocity"], ["value", "uniform (0 0 0)"]])
@@ -942,72 +940,6 @@ def realBoundaries(geo:NozVars, exportMesh:bool, **kwargs) -> List[BoundaryInput
                 xf.meshi = arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble+geo.niw/3), xspts2)
     
         return [bf, inkf, xf, xa, at, fw]
-    
-    
-#     # inkflow with walls approach
-#         inkx = BoundaryInput("inkxs", "")
-#         inkx.alphalist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
-#         inkx.Ulist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
-#         inkx.plist = DictList(inkx.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
-#         if exportMesh:
-#             xspts2 = np.copy(xspts)
-#             xspts2[:,0]+=geo.niw/3 # gives xs depth so snappyHexMesh can snap to its surface
-#             inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)])
-        
-#         inkx.reflev = 2
-#         return [bf, inkf, inkx, at, fw]
-    
-    
-    # inlet approach
-#         inkx = BoundaryInput("inkxs", "")
-#         inkx.alphalist = DictList(inkx.label, 0, [["type", "inletOutlet"], ["value", "uniform 1"], ["inletValue", "uniform 1"]])
-#         inkx.Ulist = DictList(inkx.label, 0, [["type", "inletOutlet"], ["value", "uniform (" + str(geo.bv) + " 0 0)"], ["inletValue", "uniform (" + str(geo.bv) + " 0 0)"]])
-#         inkx.plist = DictList(inkx.label, 0, [["type", "totalPressure"], ["p0", "uniform 0"]])
-#         if exportMesh:
-#             xspts2 = np.copy(xspts)
-#             xspts2[:,0]+=geo.niw/3 # gives xs depth so snappyHexMesh can snap to its surface
-#             inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)])
-        
-#         inkx.reflev = 2
-#         return [bf, inkf, inkx, at, fw]
-
-#     # inkflow but solid block approach
-#         inkx = BoundaryInput("inkxs", "")
-#         inkx.alphalist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
-#         inkx.Ulist = DictList(inkx.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
-#         inkx.plist = DictList(inkx.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
-#         if exportMesh:
-#             xspts2 = np.copy(xspts)
-#             xspts2[:,0]+=geo.niw/2 # gives xs depth so snappyHexMesh can snap to its surface
-#             inkx.meshi = combineMeshes([arcFace(xspts, xspts2), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts), arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble+geo.niw/2), xspts2)])
-        
-#         inkx.reflev = 2
-#         return [bf, inkf, inkx, at, fw]
-        
-    # second nozzle approach
-#         inkxf = BoundaryInput("inkxflow", "") # equivalent to inkflow
-#         inkxf.alphalist = DictList(inkxf.label, 0, [["type", "fixedValue"], ["value", "uniform 1"]])
-#         inkxf.Ulist = DictList(inkxf.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
-#         inkxf.plist = DictList(inkxf.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
-#         if exportMesh:
-#             inkxf.meshi = arcFace(setX(np.zeros([len(xspts),2])+cent, geo.ble), xspts)
-#         inkf.reflev = 0
-        
-        
-#         inkxs = BoundaryInput("inkxs", "") # equivalent to fixedWalls
-#         inkxs.alphalist = DictList(inkxs.label, 0, [["type", "zeroGradient"]])
-#         # inkxs.Ulist = DictList(inkxs.label, 0, [["type", "slip"]]) # we want slip since this xs is not legitimately extruded
-#         inkxs.Ulist = DictList(inkxs.label, 0, [["type", "fixedValue"], ["value", "uniform (" + str(geo.bv) + " 0 0)"]])
-#         inkxs.plist = DictList(inkxs.label, 0, [["type", "fixedFluxPressure"], ["value", "uniform 0"]])
-#         if exportMesh:
-#             xsptsr = np.copy(xspts)
-#             xsptsr[:,0]+=geo.niw/3
-#             outxsptsr = np.copy(outxspts)
-#             outxsptsr[:,0]+=geo.niw/3
-#             inkxs.meshi = combineMeshes([arcFace(xsptsr, outxsptsr), arcFace(xsptsr, xspts), arcFace(outxsptsr, outxspts)])
-#         inkxs.reflev = 2
-        
-#         return [bf, inkf, inkxs, inkxf, at, fw]
  
     return [bf, inkf, at, fw]    
 

@@ -236,13 +236,14 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
     try:
         if not os.path.exists(folder):
             return
-
         le = fp.legendUnique(folder)
         if mode=='interface':
             # xmin = -0.004824 # left edge of bath
             # xmax = -xmin # right edge of bath
-            xmin = float(le['bath_left_coord'])/1000
-            xmax = float(le['bath_right_coord'])/1000
+            xmin = float(le['bath_left_coord'])/1000 # RG
+            # xmin = float(le['bath_left_coord_(mm)'])/1000
+            xmax = float(le['bath_right_coord'])/1000 # and this RG
+            # xmax = float(le['bath_right_coord_(mm)'])/1000
             dx = (xmax-xmin)/50
             # dx = 0.0002
             # times = fp.times(folder)
@@ -258,7 +259,6 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
             raise Exception("Valid modes are 'interface' and 'nozzleSlice'")
 
         f1 = os.path.join(folder, f'{mode}Points')
-
         # only collect files that don't already exist, or overwrite if we're forced to
         times = []
         for time in times0:

@@ -620,7 +620,7 @@ def steadyList(folder:str, dother:float, vdcrit:float, col:str, mode:str) -> pd.
         'xbehind' means that for each x, we're finding a range of steady times. 
         'time' means that for each time, we're finding a range of steady xbehinds'''
     try:
-        ss, ssunits = importSS(folder)
+        ss, ssunits = pSS(folder)
     except:
         raise Exception('Problem with summaries')
     

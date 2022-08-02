@@ -92,8 +92,8 @@ class scrape:
         self.GEOncyc = ['nozzle center y coord', '', 'mm']
         self.GEOna = ['nozzle angle', '0', 'degrees'] # RG
         self.GEOhoriz = ['horizontal', False, '']
-        self.GEOadj = ['adjacent orientation', '', '']
-        self.GEOdst = ['adjacent offset', '', 'mm']
+        self.GEOadj = ['adjacent filament orientation', '', '']
+        self.GEOdst = ['adjacent filament offset', '', 'mm']
         self.GEObathv = ['bath velocity', '', 'm/s']
         self.GEOinkv = ['ink velocity', '', 'm/s']
     
@@ -622,7 +622,7 @@ class scrape:
                     if s1 in transfer:
                         setattr(self, f'GEO{transfer[s1]}', row)
                     if s1 == 'corresponding simulation':
-                        self.compareto[1] = row[1]
+                        self.compareto[1] = row[1][1:] # RG
                 return
         else:
             return
@@ -740,6 +740,7 @@ def populate(folder:str, *varargin, readLogs:bool=True, overwrite:bool=False) ->
         leOld, uOld = legendUnique(folder, units=True) # import old legend and units to dictionary
         t = s.table()
         leNew, uNew = legendTableToDict(t, units=True) # convert new legend and units to dictionary
+        leNew['compare_to'] = leOld['compare_to'] # RG
         for key in leNew:
             if not key=='compare_to':
                 # keep old values if not same, except for scraped timings

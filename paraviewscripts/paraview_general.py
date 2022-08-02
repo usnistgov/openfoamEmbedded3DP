@@ -6,6 +6,7 @@ import os
 import sys
 import csv
 import re
+import numpy as np # RG
 from paraview.simple import * # import the simple module from the paraview
 import time
 from datetime import datetime
@@ -43,6 +44,8 @@ def simNum(f:str) -> int:
     j = i
     while j<len(f) and isNum(f[j]):
         j+=1
+    if i==j: # no number RG
+        return -100
     return int(f[i:j])
 
 
@@ -54,6 +57,25 @@ def filterSimNums(topfolders:List[str], nlist:List[int]) -> List[str]:
             if simNum(os.path.basename(f)) in nlist:
                 folders.append(f)
     return folders
+
+def extractCorNums(topfolders:List[str], dirs:List[str], nlist:List[str]) -> Union[List[str],List[str]]: # RG
+    '''get a list of folders corresponding to sims in the list'''
+    nb = []
+    nlist = [simNum(os.path.basename(n)) for n in nlist]
+    for topfolder in topfolders:
+        for f in fp.caseFolders(topfolder):
+            if simNum(os.path.basename(f))!=-100 and simNum(os.path.basename(f)) in nlist:
+                geo = os.path.join(f,'geometry.csv')
+                with open(geo, "r") as g:
+                    data = list(csv.reader(g))
+                    for row in data:
+                        if row[0]=='corresponding simulation':
+                            nb.append(row[1][3:])
+    nb = [int(i) for i in nb]
+    folders = filterSimNums(dirs, nb)
+    unabridged = []
+    unabridged = [filterSimNums(dirs,[i])[0] for i in nb]
+    return folders, unabridged
 
 
 class stateVars():
