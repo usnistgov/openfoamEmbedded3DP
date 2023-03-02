@@ -149,7 +149,7 @@ def decideFormat(x:float) -> Tuple[Union[float, str], bool]:
         return expFormat(x),True
 
 
-def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:bool=False, useExp:bool=True) -> List[Any]:
+def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:bool=False, useExp:bool=True, prec:int=-1000) -> List[Any]:
     '''put the whole list in exponential or appropriate format
     returnPrecision=True to return an int that describes the precision of the list. if -1000, then not formatted. if 1000, then exponent format.
     forceFormat forces the list to be formatted even if there is only one element in the list
@@ -157,6 +157,14 @@ def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:boo
     '''
     xout = []
     xlist = list(xlist)
+    if prec>-1000 and prec<1000:
+        # already determined precision
+        xout = [round(float(x),prec) for x in xlist]
+        if returnPrecision:
+            return xout, prec
+        else:
+            return xout  
+
     if len(xlist)<2 and not forceFormat:
         # only one element in list, don't format it
         if returnPrecision:
@@ -171,8 +179,11 @@ def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:boo
         xout.append(x1)
         prec = 1000    # exponent format
     if not useExp:
+        # not using exponents. this is for strings, floats, ints
         ints = True
         i = 0
+        
+        # determine if these are all ints
         while i<len(xlist) and ints:
             try:
                 if not round(xlist[i])==xlist[i]:
@@ -183,11 +194,14 @@ def expFormatList(xlist:List[float], returnPrecision:bool=False, forceFormat:boo
                 else:
                     return xlist
             i+=1
+            
+        # set precision
         if ints:
+            # set all to ints
             prec = 0
             xout = [int(xi) for xi in xlist]
         else:
-            # determine precision of float
+            # these are floats. determine precision of float
             xsort = xlist.copy()
             xsort.sort()
             diffs = [t - s for s, t in zip(xsort, xsort[1:])] # differences between steps
@@ -419,7 +433,7 @@ def listTPvalues(flist, **kwargs) -> Tuple[List[str], Dict]:
         if f'{k}_list' in kwargs:
 #             print(k, kwargs[f'{k}_list'], list(tab[k]), list(tab['bn']))
             tab[k], prec = expFormatList(list(tab[k]), returnPrecision=True)  # round floats
-            l0 = expFormatList(kwargs[f'{k}_list'], forceFormat=((prec==1000)), returnPrecision=False)
+            l0 = expFormatList(kwargs[f'{k}_list'], forceFormat=((prec==1000)), returnPrecision=False, prec=prec)
             tab = tab[tab[k].isin(l0)] # only take rows that are in the list
     flist2 = list(tab['folder'])
     try:
@@ -572,6 +586,7 @@ class folderPlots:
             imsize is the size of the total image in inches
             split is true to split into separate plots by surface tension'''
         self.kwargs = kwargs
+        self.fontsize=fontsize
         plt.rc('font', size=fontsize) 
         self.ab = not 'adjustBounds' in self.kwargs or self.kwargs['adjustBounds']==True
         self.topFolder = topFolder
@@ -715,6 +730,7 @@ class folderPlots:
             func = self.yfunc
 
         f,u = extractTP(self.flist[0], units=True)
+        u.pop('')
         sigmaunits = u['sigma'].replace('\^2', '$\^2$')
         naunits = u['nozzle_angle']
         naunits = naunits.replace('degrees', '$\degree$')
@@ -733,7 +749,7 @@ class folderPlots:
                 namedefs[f'{s}{fluid}'] = f'{fluids[fluid]} {defs[s]} ({ui})'
         for ui in u:
             uname = ui.replace('_', ' ')
-            if not ui in namedefs:
+            if not ui=='_' and not ui in namedefs:
                 namedefs[ui] = f'{uname} ({u[ui]})'
  
         
@@ -748,10 +764,13 @@ class folderPlots:
                 varstr = self.kwargs['xvar']
             else:
                 varstr = self.kwargs['yvar']
-            
+                
+
         if varstr in namedefs:
+            # whole variable is defined
             label = namedefs[varstr]
         else:
+            # parts of the variable are defined
             for s in namedefs:
                 varstr = varstr.replace(s, namedefs[s])
             label = varstr
@@ -759,7 +778,10 @@ class folderPlots:
         if short:
             label = label.replace('viscosity', '\u03B7')
             label = label.replace('Surface tension', '\u03C3')
+            label = label.replace('Nozzle inner diameter', '$d_i$')
         return label
+    
+
     
 #-------------------------------------------------
 
@@ -839,7 +861,7 @@ class gridOfPlots(folderPlots):
             lastx = len(self.xlist)
             lasty = len(self.ylist)
 
-        fs = 10
+        fs = self.fontsize
         
         # plot labels
         # in the grid of plots, the row# is y, and the col# is x
@@ -964,9 +986,9 @@ class comboPlot(folderPlots):
         # put x labels on all plots
         for ax in self.axs:
             if len(self.xlistreal)>1:
-                ax.set_xlabel(self.getLabel('x', len(self.axs)>1), fontname="Arial", fontsize=10)
+                ax.set_xlabel(self.getLabel('x', len(self.axs)>1), fontname="Arial", fontsize=self.fontsize)
                 ax.set_xticks(self.xmlist, minor=False)
-                ax.set_xticklabels(expFormatList(self.xlist), fontname="Arial", fontsize=10)
+                ax.set_xticklabels(expFormatList(self.xlist), fontname="Arial", fontsize=self.fontsize)
             else:
                 ax.set_xticks([])
 
@@ -996,19 +1018,19 @@ class comboPlot(folderPlots):
         if self.ncol>1:
             sigmalist = self.tplists['sigma_list']
             for i in range(len(sigmalist)):
-                self.axs[i].set_title('\u03C3='+str(sigmalist[i])+' mJ/m$^2$', fontname="Arial", fontsize=10)
+                self.axs[i].set_title('\u03C3='+str(sigmalist[i])+' mJ/m$^2$', fontname="Arial", fontsize=self.fontsize)
 
         if len(self.ylistreal)<2: # since there is only one variable, remove y information RG
             for ax in self.axs:
                 ax.set_ylabel("")
                 ax.set_yticks([])
         else:
-            self.axs[0].set_ylabel(self.getLabel('y', False), fontname="Arial", fontsize=10)
+            self.axs[0].set_ylabel(self.getLabel('y', False), fontname="Arial", fontsize=self.fontsize)
             yticklabels = expFormatList(self.ylist)
-            self.axs[0].set_yticklabels(yticklabels, fontname="Arial", fontsize=10)
+            self.axs[0].set_yticklabels(yticklabels, fontname="Arial", fontsize=self.fontsize)
             
         self.titley = 1
-        self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=10)
+        self.fig.suptitle(self.figtitle, y=self.titley, fontname="Arial", fontsize=self.fontsize)
         
         if self.ab:
             # reset the figure size so the title is in the right place

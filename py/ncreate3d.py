@@ -497,7 +497,10 @@ def plotGeo(geo:NozVars, pl:np.array, blocks:List[Block], br:List[BoundaryInput]
     for i in range(len(blocks)):
         vs = blocks[i].vertices
         ax.text(np.mean(vs[:,0]), np.mean(vs[:,1]), np.mean(vs[:,2]), i, color='r', fontsize=fs)
-    clist = ['tomato', 'navajowhite', 'mediumaquamarine', 'deepskyblue', 'white']
+    if len(br)==4:
+        clist = ['tomato', 'navajowhite', 'mediumaquamarine', 'deepskyblue', 'white']
+    else:
+        clist = ['tomato', 'navajowhite', 'yellow', 'white', 'mediumaquamarine', 'deepskyblue']
     plist = []
     for bi in br:
         # each boundary bi in list bl
@@ -859,8 +862,9 @@ def realBoundaries(geo:NozVars, exportMesh:bool, **kwargs) -> List[BoundaryInput
             faces = list(map(lambda s: axisFace(walsel(geo, s)), ["y-", "y+", "z-"]))
         if geo.adj!='None':
             reffolder = kwargs.get('reffolder')
-            x = geo.ble+(geo.ncx-geo.ble)*geo.niw+8*geo.niw # x at which to take cross section
-            p = intm.posSlice(reffolder, x)
+            p = intm.posSlice(reffolder, 8, xunits='nozzle_inner_width')
+#             x = geo.ble+(geo.ncx-geo.ble)*geo.niw+8*geo.niw # x behind nozzle at which to take cross section, 1.45 mm
+#             p = intm.posSlice(reffolder, x)
             xspts, cent = intm.xspoints(geo, p, geo.dst, geo.adj)
             if geo.hor:
                 if geo.adj=='y':

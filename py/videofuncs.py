@@ -77,8 +77,6 @@ def saveVid(folder:str, s:str, p:str, diag:bool=True) -> None:
             for filename in zfiles:
                 image = imageio.imread(filename)[:,:,:3] # ignore alpha channel
                 mp4writer.append_data(image)
-            print(len(image))
-            print(len(image[0]))
             mp4writer.close()
             
 def saveFramesToWriter(mp4writer, folder:str, tags:List[str], subfolder:str='images', debug:bool=False) -> None:
@@ -103,7 +101,11 @@ def saveFramesToWriter(mp4writer, folder:str, tags:List[str], subfolder:str='ima
     for i, filename in enumerate(zfiles):
         if i==0 or round(times[i]-times[i-1],3)==0.1:
             image = imageio.imread(filename)[:,:,:3] # ignore alpha channel
-            mp4writer.append_data(image)
+            if i==0:
+                shape0 = image.shape
+            else:
+                if image.shape==shape0:
+                    mp4writer.append_data(image)
             
 def saveTitleCardToWriter(mp4writer, folder:str, n:int, subfolder:str='images') -> None:
     '''For a given folder, save the title card to the videowriter. n is number of frames of the title card to add'''
@@ -306,3 +308,34 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
     
     if diag:
         logging.info(f'Exported {shortname}\\titleCard.png')
+        
+        
+        
+def convertToFastGif(vid:str, factor:int=1):
+    '''convert the mp4 to a fast gif, reducing frames by a factor of int'''
+    video = imageio.get_reader(vid,  'ffmpeg')
+    newName = vid.replace('.mp4', '_fast.gif')
+    if os.path.exists(newName):
+        os.remove(newName)
+    dat = video.get_meta_data()
+    fps = int(dat['fps'])
+    result = imageio.get_writer(newName, fps=fps)
+    skip = factor
+    i = 0
+    for num , im in enumerate(video):
+        frame = video.get_data(num)
+        skip = skip-1
+        if skip==0:
+            # Write the frame into the
+            # file 'filename.avi'
+            result.append_data(frame)
+            skip = factor
+
+      # When everything done, release 
+    # the video capture and video 
+    # write objects
+    video.close()
+    result.close()
+
+    logging.info(f'Exported {newName}')
+    return
