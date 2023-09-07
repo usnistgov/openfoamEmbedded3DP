@@ -284,6 +284,22 @@ def importSS(folder:str) -> pd.DataFrame:
     d = d.dropna() # drop NA values
     return d, units
 
+
+def shortenName(s:str) -> str:
+    '''shorten the string'''
+    k = s
+    k = k.replace('nozzle_inner_width', 'niw')
+    k = k.replace('_list', '')
+    k = k.replace('transportModel', 'tm')
+    k = k.replace('yvar','y')
+    k = k.replace('xvar', 'x')
+    k = k.replace('adjacent_filament_offset', 'Ddis')
+    k = k.replace('adjacent_filament_orientation', 'Ddir')
+    k = k.replace('HerschelBulkley', 'HB')
+    k = k.replace('imsize', 's')
+    k = k.replace('fontsize', 'fs')
+    return k
+
 def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
     '''Construct an image file name with no extension. Exportfolder is the folder to export to. Label is any given label. Topfolder is the folder this image refers to, e.g. HBHBsweep. Insert any extra values in kwargs as keywords'''
     bn = os.path.basename(topfolder)
@@ -296,19 +312,31 @@ def imFn(exportfolder:str, labels:str, topfolder:str, **kwargs) -> str:
                 for ki in kvar:
                     s = s + str(ki) + '-'
                 s = s[0:-1] + '_'
+            elif type(kvar) is dict:
+                for key,val in kvar.items():
+                    if os.path.isdir(key):
+                        s = s+os.path.basename(key)
+                    else:
+                        s = s + key + '_'
+                    if os.path.isdir(val):
+                        s = s+os.path.basename(val)
+                    else:
+                        s = s + val + '_'
             else:
-                s = s + str(kwargs[k])+'_'
+                s = s + str(kvar)+'_'
     s = s[0:-1]
     s = s.replace('*', 'x')
     s = s.replace('/', 'div')
+    s = shortenName(s)
     
     # RG
     label = ''
     labels = [labels] if isinstance(labels, str) else labels
     for i in labels:
         label += str(i)+'_'
+    label = shortenName(label)
     
-    return os.path.join(exportfolder, bn, label+bn+'_'+s) # RG
+    return os.path.join(exportfolder, bn, 'plots', label+bn+'_'+s) # RG
 
 
 def exportIm(fn:str, fig, svg:bool=True, png:bool=True, **kwargs) -> None:
@@ -544,12 +572,12 @@ def summarize(folder:str, overwrite:bool=False) -> int:
     return 0
 
 
-def posSlice(ipfolder:str, loc:float) -> pd.DataFrame: # RG
-    '''go through an interface file and take the positions of the interface points for a given x
+def posSlice(ipfolder:str, loc:float, xunits:str='mm') -> pd.DataFrame: # RG
+    '''go through an interface file and take the positions of the interface points for a given x behind the nozzle
     outputs a pandas DataFrame'''
     if not os.path.exists(ipfolder):
         raise Exception('No interface points')
-    d = importPtsSlice(ipfolder, 2.5, loc)
+    d = importPtsSlice(ipfolder, 2.5, loc, xunits=xunits)
     d = d.sort_values(by='z')
     pos = d[['x', 'y', 'z']]
     return pos
@@ -591,7 +619,7 @@ def xspoints(fs:folderStats, p:pd.DataFrame, dist:float, ore:str) -> Union[np.nd
     outputs the points and the centerpoint of the points'''
     y = p['y']
     z = p['z']
-    d = fs.niw*dist
+    d = dist
     if ore=='y':
         y = [a-d for a in y] # shift cross section by d
     elif ore=='z':

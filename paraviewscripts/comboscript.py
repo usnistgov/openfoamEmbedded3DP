@@ -55,7 +55,7 @@ nozTimes = [2.5]
 ## screenshots
 
 getSSs = True
-ss_forceOverwrite=True
+ss_forceOverwrite=False
 # for help, see ssVars in paraview_screenshots
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
@@ -67,8 +67,8 @@ for s in ['shearStressy']:
     runList.append(ss.ssVars(s, [2.5], yieldSurface=True))
 runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 runList.append(ss.ssVars('volumes', [], volViewList=['a']))
-for d in range(-20,16): # slices from -4 mm to 3 mm (necking from atmosphere starts at about 3mm)
-    runList.append(ss.ssVars('alphaSlicex', [2.5], coloring='alphaSlice_'+str(d/5)))
+# for d in range(-20,16): # slices from -4 mm to 3 mm (necking from atmosphere starts at about 3mm)
+#     runList.append(ss.ssVars('alphaSlicex', [2.5], coloring='alphaSlice_'+str(d/5)))
 
 # run solo with lines 113-114
 # runList.append(ss.ssVars('alphaSlicex', [2.5], coloring='alphaSlice_1.4')) # for corresponding simulation
@@ -104,14 +104,15 @@ if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-nlist = list(range(0,1000))
+nlist = [304]
+topfolders = [os.path.join(cfg.path.server, 'adjacent')]
 # nlist = [34]
-topfolders = [SERVERFOLDER]
-corfolders = [os.path.join(os.path.dirname(SERVERFOLDER), s) for s in ['newtnewtsweep', 'HBHBsweep', 'HBnewtsweep', 'newtHBsweep']]
+# topfolders = [SERVERFOLDER]
+# corfolders = [os.path.join(os.path.dirname(SERVERFOLDER), s) for s in ['newtnewtsweep', 'HBHBsweep', 'HBnewtsweep', 'newtHBsweep']]
 
 # nlist = list(range(0,1000))
-nlist = [213]
-topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['HB_angle', 'HB_diameter', 'HB_k', 'HB_speed', 'newt_angle', 'newt_diameter', 'newt_visc', 'visc_speed']]
+# nlist = [213]
+# topfolders = [os.path.join(cfg.path.server, 'conicalnozzle', s) for s in ['HB_angle', 'HB_diameter', 'HB_k', 'HB_speed', 'newt_angle', 'newt_diameter', 'newt_visc', 'visc_speed']]
 
 afolders = []
 folders = filterSimNums(topfolders, nlist)

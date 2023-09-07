@@ -320,7 +320,7 @@ def compileSlurm(folder:str, parentdir:str) -> str:
     '''this is the slurm script for the case folder'''
     # workdir = (os.path.join(parentdir, os.path.basename(folder))).replace("\\","/")
     workdir = parentdir.replace("\\","/") # RG
-    s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --workdir={workdir}\n#SBATCH --partition=local\n\n'
+    s = f'#!/bin/bash\n#SBATCH -p local\n#SBATCH --time=14-00:00:00\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --job-name={os.path.basename(folder)}\n#SBATCH --chdir={workdir}\n#SBATCH --partition=local\n\n'
     s = s + 'export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}\n\nsrun bash mesh/Allrun.sh\nsrun bash case/Allrun.sh'
     return s
 

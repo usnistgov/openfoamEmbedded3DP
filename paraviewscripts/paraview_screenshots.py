@@ -242,7 +242,7 @@ def initSeries(sv:stateVars) -> stateVars:
 def timeStamp(sv:stateVars) -> stateVars:
     '''create a timestamp to add to images later'''
     annotateTimeFilter1 = AnnotateTimeFilter(Input=sv.caseVTMSeries)
-    annotateTimeFilter1.Format = '{time:2.1f} s' # RG
+    annotateTimeFilter1.Format = '%2.1f s' # RG
     annotateTimeFilter1Display = Show(annotateTimeFilter1, sv.renderView1, 'TextSourceRepresentation')
     annotateTimeFilter1Display.FontSize = FONT
     sv.timeStamp = annotateTimeFilter1
@@ -308,7 +308,7 @@ def positionCB(ColorBar) -> None:
     '''put the color bar in the bottom'''
     ColorBar.AutoOrient = 0
     ColorBar.Orientation = 'Horizontal'
-    ColorBar.WindowLocation = 'Lower Center'
+    ColorBar.WindowLocation = 'LowerCenter'
     ColorBar.ScalarBarLength = 0.7
     ColorBar.UseCustomLabels = 1
     ColorBar.TitleFontSize = FONT
