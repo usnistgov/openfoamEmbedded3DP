@@ -31,6 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 class filePlotter:
+    '''for plotting the requested geometry'''
     
     def __init__(self, geo, pl, blocks, br, elev:int=10, azim:int=190, fs:int=10,  **kwargs):
         self.geo = geo
