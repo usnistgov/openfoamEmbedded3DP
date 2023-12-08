@@ -14,8 +14,9 @@ sys.path.append(currentdir)
 sys.path.append(parentdir)
 sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
 from paraview_general import *
-import folderparser as fp
-from pvCleanup import addUnits
+import file_handling as fh
+from folder_stats import folderStats
+from add_units import addUnits
 
 # logging
 logger = logging.getLogger(__name__)
@@ -31,15 +32,15 @@ def initializeAll(folder:str, constDir:str, pos:float):
     print(' Initializing paraview ')
     sv = stateVars(folder)        # make subdirectories
     sv =  initializeP(sv)        # initialize Paraview
-    le = fp.legendUnique(folder)
+    fs = folderStats(folder)
 
     if constDir=='x':
-        btc = float(le['bath_top_coord'])/1000 * 0.97
-        bbc = float(le['bath_bottom_coord'])/1000 * 0.97
+        btc = fs.geo.btc/1000 * 0.97
+        bbc = fs.geo.bath_bottom_coord/1000 * 0.97
         sv = initSeries(sv, x0=pos, xf=pos, z0=btc, zf=bbc)       # import the vtk series files  
     elif constDir=='z':
-        blc = float(le['bath_left_coord'])/1000 * 0.97
-        brc = float(le['bath_right_coord'])/1000 * 0.97
+        blc = fs.geo.bath_left_coord/1000 * 0.97
+        brc = fs.geo.bath_right_coord/1000 * 0.97
         sv = initSeries(sv, x0=blc, xf=brc, z0=pos, zf=pos)
     return sv
 
@@ -106,8 +107,8 @@ def exportEmpty(file:str) -> None:
         
 def convertToRelative(x:float, folder:str) -> float:
     '''convert an absolute x position in m to its position relative to the nozzle in mm'''
-    le = fp.legendUnique(folder)
-    return x*1000+float(le['nozzle_center_x_coord'])
+    fs = folderStats(folder)
+    return x*1000+fs.geo.nozzle_center_x_coord
 
 def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverwrite:bool=False) -> None:
     '''Export line trace for the folder. 
@@ -117,7 +118,8 @@ def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverw
     forceOverwrite to overwrite existing files'''
     initialized = False
     if os.path.exists(folder):
-        times = fp.parseVTKSeries(folder)
+        fh0 = fh.folderHandler(folder)
+        times = fh0.parseVTKSeries()
         if len(times)>0:
             for time in tlist:
                 if time in times:
@@ -128,8 +130,8 @@ def csvfolder(folder:str, constDir:str, pos:float, tlist:List[float], forceOverw
                     if not os.path.exists(ipfile) or forceOverwrite: 
                         # only run this if the file hasn't been created already or we're being forced to
                         if not initialized: # if paraview hasn't already been initialized, initialize it
-                            le = fp.legendUnique(folder)
-                            posabs = (float(le['nozzle_center_x_coord']) + pos*float(le['nozzle_inner_width']))/1000
+                            fs = folderStats(folder)
+                            posabs = (fs.geo.nozzle_center_x_coord + pos*fs.geo.nozzle_inner_width)/1000
                             sv = initializeAll(folder, constDir, posabs)
                             sv.times = times
                             initialized = True

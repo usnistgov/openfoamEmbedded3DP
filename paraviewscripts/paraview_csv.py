@@ -68,17 +68,16 @@ def initSeriesNoz(sv:stateVars, mode:str='slice'): # RG
     caseVTMSeries = initSeries0(sv)
     renderView1 = GetActiveViewOrCreate('RenderView')
 
-    le = fp.legendUnique(sv.folder)
-    ink_rho = float(le['ink_rho'])
-    sup_rho = float(le['sup_rho'])
-    di = float(le['nozzle_inner_width'])/1000 # inner diameter
-    z0 = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
-    zf = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + z0
-    x0 = float(le['nozzle_center_x_coord'])/1000
-    y0 = float(le['nozzle_center_y_coord'])/1000
+    ink_rho = sv.fs.ink.kinematic['rho']
+    sup_rho = sv.fs.sup.kinematic['rho']
+    di = sv.fs.geo.nozzle_inner_width/1000 # inner diameter
+    z0 = sv.fs.geo.nozzle_bottom_coord/1000 # tip of nozzle
+    zf = (sv.fs.geo.bath_top_coord-sv.fs.geo.nozzle_bottom_coord)*0.97/1000 + z0
+    x0 = sv.fs.geo.nozzle_center_x_coord/1000
+    y0 = sv.fs.geo.nozzle_center_y_coord/1000
     xr = x0+di/2
     xl = x0-di/2
-    na = np.deg2rad(float(le['nozzle_angle'])) # nozzle angle in radians
+    na = np.deg2rad(sv.fs.geo.nozzle_angle) # nozzle angle in radians
 
     # clips ink
     clip1 = Clip(Input=caseVTMSeries)
@@ -236,22 +235,22 @@ def csvFolderMode(folder:str, mode:str, forceOverwrite:bool, times0:List[float]=
     try:
         if not os.path.exists(folder):
             return
-        le = fp.legendUnique(folder)
+        fs = folderStats(folder)
         if mode=='interface':
             # xmin = -0.004824 # left edge of bath
             # xmax = -xmin # right edge of bath
-            xmin = float(le['bath_left_coord'])/1000 # RG
+            xmin = fs.geo.bath_left_coord/1000 # RG
             # xmin = float(le['bath_left_coord_(mm)'])/1000
-            xmax = float(le['bath_right_coord'])/1000 # and this RG
+            xmax = fs.geo.bath_right_coord/1000 # and this RG
             # xmax = float(le['bath_right_coord_(mm)'])/1000
             dx = (xmax-xmin)/50
             # dx = 0.0002
             # times = fp.times(folder)
         elif mode=='nozzleSlice' or mode=='nozzle':
             
-            ymin = float(le['nozzle_bottom_coord'])/1000 # tip of nozzle
+            ymin = fs.geo.nozzle_bottom_coord/1000 # tip of nozzle
             # xmin = 0.0003015 # tip of nozzle RG
-            ymax = (float(le['bath_top_coord'])-float(le['nozzle_bottom_coord']))*0.97/1000 + ymin
+            ymax = (fs.geo.bath_top_coord-fs.geo.nozzle_bottom_coord)*0.97/1000 + ymin
             # xmax = 0.00205623 # 3% below top of nozzle RG
             dx = (ymax-ymin)/35
             times = times0 # very storage intensive to do all 25 timesteps

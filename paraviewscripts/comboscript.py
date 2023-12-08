@@ -28,11 +28,11 @@ if sys.version_info.major < 3:
 else:
     exec(open(virtualEnv).read(), {'__file__': virtualEnv})
 
-from config import cfg
-import folderparser as fp
+from py.tools.config import cfg
+from py.tools.logs import openLog
 
 # logging
-LOGGERDEFINED = fp.openLog(os.path.realpath(__file__), False, level='DEBUG')
+LOGGERDEFINED = openLog(os.path.realpath(__file__), False, level='DEBUG')
 
 
 
@@ -55,7 +55,7 @@ nozTimes = [2.5]
 ## screenshots
 
 getSSs = True
-ss_forceOverwrite=False
+ss_forceOverwrite=True
 # for help, see ssVars in paraview_screenshots
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
@@ -63,10 +63,12 @@ runList = []
 # runList.append(ss.ssVars('volumes', [], volViewList=['y']))
 # runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
 # for s in ['viscy', 'viscx', 'py', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
-for s in ['shearStressy']:
-    runList.append(ss.ssVars(s, [2.5], yieldSurface=True))
-runList.append(ss.ssVars('volumes', [], volViewList=['y']))
-runList.append(ss.ssVars('volumes', [], volViewList=['a']))
+#for s in ['shearStressNozx', 'shearStressx', 'shearStressy', 'shearRateNozx', 'viscNozx']:
+# for s in ['shearStressNozx', 'shearStressx', 'shearStressy', 'shearRateNozx', 'viscNozx']:
+#     runList.append(ss.ssVars(s, [2.5]))
+for s in ['uysliceNozx', 'uyslicey', 'uyslicex']:
+     runList.append(ss.ssVars(s, [2.5]))
+#runList.append(ss.ssVars('volumes', [], volViewList=['y', 'z', 'a']))
 # for d in range(-20,16): # slices from -4 mm to 3 mm (necking from atmosphere starts at about 3mm)
 #     runList.append(ss.ssVars('alphaSlicex', [2.5], coloring='alphaSlice_'+str(d/5)))
 
@@ -81,9 +83,9 @@ runList.append(ss.ssVars('volumes', [], volViewList=['a']))
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 # for s in ['shearRatex', 'shearRatey']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
-# runlist.append(ss.ssVars('meshes', [2.5]))
-# runlist.append(ss.ssVars('vectors', [2.5]))
-# runList.append(ss.ssVars('tubes', [2.5], tubeh=0.001, volviewlist=['a']))
+#runlist.append(ss.ssVars('meshes', [2.5]))
+#runList.append(ss.ssVars('vectors', [2.5], volViewList=['z']))
+#runList.append(ss.ssVars('tubes', [2.5], tubeh=-0.000, volViewList=['z']))
 
 #------
 ## line traces
@@ -104,7 +106,8 @@ if not os.path.exists(SERVERFOLDER):
     logging.error('Server folder in config.yml does not exist')
     raise FileNotFoundError('Server folder in config.yml does not exist')
 
-nlist = [304]
+#nlist = [315]
+nlist = list(range(1,1000))
 topfolders = [os.path.join(cfg.path.server, 'adjacent')]
 # nlist = [34]
 # topfolders = [SERVERFOLDER]
@@ -125,44 +128,57 @@ folders = filterSimNums(topfolders, nlist)
 ######################################################
 ####################### SCRIPT #######################
 
-logging.info('Exporting images and csvs.')
-logging.info(f'Images. Overwrite: {ss_forceOverwrite}')
-for r in runList:
-    logging.info(r.prnt())
-logging.info(f'Interface CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
-logging.info(f'Nozzle CSVs: Collect: {getNoz}. Overwrite: {forceOverwrite}')
-logging.info(f'Folders: {[os.path.basename(f) for f in folders]}')
-logging.info(f'Line traces:\n\
-            X positions: {pl_xlist} di behind nozzle.\n\
-            Z positions: {pl_zlist} di above nozzle bottom.\n\
-            Time list: {pl_tlist} s.')
+# runList.append(ss.ssVars('volumes', [], volViewList=['y']))
+# runList.append(ss.ssVars('volumes', [1.0, 2.5], volViewList=['y']))
+# for s in ['viscy', 'viscx', 'py', 'uslicey', 'uslicex', 'shearStressx', 'shearStressy']:
+#for s in ['shearStressNozx', 'shearStressx', 'shearStressy', 'shearRateNozx', 'viscNozx']:
 
-while True:
+
+def runItAll(runList, ss_forceOverwrite, getCSVs, forceOverwrite, folders, pl_xlist, pl_zlist, pl_tlist, csvTimes, nozTimes, pl_forceOverwrite, looping, loopTime):
+    logging.info('Exporting images and csvs.')
+    logging.info(f'Images. Overwrite: {ss_forceOverwrite}')
+    for r in runList:
+        logging.info(r.prnt())
+    logging.info(f'Interface CSVs: Collect: {getCSVs}. Overwrite: {forceOverwrite}')
+    logging.info(f'Nozzle CSVs: Collect: {getNoz}. Overwrite: {forceOverwrite}')
+    logging.info(f'Folders: {[os.path.basename(f) for f in folders]}')
+    logging.info(f'Line traces:\n\
+                X positions: {pl_xlist} di behind nozzle.\n\
+                Z positions: {pl_zlist} di above nozzle bottom.\n\
+                Time list: {pl_tlist} s.')
+
+    while True:
+
+        for folder in folders: # RG
+            logging.debug(f'Checking {folder}')
+            if getCSVs:
+                pc.csvFolder(folder, ['interface'], forceOverwrite, times0=csvTimes) # create csvs
+            if getNoz:
+                pc.csvFolder(folder, ['nozzleSlice'], forceOverwrite, times0=nozTimes) # create nozzle point csv
+            if getSSs:
+                ss.folderScript(folder, runList, overwrite=ss_forceOverwrite)  # screenshots
+                # ss.folderScript(folder, runList)  # screenshots
+                # if afolders: # RG
+                #     fromm = os.path.join(folder,'images','t025_x_alphaSlice_1.4.png')
+                #     for i,afold in enumerate(afolders):
+                #         if unabridged[i]==folder:
+                #             dest = os.path.join(afold,'images',os.path.basename(folder)+'_t025_x_alphaSlice_1.4.png')
+                #             shutil.copy(fromm, dest)
+            if getLine:
+                for xpos in pl_xlist:
+                    pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant x
+                for zpos in pl_zlist:
+                    pl.csvfolder(folder, 'z', zpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant z
+        if not looping:
+            break
+        now = datetime.now()
+        current_time = now.strftime("%D, %H:%M:%S")
+        logging.info(f'Waiting {loopTime} hours for more files...')
+        logging.info(f'------ Current Time ={current_time}')
+        time.sleep(60*60*loopTime)
+        
+ 
     
-    for folder in folders: # RG
-        logging.debug(f'Checking {folder}')
-        if getCSVs:
-            pc.csvFolder(folder, ['interface'], forceOverwrite, times0=csvTimes) # create csvs
-        if getNoz:
-            pc.csvFolder(folder, ['nozzleSlice'], forceOverwrite, times0=nozTimes) # create nozzle point csv
-        if getSSs:
-            ss.folderScript(folder, runList, overwrite=ss_forceOverwrite)  # screenshots
-            # ss.folderScript(folder, runList)  # screenshots
-            # if afolders: # RG
-            #     fromm = os.path.join(folder,'images','t025_x_alphaSlice_1.4.png')
-            #     for i,afold in enumerate(afolders):
-            #         if unabridged[i]==folder:
-            #             dest = os.path.join(afold,'images',os.path.basename(folder)+'_t025_x_alphaSlice_1.4.png')
-            #             shutil.copy(fromm, dest)
-        if getLine:
-            for xpos in pl_xlist:
-                pl.csvfolder(folder, 'x', xpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant x
-            for zpos in pl_zlist:
-                pl.csvfolder(folder, 'z', zpos, pl_tlist, forceOverwrite=pl_forceOverwrite) # line trace at constant z
-    if not looping:
-        break
-    now = datetime.now()
-    current_time = now.strftime("%D, %H:%M:%S")
-    logging.info(f'Waiting {looptime} hours for more files...')
-    logging.info(f'------ Current Time ={current_time}')
-    time.sleep(60*60*loopTime)
+runItAll(runList, ss_forceOverwrite, getCSVs, forceOverwrite, folders, pl_xlist, pl_zlist, pl_tlist, csvTimes, nozTimes, pl_forceOverwrite, looping, loopTime)
+
+        

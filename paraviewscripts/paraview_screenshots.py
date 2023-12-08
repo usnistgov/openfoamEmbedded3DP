@@ -17,6 +17,8 @@ from paraview.simple import * # import the simple module from the paraview
 
 # local packages
 from paraview_general import *
+from folder_stats import folderStats
+from colorBars import *
 
 # logging
 logger = logging.getLogger(__name__)
@@ -68,7 +70,7 @@ class ssVars:
         'volumes': in 3D, look at the interface between the ink and support
             optional keyword variables:
             'coloring': the variable on which to color the surface. default is 'umag', which uses 'U' coloring
-            'volViewList':List[str]: list of view angles. Allowed angles = 'x' (slice on x plane), 'y' (slice on y plane), 'a' (view at angle from above/downstream/side), 'b' (view at angle from above/upstream/side)
+            'volViewList':List[str]: list of view angles. Allowed angles = 'x' (view from x direction), 'y' (view from y direction), 'z' (view from z direction), 'a' (view at angle from above/downstream/side), 'b' (view at angle from above/upstream/side)
         'meshes': take a slice out of the middle of the volume, at y=0, and show the mesh
         'vectors': take a slice out of the middle of the volume, at y=0, and show the flow field with arrows
         'tubes': in 3D, look at the interface between the ink and support, and add streamlines
@@ -133,6 +135,10 @@ class ssVars:
             self.coloring = 'viscx'
             self.function = getxfunc(viscx, kwargs)
             self.volList = ['x']
+        elif tag=='viscNozx':
+            self.coloring = 'viscNozx'
+            self.function = getxfunc(viscNozx, kwargs)
+            self.volList = ['x']
         elif tag=='uslicey':
             self.coloring = 'uslicey'
             self.function = uslicey
@@ -149,6 +155,22 @@ class ssVars:
             self.coloring = 'uzslicex'
             self.function = getxfunc(uzslicex, kwargs)
             self.volList = ['x']
+        elif tag=='uzsliceNozx':
+            self.coloring = 'uzsliceNozx'
+            self.function = getxfunc(uzsliceNozx, kwargs)
+            self.volList = ['x']
+        elif tag=='uyslicey':
+            self.coloring = 'uyslicey'
+            self.function = uyslicey
+            self.volList = ['y']
+        elif tag=='uyslicex':
+            self.coloring = 'uyslicex'
+            self.function = getxfunc(uyslicex, kwargs)
+            self.volList = ['x']
+        elif tag=='uysliceNozx':
+            self.coloring = 'uysliceNozx'
+            self.function = getxfunc(uysliceNozx, kwargs)
+            self.volList = ['x']
         elif tag=='alphaSlicex': # RG
             if not 'coloring' in kwargs:
                 self.coloring = 'alphaSlice_-1'
@@ -164,9 +186,17 @@ class ssVars:
             self.coloring = 'px'
             self.function = getpfunc(pslicex, kwargs)
             self.volList = ['x']
+        elif tag=='pNozx':
+            self.coloring = 'pNozx'
+            self.function = getpfunc(psliceNozx, kwargs)
+            self.volList = ['x']
         elif tag=='shearRatex':
             self.coloring='shearRatex'
             self.function = getShearRatefunc(shearRateSlicex, kwargs)
+            self.volList = ['x']
+        elif tag=='shearRateNozx':
+            self.coloring='shearRateNozx'
+            self.function = getShearRatefunc(shearRateSliceNozx, kwargs)
             self.volList = ['x']
         elif tag=='shearRatey':
             self.coloring='shearRatey'
@@ -175,6 +205,10 @@ class ssVars:
         elif tag=='shearStressx': # RG
             self.coloring='shearStressx'
             self.function = getShearStressfunc(shearStressSlicex, kwargs)
+            self.volList = ['x']
+        elif tag=='shearStressNozx': 
+            self.coloring='shearStressNozx'
+            self.function = getShearStressfunc(shearStressSliceNozx, kwargs)
             self.volList = ['x']
         elif tag=='shearStressy': # RG
             self.coloring='shearStressy'
@@ -254,9 +288,7 @@ def timeStamp(sv:stateVars) -> stateVars:
 
 def resetCamera(sv:stateVars) -> None:
     '''reset the view area'''
-    le0 = fp.legendUnique(sv.folder) # use first file as reference dimensions
-    # s = float(le0['bath_width_(mm)'])/9.668 # change back RG
-    s = float(le0['bath_width'])/9.668
+    s = sv.fs.geo.bath_width/9.668
     sv.renderView1.ResetCamera(-0.005*s, 0.005*s, -0.002*s, 0.002*s, -0.002*s, 0.002*s)
 
 
@@ -277,18 +309,15 @@ def setView(st:str, sv:stateVars) -> None:
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="x":
         sv.renderView1.CameraFocalPoint = [0, 0,0]
-        sv.renderView1.CameraPosition = [-10, 0, 0]
+        sv.renderView1.CameraPosition = [10, 0, 0]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="a":
-        le = fp.legendUnique(sv.folder)
-        di = float(le['nozzle_inner_width']) # change back RG
-        # di = float(le['nozzle_inner_width_(mm)'])
+        di = sv.fs.geo.niw # change back RG
         sv.renderView1.CameraFocalPoint = [0.0006*di/0.6, -0.0002*di/0.6, 0.0005*di/0.6]
         sv.renderView1.CameraPosition = [2*di/0.6, 1*di/0.6, 2*di/0.6]
         sv.renderView1.CameraViewUp = [0,0,1]
     elif st=="b":
-        le = fp.legendUnique(sv.folder)
-        di = float(le['nozzle_inner_width'])
+        di = sv.fs.geo.niw 
         sv.renderView1.CameraFocalPoint = [0.001*di/0.6, 0, 0.001*di/0.6]
         sv.renderView1.CameraPosition = [-1*di/0.6,-1*di/0.6,1*di/0.6]
         sv.renderView1.CameraViewUp = [0,0,1]
@@ -304,163 +333,7 @@ def setAndUpdate(st:str, sv:stateVars) -> None:
 #### annotations
 
 
-def positionCB(ColorBar) -> None:
-    '''put the color bar in the bottom'''
-    ColorBar.AutoOrient = 0
-    ColorBar.Orientation = 'Horizontal'
-    ColorBar.WindowLocation = 'LowerCenter'
-    ColorBar.ScalarBarLength = 0.7
-    ColorBar.UseCustomLabels = 1
-    ColorBar.TitleFontSize = FONT
-    ColorBar.LabelFontSize = FONT
-    ColorBar.ComponentTitle = ''
 
-
-def uColorBar(renderView1, display, umax:float=0.01, umin:float=0, name:str='|Velocity|') -> None:
-    '''velocity magnitude color bar'''
-    # set scalar coloring
-    #ColorBy(display, ('POINTS', 'U', 'Magnitude'))
-
-    # show color bar/color legend
-    display.SetScalarBarVisibility(renderView1, True)
-    uLUT = GetColorTransferFunction('U')
-    uPWF = GetOpacityTransferFunction('U')
-
-    uLUT.RescaleTransferFunction(umin, umax)
-    uPWF.RescaleTransferFunction(umin, umax)
-    if (umax-umin)>0.015:
-        du = 0.005
-    elif (umax-umin)>0.006:
-        du = 0.002
-    elif (umax-umin)>0.003:
-        du = 0.001
-    else:
-        du = 0.0001
-
-    uLUTColorBar = GetScalarBar(uLUT, renderView1)
-    positionCB(uLUTColorBar)
-    uLUTColorBar.CustomLabels = np.arange(umin, umax+du, du)
-    uLUTColorBar.Title = name+' (m/s)'
-    uLUTColorBar.RangeLabelFormat = '%-#0.3f'
-    return uLUTColorBar
-
-def pColorBar(renderView1, display, pmin:float=-50000, pmax:float=50000, name:str='p_rgh') -> None:
-    '''velocity magnitude color bar'''
-    # set scalar coloring
-    #ColorBy(display, ('POINTS', 'U', 'Magnitude'))
-
-    # show color bar/color legend
-    display.SetScalarBarVisibility(renderView1, True)
-    pLUT = GetColorTransferFunction(name)
-    pPWF = GetOpacityTransferFunction(name)
-
-    pLUT.RescaleTransferFunction(pmin, pmax)
-    pPWF.RescaleTransferFunction(pmin, pmax)
-    if pmax==50000 and pmin==-50000:
-        dp = 25000
-    if pmax==100 and pmin==-100:
-        dp = 50
-    else:
-        dp = round((pmax-pmin)/4)
-
-    pLUTColorBar = GetScalarBar(pLUT, renderView1)
-    positionCB(pLUTColorBar)
-    if name=='p_rgh':
-        pLUTColorBar.Title = 'Adjusted pressure (Pa)'
-    else:
-        pLUTColorBar.Title = 'Pressure (Pa)'
-    pLUTColorBar.CustomLabels = np.arange(pmin, pmax+dp, dp)
-    return pLUTColorBar
-
-def nuColorBar(renderView1, display, color) -> None:
-    '''viscosity color bar'''
-    # show color bar/color legend
-    display.SetScalarBarVisibility(renderView1, True)
-    uLUT = GetColorTransferFunction(color)
-    uPWF = GetOpacityTransferFunction(color)
-
-    # rescale to full range of newt, HB experiments
-    uLUT.RescaleTransferFunction(10**-6, 10**2)
-    uPWF.RescaleTransferFunction(10**-6, 10**2)
-    
-    # convert to log space. If we've already converted to log space during creation of another image, skip this
-    if not uLUT.UseLogScale==1:
-        uLUT.MapControlPointsToLogSpace()
-        uLUT.UseLogScale = 1
-
-    uLUTColorBar = GetScalarBar(uLUT, renderView1)
-    positionCB(uLUTColorBar)
-    uLUTColorBar.CustomLabels = [10**i for i in range(-6, 3)]
-    uLUTColorBar.Title = 'Viscosity (m^2/s)' # if the density is 1000 kg/m^3, the viscosity is in  MPa.s
- #     uLUTColorBar.RangeLabelFormat = '%-#2.0e'
-    return uLUTColorBar
-
-def shearRateColorBar(renderView1, display, rmin:float=0.1, rmax:float=1000, name:str='ScalarGradient') -> None:
-    '''shear rate color bar'''
-    # show color bar/color legend
-    display.SetScalarBarVisibility(renderView1, True)
-    gLUT = GetColorTransferFunction(name)
-    gPWF = GetOpacityTransferFunction(name)
-
-    # rescale to full range of newt, HB experiments
-    gLUT.RescaleTransferFunction(rmin, rmax)
-    gPWF.RescaleTransferFunction(rmin, rmax)
-    
-    # convert to log space. If we've already converted to log space during creation of another image, skip this
-    if not gLUT.UseLogScale==1:
-        gLUT.MapControlPointsToLogSpace()
-        gLUT.UseLogScale = 1
-
-    gLUTColorBar = GetScalarBar(gLUT, renderView1)
-    positionCB(gLUTColorBar)
-    gLUTColorBar.CustomLabels = [10**i for i in range(int(np.ceil(np.log10(rmin))), int(np.floor(np.log10(rmax))))]
-    gLUTColorBar.Title = 'Shear rate (1/s)' # if the density is 1000 kg/m^3, the viscosity is in  MPa.s
-    gLUTColorBar.RangeLabelFormat = '%-#2.0e'
-    return gLUTColorBar
-
-def shearStressColorBar(renderView1, display, rmin:float=2, rmax:float=200, name:str='shearStress') -> None: # RG
-    '''shear stress color bar'''
-    # show color bar/color legend
-    display.SetScalarBarVisibility(renderView1, True)
-    gLUT = GetColorTransferFunction(name)
-    gPWF = GetOpacityTransferFunction(name)
-
-    # rescale to full range of newt, HB experiments
-    gLUT.RescaleTransferFunction(rmin, rmax)
-    gPWF.RescaleTransferFunction(rmin, rmax)
-    
-    # convert to log space. If we've already converted to log space during creation of another image, skip this
-    if not gLUT.UseLogScale==1:
-        gLUT.MapControlPointsToLogSpace()
-        gLUT.UseLogScale = 1
-
-    gLUTColorBar = GetScalarBar(gLUT, renderView1)
-    positionCB(gLUTColorBar)
-    gLUTColorBar.CustomLabels = [10.0, 20.0, 100.0]
-    gLUTColorBar.Title = 'Shear stress (Pa)'
-    gLUTColorBar.RangeLabelFormat = '%-#2.0e'
-    return gLUTColorBar
-    
-
-def alphaColorBar(renderView1, display) -> None:
-    '''volume fraction color bar'''
-    # set scalar coloring
-    ColorBy(display, ('CELLS', 'alpha.ink'))
-    ColorBy(display, ('POINTS', 'alpha.ink'))
-
-    # rescale color and/or opacity maps used to include current data range
-    display.RescaleTransferFunctionToDataRange(True, False)
-    display.SetScalarBarVisibility(renderView1, True)
-    alphainkLUT = GetColorTransferFunction('alphaink')
-    alphainkLUT.RescaleTransferFunction(0.0, 1)
-    alphainkPWF = GetOpacityTransferFunction('alphaink')
-
-    aLUTColorBar = GetScalarBar(alphainkLUT, renderView1)
-    positionCB(aLUTColorBar)
-    aLUTColorBar.CustomLabels = np.arange(0, 1.25, 0.25)
-    aLUTColorBar.Title = 'Volume fraction ink'
-    aLUTColorBar.RangeLabelFormat = '%-#0.2f'
-    return aLUTColorBar
 
 
 ################ types of surfaces #########################
@@ -472,10 +345,10 @@ def vol(sv:stateVars, coloring:str='U') -> None:
     alphasurface(sv, coloring)
 
 
-def plainalphasurface(sv:stateVars) -> None:
+def plainalphasurface(sv:stateVars, **kwargs) -> None:
     '''filament surface with no coloring'''
     sv.hideAll()
-    alphasurface(sv, 'None')
+    alphasurface(sv, 'None', **kwargs)
     
 def setDisplayColor(display, color:str, *args):
     '''Set the whole display to a single color'''
@@ -492,24 +365,7 @@ def setDisplayColor(display, color:str, *args):
         pass
 
     
-def viscColor(display, visc:str) -> None:
-    '''This is a preset list of colors for viscosity, where the kinematic viscosity range is [10**i for i in range(-6, 3)] m^2/s'''
-    colordict = {0.000001:[59, 76, 192],\
-                 0.00001:[97, 128, 233],\
-                 0.0001:[140, 175, 254],\
-                 0.001:[183, 207, 249], \
-                 0.01:[220, 221, 221], \
-                 0.1:[244, 197, 173], \
-                 1:[244, 153, 122],\
-                 10:[222, 97, 77],\
-                 100:[180, 4, 38]}
-    try:
-        c = colordict[float(visc)]
-    except:
-        raise Exception('Viscosity not in list')
-    c = [i/255 for i in c]
-    display.AmbientColor = c
-    display.DiffuseColor = c
+
     
     
 def inkClip(sv:stateVars, clipinput, colVar:str, invert:int, **kwargs):
@@ -588,9 +444,9 @@ def stressClip(sv, display, invert, clipVal):
     
 
 def yieldClip(sv, display, tau0:float):
-    '''clip just the yield stress out and color it'''
-    tauclip0 = stressClip(sv, display, 0, clipVal = (10**-0.05)*tau0)
-    tauclip = stressClip(sv, tauclip0, 1, clipVal = (10**0.05)*tau0)
+    '''clip just the yield stress out and color it black'''
+    tauclip0 = stressClip(sv, display, 0, clipVal = (10**-0.01)*tau0)
+    tauclip = stressClip(sv, tauclip0, 1, clipVal = (10**0.01)*tau0)
         # turn off scalar coloring
     clipDisplay = Show(tauclip, sv.renderView1, 'UnstructuredGridRepresentation')
     clipDisplay.Representation = 'Surface'
@@ -601,10 +457,11 @@ def yieldClip(sv, display, tau0:float):
 
 
 
-def alphasurface(sv:stateVars, colVar:str) -> None:
+def alphasurface(sv:stateVars, colVar:str, opacity:float=1, **kwargs) -> None:
     '''filament surface
     colVar is the variable being colored ('U' or 'None')'''
     clipDisplay,_ = inkClip(sv, sv.caseVTMSeries, colVar, 0)
+    clipDisplay.Opacity = opacity
     sv.colorBars.append(uColorBar(sv.renderView1, clipDisplay, umax=0.01))
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate('y', sv)
@@ -630,7 +487,7 @@ def sliceMake(sv:stateVars, origin:List[float], normal:List[float], **kwargs):
     
 #--------------------------
 
-def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) -> None:
+def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, yieldSurface:bool=True) -> None:
     '''Plot the viscosity map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.'''
     out = sv.readVisc()
     if out>0:
@@ -639,6 +496,8 @@ def viscSlice(sv:stateVars, origin:List[float], normal:List[float], view:str) ->
     inkClip(sv, slice1, sv.inkfunc, 0, clipVal = 0.9)
     inkClip(sv, slice1, sv.supfunc, 1, clipVal = 0.1)
     # color bar added in inkClip
+    if yieldSurface:
+        addYieldSurface(sv, origin, normal)
     resetCam(sv, (sv.times[-1])) 
     setAndUpdate(view, sv)
     sv.renderView1.Update()
@@ -650,14 +509,18 @@ def viscy(sv:stateVars) -> None:
 
 def scaleDim(sv:stateVars, x:float) -> float:
     '''scale the dimension by the nozzle inner diameter'''
-    le = fp.legendUnique(sv.folder)
-    return x * float(le['nozzle_inner_width'])/0.6
+    return x * sv.fs.geo.niw/0.6
     
 def viscx(sv:stateVars, x:float=-0.001) -> None:
     '''Viscosity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
     
     viscSlice(sv, [scaleDim(sv, x), 0, 0], [1,0,0], 'x')
+
+def viscNozx(sv:stateVars, xs:float=-0.002412, **kwargs) -> None: 
+    '''Shear stress map, looking down the x axis, at (-1,0,0) mm, scaled by nozzle_inner_width'''
+    sv.hideAll()
+    viscSlice(sv, [scaleDim(sv, xs), 0, 0], [-1,0,0], 'x', **kwargs)  
     
 #--------------------------
 
@@ -689,7 +552,7 @@ def uslicey(sv:stateVars) -> None:
 def uslicex(sv:stateVars, x:float=-0.001) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    uSlice(sv, [scaleDim(sv, x), 0, 0], [1,0,0], 'x')  
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [-1,0,0], 'x')  
 
 def uzslicey(sv:stateVars) -> None:
     '''Velocity map, looking down the y axis, at (0,0,0)'''
@@ -699,7 +562,27 @@ def uzslicey(sv:stateVars) -> None:
 def uzslicex(sv:stateVars, x:float=-0.001) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    uSlice(sv, [scaleDim(sv, x), 0, 0], [1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [-1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)  
+    
+def uzsliceNozx(sv:stateVars, x:float=-0.002412) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [-1,0,0], 'x', name='UZ', umin=-0.002, umax=0.002)   
+    
+def uyslicey(sv:stateVars) -> None:
+    '''Velocity map, looking down the y axis, at (0,0,0)'''
+    sv.hideAll()
+    uSlice(sv, [0,0,0], [0, -1, 0], 'y', name='UY', umin=-0.0006, umax=0.0006)
+    
+def uyslicex(sv:stateVars, x:float=-0.001) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [-1,0,0], 'x', name='UY', umin=-0.0006, umax=0.0006)  
+    
+def uysliceNozx(sv:stateVars, x:float=-0.002412) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    uSlice(sv, [scaleDim(sv, x), 0, 0], [-1,0,0], 'x', name='UY', umin=-0.0006, umax=0.0006)   
     
 #--------------------------
 
@@ -722,11 +605,11 @@ def alphaSlicex(sv:stateVars, **kwargs) -> None: # RG
     sv.hideAll()
     c = kwargs['coloring'] # backpacking onto the color kwarg to get different x distances
     d = float(c.split('_')[1]) # get the x distance
-    alphaSlice(sv, [d/1000, 0, 0], [1,0,0], 'x')
+    alphaSlice(sv, [d/1000, 0, 0], [-1,0,0], 'x')
 
 #--------------------------
 
-def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-1000, pmax:float=1000) -> None:
+def pSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='p_rgh', pmin:float=-100, pmax:float=100) -> None:
     '''Plot the pressure map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is. 
     origin is an [x,y,z] point, where the slice should be taken
     normal is an [x,y,z] vector, indicating the normal to the plane of the slice
@@ -751,11 +634,16 @@ def pslicey(sv:stateVars, **kwargs) -> None:
 def pslicex(sv:stateVars, xp:float=-0.001, **kwargs) -> None:
     '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    pSlice(sv, [scaleDim(sv, xp), 0, 0], [1,0,0], 'x', **kwargs)
+    pSlice(sv, [scaleDim(sv, xp), 0, 0], [-1,0,0], 'x', **kwargs)
+    
+def psliceNozx(sv:stateVars, xp:float=-0.002412, **kwargs) -> None:
+    '''Velocity map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    pSlice(sv, [scaleDim(sv, xp), 0, 0], [-1,0,0], 'x', **kwargs)
     
 #--------------------------
     
-def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000) -> None:
+def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearRate', rmin:float=0.1, rmax:float=1000, yieldSurface:bool=True) -> None:
     '''Plot the shear rate map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
     origin is an [x,y,z] point, where the slice should be taken
     normal is an [x,y,z] vector, indicating the normal to the plane of the slice
@@ -768,6 +656,8 @@ def shearRateSlice(sv:stateVars, origin:List[float], normal:List[float], view:st
     d2, _ = inkClip(sv, slice1, name, 1, clipVal = 0.1)
     for d in [d1, d2]:
         sv.colorBars.append(shearRateColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
+    if yieldSurface:
+        addYieldSurface(sv, origin, normal)
     resetCam(sv, (sv.times[-1]))
     setAndUpdate(view, sv)
     sv.renderView1.Update()
@@ -780,12 +670,48 @@ def shearRateSlicey(sv:stateVars, **kwargs) -> None:
 def shearRateSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None:
     '''Shear rate map, looking down the x axis, at (-1,0,0) mm'''
     sv.hideAll()
-    shearRateSlice(sv, [scaleDim(sv, xs), 0, 0], [1,0,0], 'x', **kwargs)   
+    shearRateSlice(sv, [scaleDim(sv, xs), 0, 0], [-1,0,0], 'x', **kwargs)   
+    
+def shearRateSliceNozx(sv:stateVars, xs:float=-0.002412, **kwargs) -> None:
+    '''Shear rate map, looking down the x axis, at (-1,0,0) mm'''
+    sv.hideAll()
+    shearRateSlice(sv, [scaleDim(sv, xs), 0, 0], [-1,0,0], 'x', **kwargs)   
 
 #--------------------------
 
+def addYieldSurface(sv:stateVars, origin:List[float], normal:List[float], name:str='shearStress') -> None:
+    '''add a yield surface to the slice'''
+    computeDerivatives = computeShearRate(sv) # calculate shear rate
+    cellDatatoPointData = CellDatatoPointData(Input=computeDerivatives)
+    cellDatatoPointData.CellDataArraytoprocess = ['ScalarGradient', 'U', 'VectorGradient', 'alpha.ink', 'cellID', 'nu1', 'nu2', 'p', 'p_rgh', 'rAU']
+    
+    slice1 = sliceMake(sv, origin, normal, sinput=cellDatatoPointData)
+    
+    calculator = Calculator(Input=slice1)
+    calculator.ResultArrayName = 'shearStress'
 
-def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', rmin:float=2, rmax:float=200, yieldSurface:bool=False) -> None: # RG
+    calculator.Function = sv.stressFunc()
+ #   calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
+    Hide(slice1, sv.renderView1)
+    
+    calculator3 = Calculator(Input=calculator)
+    calculator3.ResultArrayName = 'shearStressMag'
+    calculator3.Function = 'mag(shearStress)'
+
+    dink, clipink = inkClip(sv, calculator3, name, 0, clipVal = 0.9)   # ink
+    dsup, clipsup = inkClip(sv, calculator3, name, 1, clipVal = 0.1)   # support
+
+    if sv.fs.ink.transportModel=='HerschelBulkley':
+        tauink = sv.fs.ink.dynamic['tau0']
+        inkyield = yieldClip(sv, clipink, tauink)
+    if sv.fs.sup.transportModel=='HerschelBulkley':
+        tausup = sv.fs.sup.dynamic['tau0']
+        supyield = yieldClip(sv, clipsup, tausup)
+    Hide(clipink, sv.renderView1)
+    Hide(clipsup, sv.renderView1)
+    
+
+def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:str, name:str='shearStress', yieldSurface:bool=True, **kwargs) -> None: # RG
     '''Plot the shear stress map. Segment out the ink and support separately and color separately, leaving some white space at the interface so you can see where the interface is.
     origin is an [x,y,z] point, where the slice should be taken
     normal is an [x,y,z] vector, indicating the normal to the plane of the slice
@@ -802,9 +728,8 @@ def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:
     
     calculator = Calculator(Input=slice1)
     calculator.ResultArrayName = 'shearStress'
-    le = fp.legendUnique(sv.folder)
 
-    calculator.Function = stressFunc(le)
+    calculator.Function = sv.stressFunc()   # this gives stress in Pa
  #   calculator.Function = '(1000*nu1*alpha.ink+1000*nu2*(1-alpha.ink))*ScalarGradient' # multiply nu by shear rate to get shear stress
     sv.hideAll()
     
@@ -816,15 +741,15 @@ def shearStressSlice(sv:stateVars, origin:List[float], normal:List[float], view:
     dsup, clipsup = inkClip(sv, calculator3, name, 1, clipVal = 0.1)   # support
 
     if yieldSurface:
-        if le['ink_transportModel']=='HerschelBulkley':
-            tauink = float(le['ink_tau0'])*float(le['ink_rho'])
+        if sv.fs.ink.transportModel=='HerschelBulkley':
+            tauink = sv.fs.ink.dynamic['tau0']
             inkyield = yieldClip(sv, clipink, tauink)
-        if le['sup_transportModel']=='HerschelBulkley':
-            tausup = float(le['sup_tau0'])*float(le['sup_rho'])
+        if sv.fs.sup.transportModel=='HerschelBulkley':
+            tausup = sv.fs.sup.dynamic['tau0']
             supyield = yieldClip(sv, clipsup, tausup)
     
     for d in [dink, dsup]:
-        sv.colorBars.append(shearStressColorBar(sv.renderView1, d, rmax=rmax, rmin=rmin))
+        sv.colorBars.append(shearStressColorBar(sv.renderView1, d))
     resetCam(sv, (sv.times[-1]))
     setAndUpdate(view, sv)
     sv.renderView1.Update()
@@ -841,7 +766,10 @@ def shearStressSlicex(sv:stateVars, xs:float=-0.001, **kwargs) -> None: # RG
     sv.hideAll()
     shearStressSlice(sv, [scaleDim(sv, xs), 0, 0], [1,0,0], 'x', **kwargs)  
     
-    
+def shearStressSliceNozx(sv:stateVars, xs:float=-0.002412, **kwargs) -> None: 
+    '''Shear stress map, looking down the x axis, at (-1,0,0) mm, scaled by nozzle_inner_width'''
+    sv.hideAll()
+    shearStressSlice(sv, [scaleDim(sv, xs), 0, 0], [-1,0,0], 'x', **kwargs)  
 
 #--------------------------
 
@@ -927,12 +855,11 @@ def tube(sv):
         # unclear why SeedType Line throws an exception in PV 5.10.0, but it may have to do with version control.
     streamTracer1.Vectors = ['POINTS', 'U']
     streamTracer1.MaximumStreamlineLength = 0.01 # was 0.006 RG
-    le = fp.legendUnique(sv.folder)
-    blc = float(le['bath_left_coord'])/1000
-    brc = float(le['bath_right_coord'])/1000
-    bfc = float(le['bath_front_coord'])/1000
-    bbc = float(le['bath_back_coord'])/1000
-    di = float(le['nozzle_inner_width'])
+    blc = sv.fs.geo.bath_left_coord/1000
+    brc = sv.fs.geo.bath_right_coord/1000
+    bfc = sv.fs.geo.bath_front_coord/1000
+    bbc = sv.fs.geo.bath_back_coord/1000
+    di = sv.fs.geo.nozzle_inner_width
     streamTracer1.SeedType.Point1 = [blc, bfc, sv.tubeh*di/0.6]
     streamTracer1.SeedType.Point2 = [brc, bbc, sv.tubeh*di/0.6]
     streamTracer1.SeedType.Resolution = 100
@@ -955,12 +882,12 @@ def tube(sv):
     tube1.Radius = 1e-05*di/0.6
     # show data in view
     tube1Display = Show(tube1, sv.renderView1, 'GeometryRepresentation')
-    ColorBy(tube1Display, ('POINTS', 'U', 'Magnitude'))
+    ColorBy(tube1Display, ('POINTS', 'U', 'Z'))
 
     Hide(streamTracer1, sv.renderView1)
     sv.renderView1.Update()
 
-    sv.colorBars.append(uColorBar(sv.renderView1, tube1Display, umax=0.01))
+    sv.colorBars.append(uColorBar(sv.renderView1, tube1Display, umax=0.002, umin=-0.002, name='z velocity'))
 
     # update the view to ensure updated data information
     sv.renderView1.Update()
@@ -968,7 +895,7 @@ def tube(sv):
 def surfandtube(sv):
     '''Filament surface, with streamlines'''
     sv.hideAll()
-    plainalphasurface(sv)
+    plainalphasurface(sv, opacity=0.5)
     tube(sv)
     
     
@@ -1038,11 +965,12 @@ def folderScript(folder:str, ssvList:List[ssVars], overwrite:bool=False):
         if not os.path.exists(folder):
             return
         sv = stateVars(folder)
-        sv.times = fp.times(folder)     
+        sv.times = sv.fs.fh1.times()     
         for ssv in ssvList:
             sv = runThrough(ssv, sv, overwrite=overwrite)
     except Exception as e:
         logging.error(f'{folder}: {e}')
+        traceback.print_exc()
         return
     cleanSession()
     return    

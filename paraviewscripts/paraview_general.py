@@ -19,7 +19,9 @@ parentdir = os.path.dirname(currentdir)
 sys.path.append(currentdir)
 sys.path.append(parentdir)
 sys.path.append(os.path.join(parentdir, 'py'))  # add python folder
-import folderparser as fp
+#import folderparser as fp
+import py.file.file_handling as fh
+from py.folder_stats import folderStats
 
 # logging
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ def filterSimNums(topfolders:List[str], nlist:List[int]) -> List[str]:
     '''get a list of folders that have sim numbers in the list'''
     folders = []
     for topfolder in topfolders:
-        for f in fp.caseFolders(topfolder):
+        for f in fh.simFolders(topfolder):
             if simNum(os.path.basename(f)) in nlist:
                 folders.append(f)
     return folders
@@ -63,7 +65,7 @@ def extractCorNums(topfolders:List[str], dirs:List[str], nlist:List[str]) -> Uni
     nb = []
     nlist = [simNum(os.path.basename(n)) for n in nlist]
     for topfolder in topfolders:
-        for f in fp.caseFolders(topfolder):
+        for f in fh.simFolders(topfolder):
             if simNum(os.path.basename(f))!=-100 and simNum(os.path.basename(f)) in nlist:
                 geo = os.path.join(f,'geometry.csv')
                 with open(geo, "r") as g:
@@ -93,29 +95,26 @@ class stateVars():
         self.slice = ""
         self.initialized = False
         self.colorBars = []
+        self.fs = folderStats(self.folder)
         
    
     def readVisc(self):
         '''Get viscosity settings from legend. This is necessary for making viscosity maps involving Newtonian fluids.'''
-        # le = fp.importIf(self.folder)
-        le = fp.legendUnique(self.folder)
-        if len(le)==0:
-            return 1
 
-        self.inkmodel = le['ink_transportModel']
+        self.inkmodel = self.fs.ink.transportModel
         if self.inkmodel=='Newtonian':
             self.inkfunc = 'inknu'
-            self.inknu = le['ink_nu']
+            self.inknu = self.fs.ink.kinematic['nu']
         else:
             self.inkfunc = 'nu1'
-            self.inknu = le['ink_nu0']
-        self.supmodel = le['sup_transportModel']
+            self.inknu = self.fs.ink.kinematic['nu0']
+        self.supmodel = self.fs.sup.transportModel
         if self.supmodel=='Newtonian':
             self.supfunc = 'supnu'
-            self.supnu = le['sup_nu']
+            self.supnu = self.fs.sup.kinematic['nu']
         else:
             self.supfunc = 'nu2'
-            self.supnu = le['sup_nu0']
+            self.supnu = self.fs.sup.kinematic['nu0']
         
         return 0   
 
@@ -124,34 +123,35 @@ class stateVars():
             try:
                 HideScalarBarIfNotNeeded(cb, self.renderView1)   
             except Exception as e:
-                logging.error('Error hiding color bar: '+str(e))
+                logging.error(f'Error hiding color bar: {e}')
         hideAll()
+        
+        
+    def stressFunc(self) -> str:
+        '''get the stress function from the legend dictionary'''
+        ink_rho = self.fs.ink.kinematic['rho']
+        sup_rho = self.fs.sup.kinematic['rho']
+        if self.fs.ink.transportModel=='Newtonian':
+            nuink = self.fs.ink.kinematic['nu']
+            if self.fs.sup.transportModel=='Newtonian':
+                nusup = self.fs.sup.kinematic['nu']
+                return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
+            else:
+                return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
+        else:
+            if self.fs.sup.transportModel=='Newtonian':
+                nusup = self.fs.sup.kinematic['nu']
+                return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
+            else:
+                return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
         
 def mksubdirs(folder:str) -> None:
     '''make the images and interfacePoints folders  '''
-    # fp.mkdirif(os.path.join(folder, 'images'))   
-    # fp.mkdirif(os.path.join(folder, 'interfacePoints'))
     os.makedirs(os.path.join(folder, 'images'), exist_ok = True)
     os.makedirs(os.path.join(folder, 'interfacePoints'), exist_ok = True)
     os.makedirs(os.path.join(folder, 'nozzleSlicePoints'), exist_ok = True) # RG
 
-def stressFunc(le:dict) -> str:
-    '''get the stress function from the legend dictionary'''
-    ink_rho = le['ink_rho']
-    sup_rho = le['sup_rho']
-    if le['ink_transportModel']=='Newtonian':
-        nuink = float(le['ink_nu'])
-        if le['sup_transportModel']=='Newtonian':
-            nusup = float(le['sup_nu'])
-            return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
-        else:
-            return f'({ink_rho}*{nuink}*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
-    else:
-        if le['sup_transportModel']=='Newtonian':
-            nusup = float(le['sup_nu'])
-            return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*{nusup}*(1-"alpha.ink"))*ScalarGradient'
-        else:
-            return f'({ink_rho}*nu1*"alpha.ink"+{sup_rho}*nu2*(1-"alpha.ink"))*ScalarGradient'
+
 
 
 ##-----------------------
@@ -175,7 +175,7 @@ def hideAll() -> None:
 def initSeries0(sv:stateVars) -> Any:
     '''import the vtk series file
     this returns the datareader object that refers to the series'''
-    sfile = fp.series(sv.folder)
+    sfile = sv.fs.fh1.series()
     if not os.path.exists(sfile):
         raise NameError('vtm.series file does not exist')
     if 'vtm' in sfile:
@@ -185,7 +185,7 @@ def initSeries0(sv:stateVars) -> Any:
     else:
         bn = os.path.basename(sfile)
         caseVTMSeries = LegacyVTKReader(registrationName=bn, FileNames=[sfile])
-    sv.times = fp.parseVTKSeries(sv.folder) # read times from the VTK.series file
+    sv.times = sv.fs.fh1.parseVTKSeries() # read times from the VTK.series file
     return caseVTMSeries
     
 
@@ -197,8 +197,8 @@ def setTime(time:float, sv:stateVars) -> None:
         sv.timeKeeper1.Time = time
     else:
         if max(sv.times)>0.1*len(sv.times): # this time should be in the list, but it is not
-            fp.redoVTKSeriesNoLog(sv.folder) # remake the VTK.series file
-            sv.times = fp.parseVTKSeries(sv.folder) # read times from the new VTK.series file
+            sv.fs.fh1.redoVTKSeriesNoLog() # remake the VTK.series file
+            sv.times = sv.fs.fh1.parseVTKSeries() # read times from the new VTK.series file
             if time in sv.times:
                 sv.animationScene1.AnimationTime = time
                 sv.timeKeeper1.Time = time
