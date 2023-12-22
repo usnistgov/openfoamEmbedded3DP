@@ -55,7 +55,7 @@ nozTimes = [2.5]
 ## screenshots
 
 getSSs = True
-ss_forceOverwrite=True
+ss_forceOverwrite=False
 # for help, see ssVars in paraview_screenshots
 # first entry is the type of image, second is list of times in s (leave empty to collect all). Optional keywords are described in ssVars
 
@@ -85,7 +85,7 @@ for s in ['uysliceNozx', 'uyslicey', 'uyslicex']:
 #     runList.append(ss.ssVars(s, [1.0, 2.5]))
 #runlist.append(ss.ssVars('meshes', [2.5]))
 #runList.append(ss.ssVars('vectors', [2.5], volViewList=['z']))
-#runList.append(ss.ssVars('tubes', [2.5], tubeh=-0.000, volViewList=['z']))
+runList.append(ss.ssVars('tubes', [2.5], tubeh=-0.000, volViewList=['a']))
 
 #------
 ## line traces

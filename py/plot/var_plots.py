@@ -62,7 +62,8 @@ class varPlots:
                  , insideLabels:bool = True
                  , subLabels:bool = True
                  , legendCols:int=4
-                , makeLegend:bool=True
+                 , makeLegend:bool=True
+                 , makeFrame:bool=True
                 , varlist:List[str] = ['c', 'splitx', 'splity', 'x', 'y', 'm']
                  , **kwargs):
         self.topFolder = topFolder
@@ -78,6 +79,7 @@ class varPlots:
         self.legendCols = legendCols
         self.subLabels = subLabels
         self.makeLegend = makeLegend
+        self.makeFrame = makeFrame
         self.vn = st.varNicknames()
         self.kwargs = kwargs
         self.getFN(**kwargs)
@@ -312,6 +314,13 @@ class varPlots:
     def addGridlines(self):
         '''add gridlines to each plot'''
         self.axIterate(lambda ax:ax.grid(linestyle='-', linewidth='0.25', color='#949494'))
+        
+    def removeFrame(self, ax) -> None:
+        '''remove the outside frame from the axis'''
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
         
     def subFigureLabel(self, ax, label:str) -> None:
         '''add a subfigure label to the top left corner. 

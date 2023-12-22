@@ -262,6 +262,17 @@ def rhePlot(func, *args, **kwargs) -> folderPlots:
                 , makeLegend=False
                , **kwargs)
 
+def orientationPlot(func, *args, **kwargs) -> folderPlots:
+    '''just one image for disturb/print and for in-plane-out-of-plane'''
+    return func(*args
+                , xvar='ink_velocity'
+                , yvar='adjacent_filament_orientation'
+                , spacing_list=[0.875]
+                , ink_transportModel_list=['Newtonian']
+                , sup_transportModel_list=['Newtonian']
+                , **kwargs
+               )
+
 def rhePlotWide(func, *args, **kwargs) -> folderPlots:
     '''varied rheology simulations, where orientations are split into different plots horizontally'''
     return rhePlot(func, *args, splitxvar='adjacent_filament_orientation', **kwargs)

@@ -42,7 +42,7 @@ class picPlot(comboPlot):
         self.topFolder = topFolder
         self.getCrops(tag, **kwargs)   # get the area to crop
         self.getxryr()   # determine shape of plot
-        super().__init__(topFolder, exportFolder=exportFolder, xr=self.xr, yr=self.yr, gridlines=False, insideLabels=False, **kwargs)
+        super().__init__(topFolder, exportFolder=exportFolder, xr=self.xr, yr=self.yr, gridlines=False, insideLabels=False, makeFrame=False, **kwargs)
         self.getFN(titleVars={'time_list':[f'{time:0.1f} s']}, **kwargs)
         if not self.checkOverwrite(export=self.export, overwrite=self.overwrite):
             return
@@ -86,6 +86,9 @@ class picPlot(comboPlot):
                 elif tag.startswith('x'):
                     cropx = 350/1216 # RG
                     cropy = 375/1216
+                elif tag.startswith('a'):
+                    cropx = 300/1216
+                    cropy = 220/1216
                 else:
                     cropx = 100/1216
                     cropy = 120/1216
@@ -173,6 +176,6 @@ class picPlot(comboPlot):
         pos['ax'].imshow(im, extent=[xm-dx/2, xm+dx/2, ym-dy/2, ym+dy/2], aspect='auto')
         self.imdy = dy
         
-        if not self.legendPlotted:
+        if (not self.legendPlotted) and self.makeLegend:
             self.plotLegend(im0, pos['ax'])
         

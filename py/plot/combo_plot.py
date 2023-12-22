@@ -50,11 +50,17 @@ class comboPlot(folderPlots):
                  , yr:List[float]=[-0.5, 0.5]
                  , gridlines:bool=True
                  , titley:float=1.1
+                 , makeXLabels:bool=True
+                 , makeYLabels:bool=True
+                 , makeTitle:bool=True
                  , **kwargs):
+        self.makeXLabels = makeXLabels
+        self.makeYLabels = makeYLabels
+        self.makeTitle = makeTitle
         super().__init__(topFolder, **kwargs)
         self.type="comboPlot"
         self.gridlines = gridlines
-        self.titley = titley
+        self.titley = titley   
         self.setupXY(xr, yr)
         if len(self.xmlist)==0:
             return
@@ -142,7 +148,7 @@ class comboPlot(folderPlots):
             
     def labelAx(self, ax):
         '''add axis labels and tick labels to the plot'''
-        if len(self.xlistreal)>1:
+        if len(self.xlistreal)>1 and self.makeXLabels:
             txt,style = self.getLabel(self.xvar, short=True)
             ax.set_xlabel(txt, **style)
             ax.set_xticks(self.xmlist, minor=False)
@@ -209,7 +215,7 @@ class comboPlot(folderPlots):
         self.subplotTitles()   # add subplot titles
                     
 
-        if len(self.ylistreal)<2: 
+        if len(self.ylistreal)<2 or not self.makeYLabels: 
             # since there is only one variable, remove y information
             self.axIterate(self.removey)
         else:
@@ -222,8 +228,9 @@ class comboPlot(folderPlots):
                 if 'color' in styles[0]:
                     for i, ytick in enumerate(axrow[0].get_yticklabels()):
                         ytick.set_color(styles[i]['color'])
-            
-        self.fig.suptitle(self.fnc.figTitle, y=self.titley, fontname=self.fontName, fontsize=self.fs)
+           
+        if self.makeTitle:
+            self.fig.suptitle(self.fnc.figTitle, y=self.titley, fontname=self.fontName, fontsize=self.fs)
         
         if self.ab:
             # reset the figure size so the title is in the right place
@@ -238,6 +245,9 @@ class comboPlot(folderPlots):
                 self.fig.subplots_adjust(wspace=0, hspace=hspace, top=0.95, bottom=0.05, left=0.05, right=0.99)
                 
         self.subFigureLabels()    # add subfigure labels if requested
+        
+        if not self.makeFrame:
+            self.axIterate(self.removeFrame)
                 
         if self.display:
             display(self.fig)

@@ -421,7 +421,7 @@ def titleCard(folder:str, overwrite:bool=False, diag:bool=True) -> None:
         
         
         
-def convertToFastGif(vid:str, factor:int=1):
+def convertToFastGif(vid:str, factor:int=1, crop:dict={}):
     '''convert the mp4 to a fast gif, reducing frames by a factor of int'''
     video = imageio.get_reader(vid,  'ffmpeg')
     newName = vid.replace('.mp4', '_fast.gif')
@@ -438,6 +438,8 @@ def convertToFastGif(vid:str, factor:int=1):
         if skip==0:
             # Write the frame into the
             # file 'filename.avi'
+            if 'x0' in crop:
+                frame = frame[crop['y0']:crop['yf'], crop['x0']:crop['xf']]
             result.append_data(frame)
             skip = factor
 
