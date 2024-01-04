@@ -10,9 +10,6 @@
     - Georgia Institute of Technology
     - https://github.com/RossGunther
     - ORCID: 0000-0002-6442-5396
-- Jonathan E. Seppala
-    - National Institute of Standards and Technology, MML
-    - ORCID: 0000-0002-5937-8716
 
 ## Contact
 - Leanne Friedrich
@@ -29,6 +26,10 @@ In embedded 3D printing, a nozzle is embedded into a support bath and extrudes f
 - Tools for generating images and tables from the 3D time series.
 - Tools for compiling images into videos.
 - Tools for analyzing, summarizing, and plotting data.
+
+## Disclaimer
+
+Certain equipment, instruments, software, or materials are identified in this code in order to specify the experimental procedure adequately.  Such identification is not intended to imply recommendation or endorsement of any product or service by NIST, nor is it intended to imply that the materials or equipment identified are necessarily the best available for the purpose.
 
 
 ## Change log
@@ -48,7 +49,7 @@ fair use and licensing; see
 https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software
 
 You may cite the use of this code as follows:
-> Friedrich, L.M., Gunther, R.T., & Seppala, J.E. (2023), OpenFOAM simulations of filament shapes in embedded 3D printing, Version 1.2.0, National Institute of Standards and Technology, doi:[10.18434/mds2-3128] (Accessed XXXX-XX-XX)
+> Friedrich, L.M. & Gunther, R.T. (2023), OpenFOAM simulations of filament shapes in embedded 3D printing, Version 1.2.0, National Institute of Standards and Technology, doi:[10.18434/mds2-3128] (Accessed XXXX-XX-XX)
 
 The OpenFOAM input file tools are compatible with OpenFOAM v1912 and OpenFOAM v8. Between the two versions, OpenFOAM did change the syntax on a couple of input variables, so you may need to update the initialize files for future versions of OpenFOAM. Between the two versions, OpenFOAM also modified the way they output paraview files. In v1912, OpenFOAM generated a .vtm file and folder for each time step, and compiled all of the timesteps into a .vtm.series file that could easily be imported into Paraview. In v8, OpenFOAM generates a .vtk file for each time step but does not generate a .series file. file_handling.py has a function generateVTKSeries that generates these .series files, which make it easy to load the whole time series in Paraview.
 
@@ -148,6 +149,9 @@ The files included in this publication use the following hierarchy:
         
     - *noz3dscript.ipynb*    
         Jupyter notebook for generating OpenFOAM input files.
+        
+    - *point_sort.ipynb* 
+        Jupyter notebook for sorting cross-section points into discrete objects
         
     - *videoCombine.ipynb*    
         Jupyter notebook for combining all of the time series for all simulations into one big video.

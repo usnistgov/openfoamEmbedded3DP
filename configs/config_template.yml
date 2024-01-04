@@ -3,13 +3,13 @@
 path:
     logs: "logs"
     log_config: "configs/logging.yml"
-    c: "C:/myfolder/myopenfoamfolder"
-    e: "E:/afolder/afolder/mykingdomforafolder"
-    server: "//server.location/myfolder/myfolder"
+    c: "C:/myfolder/openFoamInputFiles"
+    e: "E:/anotherLocalFolder"
+    server: "//server.location/myfolder/simulationsStoredHere"
     fig: "C:/myfolder/storeFiguresHere"
-    slurmFolder: '/working/myusername'
+    slurmFolder: '/working/myusername'        # folder on the cluster where simulations are run
     legend_units: "myfolder/legend_units.csv"
 timing:
-    abort1: 120
-    abort2: 60
+    abort1: 120       # abort at 1 second if the simulation rate exceeds 120 hours per simulation second
+    abort2: 60        # abort at 2 seconds if the simulation rate exceeds 60 hours per simulation second
     
