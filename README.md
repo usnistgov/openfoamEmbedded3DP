@@ -164,9 +164,6 @@ The files included in this publication use the following hierarchy:
 
     - *paraview_screenshots.py*  
         Functions for generating images of filaments from vtk files.
-        
-    - *sim_metrics.py* (no longer compatible)  
-        Functions for measuring cross-sections in paraview.
 
 - **py/**  
     python tools for generating and analyzing OpenFOAM files. These are written for python3.
