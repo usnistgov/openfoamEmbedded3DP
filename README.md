@@ -125,27 +125,9 @@ The files included in this publication use the following hierarchy:
     - *logging.yml*  
         set up log generation
         
-- **jupyter_notebooks/**  
-    - *convergence.ipynb* (no longer compatible)   
-         Jupyter notebook for tracking convergence over the solve. 
-    
-    - *interfacemetrics_adjacent_vicsweep.ipynb* (no longer compatible)  
-        Jupyter notebook for analyzing preliminary results for the adjacent filament dataset (Friedrich, L.M., & Gunther, R.T. (2023) Simulated inter-filament fusion in embedded 3D printing, submitted for publication.)   
-    
-    - *interfacemetrics_conicalNozzle.ipynb* (no longer compatible)  
-        Jupyter notebook for analyzing OpenFOAM simulation data, for the stress mitigation dataset (Friedrich, L.M., Gunther, R.T. & Seppala, J.E. (2022) Simulated stress mitigation strategies in embedded 3D bioprinting, Physics of Fluids)
-        
+- **jupyter_notebooks/**          
     - *interfacemetrics_fusion.ipynb*  
         Jupyter notebook for analyzing results for the adjacent filament dataset (Friedrich, L.M., & Gunther, R.T. (2023) Simulated inter-filament fusion in embedded 3D printing, submitted for publication.)
-        
-    - *interfacemetrics_LapRD.ipynb* (no longer compatible)  
-        Jupyter notebook for analyzing OpenFOAM simulation data, for the dataset that investigates models fitted to Laponite gels (unpublished)
-
-    - *interfacemetrics_viscsweep.ipynb*  (no longer compatible)   
-        Jupyter notebook for analyzing OpenFOAM simulation data, for the viscosity sweep dataset (Friedrich, L.M., & Seppala, J.E. (2021) Simulated filament shapes in embedded 3D printing, Soft Matter, doi: 10.1039/D1SM00731A)
-        
-    - *interfacemetrics_yielding.ipynb*  (no longer compatible)  
-        Jupyter notebook for analyzing OpenFOAM simulation data, for the dataset that investigates yielded behaviors (unpublished)
         
     - *noz3dscript.ipynb*    
         Jupyter notebook for generating OpenFOAM input files.
